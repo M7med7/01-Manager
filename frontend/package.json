@@ -11,14 +11,13 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@hello-pangea/dnd": "^18.0.1",
     "@supabase/supabase-js": "^2.105.3",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "^0.487.0",
+    "motion": "^12.23.24",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
-    "react-xarrows": "^2.0.2",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

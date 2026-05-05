@@ -1,18 +1,47 @@
 @import "tailwindcss";
 
-@theme {
-  --color-planner-bg: #09090b;
-  --color-planner-card: #18181b;
-  --color-planner-text: #fafafa;
-  --color-planner-subtext: #a1a1aa;
-  --color-planner-border: #27272a;
-  --color-planner-primary: #3b82f6;
-  --color-planner-hover: #27272a;
-}
-
 @layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
   body {
-    @apply bg-planner-bg text-planner-text antialiased;
+    background: #000;
+    color: #fff;
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
+/* ZeroOne Manager Custom Animations */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+  50%       { box-shadow: 0 0 30px rgba(139, 92, 246, 0.6); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+.animate-float      { animation: float 3s ease-in-out infinite; }
+.animate-shimmer    { animation: shimmer 3s linear infinite; }
+
+/* Scrollbar */
+::-webkit-scrollbar       { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
