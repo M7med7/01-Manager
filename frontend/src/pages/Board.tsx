@@ -1,135 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { supabase } from '../lib/supabase';
-import { MoreHorizontal, Plus, ChevronDown, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight, Search, Plus } from 'lucide-react';
 import { TaskModal } from '../components/TaskModal';
 
-const INITIAL_COLUMNS = {
-  'Infrastructure & DevOps': [
-    { id: '1', title: 'Database Schema Design', estimated_days: 2, assigned_tech: ['PostgreSQL', 'Supabase'], assigned_to: 'user1' },
-    { id: '2', title: 'API Backend Setup', estimated_days: 3, assigned_tech: ['Node.js', 'Express'], assigned_to: 'user2' }
-  ],
-  'Bots & Automations': [],
-  'Website / Apps': [
-    { id: '3', title: 'Hemaa Web Site Prototype', estimated_days: 2, assigned_tech: ['Figma'], assigned_to: 'user1' }
-  ],
-  'Data & AI': []
-};
+// Mock tasks that span dates
+const MOCK_TASKS = [
+  { id: '1', title: 'Database Schema', start: 5, end: 7, color: 'bg-red-500' },
+  { id: '2', title: 'API Backend Setup', start: 10, end: 12, color: 'bg-blue-500' },
+  { id: '3', title: 'Frontend Foundation', start: 18, end: 20, color: 'bg-green-500' },
+  { id: '4', title: 'UI Implementation (Board)', start: 24, end: 27, color: 'bg-purple-600' }
+];
 
 export const Board = () => {
-  const [columns, setColumns] = useState<Record<string, any[]>>(INITIAL_COLUMNS);
   const [selectedTask, setSelectedTask] = useState<any>(null);
 
-  useEffect(() => {
-    // Fetch mock/real tasks (implement later)
-  }, []);
+  // Generate calendar days for May 2026 (starts on Friday)
+  const daysInMonth = 31;
+  const firstDayOfMonth = 5; // Friday (0=Sun, 1=Mon... 5=Fri)
+  
+  const calendarCells = [];
+  
+  // Empty cells for previous month
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    calendarCells.push({ day: 26 + i, isCurrentMonth: false });
+  }
+  
+  // Current month days
+  for (let i = 1; i <= daysInMonth; i++) {
+    calendarCells.push({ day: i, isCurrentMonth: true });
+  }
 
-  const onDragEnd = (result: any) => {
-    if (!result.destination) return;
-
-    const { source, destination } = result;
-
-    if (source.droppableId !== destination.droppableId) {
-      const sourceCol = [...columns[source.droppableId]];
-      const destCol = [...columns[destination.droppableId]];
-      const [removed] = sourceCol.splice(source.index, 1);
-      
-      removed.status = destination.droppableId; // update status locally
-      destCol.splice(destination.index, 0, removed);
-      
-      setColumns({
-        ...columns,
-        [source.droppableId]: sourceCol,
-        [destination.droppableId]: destCol
-      });
-
-      // TODO: Update Supabase with new status
-    } else {
-      const col = [...columns[source.droppableId]];
-      const [removed] = col.splice(source.index, 1);
-      col.splice(destination.index, 0, removed);
-      setColumns({ ...columns, [source.droppableId]: col });
-    }
-  };
+  // Fill remaining cells for a 5-row grid (35 cells)
+  while (calendarCells.length < 35) {
+    calendarCells.push({ day: calendarCells.length - 30, isCurrentMonth: false });
+  }
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="mb-6 flex justify-between items-center bg-[#1e1e1e]/80 backdrop-blur border border-[#2d2d2d] rounded-xl p-4 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white font-bold">AI</div>
-          <h2 className="text-xl font-semibold text-white">AI Club Tech Department</h2>
+    <div className="h-full flex flex-col bg-[#111111] text-gray-200 rounded-xl overflow-hidden border border-[#2d2d2d] shadow-2xl">
+      {/* Calendar Header */}
+      <div className="flex justify-between items-center p-4 border-b border-[#2d2d2d]">
+        <div className="flex items-center gap-4">
+          <div className="flex space-x-2">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          </div>
+          <div className="flex space-x-2">
+            <button className="p-1 text-gray-400 hover:text-white rounded bg-[#1e1e1e] border border-[#3d3d3d]"><ChevronLeft size={16} /></button>
+            <button className="p-1 text-gray-400 hover:text-white rounded bg-[#1e1e1e] border border-[#3d3d3d]"><ChevronRight size={16} /></button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button className="bg-planner-primary text-white px-4 py-2 rounded shadow hover:bg-blue-700 text-sm font-semibold">
-            Generate AI Schedule
+
+        <div className="flex bg-[#1e1e1e] rounded-full p-1 border border-[#3d3d3d]">
+          <button className="px-4 py-1 text-sm rounded-full text-gray-400 hover:text-white transition-colors">Day</button>
+          <button className="px-4 py-1 text-sm rounded-full text-gray-400 hover:text-white transition-colors">Week</button>
+          <button className="px-4 py-1 text-sm rounded-full bg-[#333333] text-white shadow-sm">Month</button>
+          <button className="px-4 py-1 text-sm rounded-full text-gray-400 hover:text-white transition-colors">Year</button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button className="p-2 text-gray-400 hover:text-white rounded-full bg-[#1e1e1e] border border-[#3d3d3d]">
+            <Search size={16} />
+          </button>
+          <button className="p-2 text-white rounded-full bg-planner-primary hover:bg-blue-600 border border-blue-500">
+            <Plus size={16} />
           </button>
         </div>
-      </header>
+      </div>
 
-      <div className="flex-1 overflow-x-auto custom-scrollbar">
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-6 items-start h-full pb-4">
-            {Object.entries(columns).map(([colId, tasks]) => (
-              <div key={colId} className="flex flex-col w-[320px] shrink-0">
-                <div className="flex items-center justify-between mb-3 px-1 text-white">
-                  <h3 className="font-semibold text-[15px]">{colId}</h3>
-                  <button className="text-gray-400 hover:text-white">
-                    <MoreHorizontal size={18} />
-                  </button>
-                </div>
-                
-                <button className="w-full flex items-center gap-2 text-gray-400 bg-[#252525] hover:bg-[#2d2d2d] border border-[#3d3d3d] p-3 rounded-lg mb-3 transition-colors text-sm">
-                  <Plus size={16} /> Add task
-                </button>
+      <div className="flex justify-between items-center px-6 py-4">
+        <h1 className="text-4xl font-bold text-white tracking-tight">May <span className="font-light text-gray-400">2026</span></h1>
+        <div className="flex items-center gap-2">
+          <button className="p-1 rounded hover:bg-[#222]"><ChevronLeft size={20} /></button>
+          <button className="px-4 py-1.5 text-sm bg-[#222] rounded-full font-medium hover:bg-[#333] transition-colors border border-[#3d3d3d]">Today</button>
+          <button className="p-1 rounded hover:bg-[#222]"><ChevronRight size={20} /></button>
+        </div>
+      </div>
 
-                <Droppable droppableId={colId}>
-                  {(provided, snapshot) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className={`flex-1 min-h-[200px] rounded-lg transition-colors ${
-                        snapshot.isDraggingOver ? 'bg-white/5' : 'bg-transparent'
-                      }`}
-                    >
-                      {tasks.map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              onClick={() => setSelectedTask(task)}
-                              className={`mb-3 bg-[#1e1e1e] p-4 rounded-xl shadow-md border border-[#3d3d3d] cursor-pointer hover:border-[#4d4d4d] hover:bg-[#222222] transition-colors group
-                                ${snapshot.isDragging ? 'shadow-2xl ring-2 ring-planner-primary z-50' : ''}
-                              `}
-                            >
-                              <div className="flex gap-2 mb-2">
-                                <CheckCircle2 size={16} className="text-gray-500 group-hover:text-planner-primary transition-colors mt-0.5 shrink-0" />
-                                <p className="text-[15px] font-semibold text-gray-200 leading-snug">{task.title}</p>
-                              </div>
-                              <p className="text-xs text-gray-400 line-clamp-2 ml-6 mb-3">
-                                {task.description || "Click to view task details and comments"}
-                              </p>
-                              <div className="flex justify-between items-center ml-6 text-xs text-gray-500">
-                                <span>{task.estimated_days} days</span>
-                                {task.assigned_to && (
-                                  <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold shadow">
-                                    {task.assigned_to === 'user1' ? 'AS' : 'MA'}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-            ))}
+      {/* Days of week */}
+      <div className="grid grid-cols-7 border-b border-[#2d2d2d]">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="py-2 text-center text-sm font-medium text-gray-400">
+            {day}
           </div>
-        </DragDropContext>
+        ))}
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="flex-1 grid grid-cols-7 grid-rows-5 bg-[#181818]">
+        {calendarCells.map((cell, i) => {
+          // Find tasks that fall on this day
+          const dayTasks = cell.isCurrentMonth ? MOCK_TASKS.filter(t => cell.day >= t.start && cell.day <= t.end) : [];
+          
+          return (
+            <div key={i} className={`border-r border-b border-[#2d2d2d] relative p-1 transition-colors hover:bg-[#222] ${!cell.isCurrentMonth ? 'bg-[#111]' : ''}`}>
+              <div className={`text-right text-sm p-1 ${!cell.isCurrentMonth ? 'text-[#333]' : 'text-gray-300'} ${cell.day === 5 && cell.isCurrentMonth ? 'text-white' : ''}`}>
+                <span className={cell.day === 5 && cell.isCurrentMonth ? 'bg-red-500 rounded-full w-6 h-6 inline-flex items-center justify-center font-bold shadow-md shadow-red-500/30' : ''}>
+                  {cell.day}
+                  {(i === 5 || i === 31) && cell.isCurrentMonth ? (i === 5 ? ' May' : ' Jun') : ''}
+                </span>
+              </div>
+              
+              <div className="mt-1 space-y-1">
+                {dayTasks.map(task => {
+                  const isStart = cell.day === task.start;
+                  const isEnd = cell.day === task.end;
+                  
+                  return (
+                    <div 
+                      key={task.id}
+                      onClick={() => setSelectedTask(task)}
+                      className={`h-5 flex items-center px-2 cursor-pointer transition-transform hover:scale-[1.02] hover:z-10 relative
+                        ${task.color} ${isStart ? 'rounded-l-md ml-1' : ''} ${isEnd ? 'rounded-r-md mr-1' : ''}
+                        ${!isStart && !isEnd ? 'opacity-80' : 'opacity-100 shadow-sm'}
+                      `}
+                    >
+                      <span className="text-[10px] font-bold text-white truncate drop-shadow-md">
+                        {isStart ? task.title : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {selectedTask && (
