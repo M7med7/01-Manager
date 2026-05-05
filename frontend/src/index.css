@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-planner-bg: #09090b;
+  --color-planner-card: #18181b;
+  --color-planner-text: #fafafa;
+  --color-planner-subtext: #a1a1aa;
+  --color-planner-border: #27272a;
+  --color-planner-primary: #3b82f6;
+  --color-planner-hover: #27272a;
+}
+
+@layer base {
+  body {
+    @apply bg-planner-bg text-planner-text antialiased;
+  }
+}
+
