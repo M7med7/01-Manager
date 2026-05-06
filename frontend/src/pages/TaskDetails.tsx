@@ -206,34 +206,30 @@ export function TaskDetails() {
       </div>
 
       {/* Right Panel — AI Assistant */}
-      <div className="w-[520px] bg-gradient-to-br from-purple-900/30 to-black/30 backdrop-blur-2xl border-2 border-purple-500/50 rounded-3xl flex flex-col overflow-hidden shadow-2xl shadow-purple-500/30 relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent animate-pulse" />
+      <div className="w-[440px] bg-gradient-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent" />
 
-        <div className="p-8 border-b border-purple-500/50 bg-gradient-to-r from-purple-600/20 to-black/20 relative z-10">
-          <div className="flex items-center gap-4 mb-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-              className="p-3 bg-gradient-to-br from-purple-600 to-purple-900 rounded-2xl shadow-xl shadow-purple-500/50"
-            >
-              <Sparkles className="w-7 h-7 text-white" />
-            </motion.div>
-            <h3 className="text-3xl font-semibold bg-gradient-to-r from-purple-300 to-white bg-clip-text text-transparent">
+        <div className="p-5 border-b border-purple-500/30 bg-gradient-to-r from-purple-600/12 to-black/20 relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-purple-900 shadow-lg shadow-purple-500/25">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="text-2xl font-semibold bg-gradient-to-r from-purple-300 to-white bg-clip-text text-transparent">
               AI Assistant
             </h3>
           </div>
-          <p className="text-base text-gray-300">Intelligent guidance for your project</p>
+          <p className="text-sm text-gray-400">Intelligent guidance for your project</p>
         </div>
 
-        <div className="p-8 space-y-4 border-b border-purple-500/30 relative z-10">
-          <h4 className="text-base text-gray-300 font-semibold mb-4">AI Recommendations:</h4>
+        <div className="p-5 space-y-3 border-b border-purple-500/20 relative z-10">
+          <h4 className="text-sm text-gray-300 font-semibold">AI Recommendations</h4>
           {AI_SUGGESTIONS.map((suggestion, index) => (
             <motion.button
               key={index}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.03, y: -2 }}
+              whileHover={{ y: -1 }}
               onClick={() =>
                 setChatMessages((prev) => [
                   ...prev,
@@ -241,19 +237,19 @@ export function TaskDetails() {
                   { role: "ai", content: suggestion.content },
                 ])
               }
-              className="w-full text-left p-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-purple-500/30 rounded-2xl hover:border-purple-400/60 hover:shadow-xl hover:shadow-purple-500/20 transition-all duration-300 group"
+              className="w-full text-left p-4 bg-white/[0.04] border border-purple-500/25 rounded-xl hover:border-purple-400/50 hover:bg-purple-500/10 transition-all duration-300 group"
             >
-              <div className="text-base mb-2 text-purple-300 group-hover:text-purple-200 font-semibold">
+              <div className="text-sm mb-1.5 text-purple-300 group-hover:text-purple-200 font-semibold">
                 {suggestion.title}
               </div>
-              <pre className="text-sm text-gray-400 whitespace-pre-wrap overflow-hidden max-h-16 leading-relaxed">
-                {suggestion.content.substring(0, 100)}...
-              </pre>
+              <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
+                {suggestion.content.replace(/\n/g, " ").substring(0, 120)}...
+              </p>
             </motion.button>
           ))}
         </div>
 
-        <div className="flex-1 p-8 overflow-y-auto space-y-5 relative z-10">
+        <div className="min-h-0 flex-1 p-5 overflow-y-auto space-y-4 relative z-10">
           {chatMessages.map((msg, index) => (
             <motion.div
               key={index}
@@ -262,13 +258,13 @@ export function TaskDetails() {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[85%] p-5 rounded-2xl text-base ${
+                className={`max-w-[88%] p-4 rounded-xl text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-gradient-to-br from-purple-600 to-purple-900 shadow-lg shadow-purple-500/30 text-white"
-                    : "bg-gradient-to-br from-purple-600/60 to-pink-600/60 shadow-lg shadow-purple-500/20 text-white"
+                    ? "bg-gradient-to-br from-purple-600 to-purple-900 shadow-lg shadow-purple-500/25 text-white"
+                    : "bg-white/[0.07] border border-white/10 text-gray-100"
                 }`}
               >
-                <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
+                <pre className="whitespace-pre-wrap font-sans leading-relaxed">{msg.content}</pre>
               </div>
             </motion.div>
           ))}
@@ -291,7 +287,7 @@ export function TaskDetails() {
           <div ref={chatEndRef} />
         </div>
 
-        <div className="p-6 border-t-2 border-purple-500/50 bg-black/30 relative z-10">
+        <div className="p-5 border-t border-purple-500/30 bg-black/45 relative z-10">
           <div className="flex items-center gap-3">
             <input
               type="text"
@@ -299,16 +295,16 @@ export function TaskDetails() {
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
               placeholder="Ask the AI about this project..."
-              className="flex-1 px-6 py-4 bg-white/10 border-2 border-purple-500/40 rounded-2xl focus:outline-none focus:border-purple-400/70 text-white placeholder-gray-400 transition-all duration-300 text-base"
+              className="min-w-0 flex-1 px-4 py-3 bg-white/[0.07] border border-purple-500/35 rounded-xl focus:outline-none focus:border-purple-400/70 text-white placeholder-gray-500 transition-all duration-300 text-sm"
             />
             <motion.button
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleSendMessage}
               disabled={isSending}
-              className="p-4 bg-gradient-to-r from-purple-600 to-purple-900 rounded-2xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 disabled:opacity-50"
+              className="h-12 w-12 shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-600 to-purple-900 rounded-xl hover:shadow-lg hover:shadow-purple-500/40 transition-all duration-300 disabled:opacity-50"
             >
-              <Send className="w-6 h-6" />
+              <Send className="w-5 h-5" />
             </motion.button>
           </div>
         </div>
