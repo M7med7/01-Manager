@@ -27,7 +27,7 @@ export function Layout() {
             }
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-purple-900 to-black rounded-lg"
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
               initial={{ opacity: 0, scale: 0.95 }}
               whileHover={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
@@ -45,7 +45,7 @@ export function Layout() {
             }
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-purple-900 to-black rounded-lg"
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
               initial={{ opacity: 0, scale: 0.95 }}
               whileHover={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
@@ -63,7 +63,7 @@ export function Layout() {
             }
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-purple-900 to-black rounded-lg"
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
               initial={{ opacity: 0, scale: 0.95 }}
               whileHover={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
@@ -81,7 +81,7 @@ export function Layout() {
             }
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-purple-900 to-black rounded-lg"
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
               initial={{ opacity: 0, scale: 0.95 }}
               whileHover={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
@@ -92,9 +92,13 @@ export function Layout() {
         </nav>
       </aside>
 
-      <div className={`flex-1 flex flex-col relative z-20 ${isAIActive ? "bg-black/75 backdrop-blur-md" : "bg-black/10"}`}>
-        <header className="h-14 border-b border-white/10 flex items-center justify-center">
-          <h1 className="text-lg font-light tracking-wider">01-Manager</h1>
+      <div className={`flex-1 flex flex-col relative z-20 ${isAIActive ? "bg-black/78 backdrop-blur-md" : "bg-black/10"}`}>
+        <header className="h-14 border-b border-white/10 bg-black/35 backdrop-blur-sm flex items-center justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-1.5 shadow-[0_0_24px_rgba(126,34,206,0.12)]">
+            <span className="text-[11px] font-semibold text-purple-300">01</span>
+            <span className="h-3 w-px bg-white/15" />
+            <h1 className="text-sm font-medium text-gray-200">Manager</h1>
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto">

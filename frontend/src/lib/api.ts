@@ -36,15 +36,28 @@ export interface User {
 const BASE_URL = 'http://localhost:5001/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`API error ${res.status}: ${body}`);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`API error ${res.status}: ${body}`);
+    }
+    return res.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('API request timed out', { cause: error });
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return res.json();
 }
 
 export const api = {

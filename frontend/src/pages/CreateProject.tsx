@@ -33,24 +33,22 @@ export function CreateProject() {
   };
 
   return (
-    <div className="p-12 h-full flex items-center justify-center">
+    <div className="min-h-full px-12 py-10 flex justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-3xl"
       >
-        <div className="text-center mb-14">
-          <motion.div
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="inline-flex items-center justify-center mb-6 p-5 bg-gradient-to-br from-purple-600 to-purple-900 rounded-3xl shadow-2xl shadow-purple-500/50"
-          >
-            <Sparkles className="w-14 h-14 text-white" />
-          </motion.div>
-          <h2 className="text-6xl mb-4 bg-gradient-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
-            Create New Project
-          </h2>
-          <p className="text-gray-400 text-xl">AI-powered execution plan generation</p>
+        <div className="mb-12 flex items-center justify-between gap-6">
+          <div>
+            <h2 className="text-5xl mb-3 bg-gradient-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
+              Create New Project
+            </h2>
+            <p className="text-gray-400 text-xl">AI-powered execution plan generation</p>
+          </div>
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-purple-400/30 bg-purple-900/30 shadow-lg shadow-purple-500/20">
+            <Sparkles className="w-7 h-7 text-purple-200" />
+          </div>
         </div>
 
         {error && (

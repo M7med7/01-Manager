@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
+import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { generateSchedule } from '../services/aiManager';
 
 const router = Router();
@@ -21,40 +23,53 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json({ error: 'name and description are required' });
     }
 
-    // Create project in DB
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .insert({ name, description, created_by: null })
-      .select()
-      .single();
-
-    if (projectError) throw projectError;
-
-    // Generate AI schedule
+    const projectId = uuidv4();
     const headcountNum = parseInt(headcount) || 1;
     const schedule = await generateSchedule({
-      projectId: project.id,
+      projectId,
       projectName: name,
       description,
       teamMembers: Array.from({ length: headcountNum }, (_, i) => ({ user_id: `user${i + 1}` })),
     });
 
-    // Save generated tasks to DB (assigned_to is null since user IDs are mock)
-    if (schedule.tasks.length > 0) {
-      const tasksToInsert = schedule.tasks.map((task) => ({
-        project_id: project.id,
-        title: task.title,
-        description: task.description,
-        status: 'To Do',
-        estimated_days: task.estimated_days,
-        assigned_tech: task.assigned_tech,
-        assigned_to: null,
-      }));
-      await supabase.from('tasks').insert(tasksToInsert);
+    const projectTable = supabase.from('projects') as any;
+    let project = { id: projectId, name, description };
+
+    if (projectTable && typeof projectTable.insert === 'function') {
+      const { data, error: projectError } = await withTimeout<{ data: any; error: any }>(
+        projectTable
+          .insert({ id: projectId, name, description, created_by: null })
+          .select()
+          .single()
+      );
+
+      if (projectError) throw projectError;
+      project = data ?? project;
+
+      if (schedule.tasks.length > 0) {
+        const tasksToInsert = schedule.tasks.map((task) => ({
+          project_id: project.id,
+          title: task.title,
+          description: task.description,
+          status: 'To Do',
+          estimated_days: task.estimated_days,
+          assigned_tech: task.assigned_tech,
+          assigned_to: null,
+        }));
+        await withTimeout(supabase.from('tasks').insert(tasksToInsert));
+      }
     }
 
-    res.json({ success: true, project_id: project.id });
+    res.json({ success: true, project_id: project.id, schedule });
   } catch (error: any) {
+    if (isConnectivityError(error)) {
+      return res.json({
+        success: true,
+        project_id: uuidv4(),
+        offline: true,
+        message: 'Generated in demo mode because Supabase is not reachable.',
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });

@@ -25,7 +25,8 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
 
     const RINGS = 14;
     const SPOKES = 24;
-    const SPEED = 0.012;
+    const SPEED = 0.0017;
+    const LINE_COLOR = "148,163,184";
 
     function draw() {
       if (!canvas || !ctx) return;
@@ -42,9 +43,9 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
       const maxW = W * 0.75;
       const maxH = H * 0.75;
 
-      const spokeAlpha = isAIActive ? 0.35 : 0.22;
-      ctx.strokeStyle = `rgba(255,255,255,${spokeAlpha})`;
-      ctx.lineWidth = 1;
+      const spokeAlpha = isAIActive ? 0.12 : 0.09;
+      ctx.strokeStyle = `rgba(${LINE_COLOR},${spokeAlpha})`;
+      ctx.lineWidth = 0.8;
       for (let i = 0; i < SPOKES; i++) {
         const angle = (i / SPOKES) * Math.PI * 2;
         const dx = Math.cos(angle);
@@ -62,9 +63,9 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
         const rw = maxW * t;
         const rh = maxH * t;
         const fade = Math.min(1, raw * 1.2);
-        const alpha = isAIActive ? 0.25 + fade * 0.7 : 0.18 + fade * 0.55;
-        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-        ctx.lineWidth = 1 + t * 1.4;
+        const alpha = isAIActive ? 0.08 + fade * 0.22 : 0.06 + fade * 0.16;
+        ctx.strokeStyle = `rgba(${LINE_COLOR},${alpha.toFixed(3)})`;
+        ctx.lineWidth = 0.75 + t * 0.75;
         ctx.strokeRect(cx - rw, cy - rh, rw * 2, rh * 2);
       }
 
