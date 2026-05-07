@@ -30,6 +30,16 @@ export interface GeneratedSchedule {
 }
 
 const modelName = process.env.AI_MODEL ?? 'gemini-2.5-flash';
+const GEMINI_TIMEOUT_MS = 80_000;
+
+function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini timed out after 80s')), GEMINI_TIMEOUT_MS)
+    ),
+  ]);
+}
 
 function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
@@ -119,21 +129,26 @@ export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedS
     return fallbackSchedule(req);
   }
 
+  const t0 = Date.now();
+  console.log(`[AI] generateSchedule start — model=${modelName} project="${req.projectName}"`);
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent(buildSchedulePrompt(req));
-    const text = result.response.text().trim();
+    const result = await withGeminiTimeout(model.generateContent(buildSchedulePrompt(req)));
+    console.log(`[AI] generateSchedule Gemini responded in ${Date.now() - t0}ms`);
 
+    const text = result.response.text().trim();
     const jsonStart = text.indexOf('{');
     const jsonEnd = text.lastIndexOf('}');
     if (jsonStart === -1 || jsonEnd === -1) throw new Error('No JSON object in Gemini response');
 
     const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as GeneratedSchedule;
     if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) throw new Error('Empty tasks array');
+    console.log(`[AI] generateSchedule parsed ${parsed.tasks.length} tasks in ${Date.now() - t0}ms total`);
     return parsed;
   } catch (err) {
-    console.error('Gemini generateSchedule failed, using fallback:', err);
+    console.error(`[AI] generateSchedule failed after ${Date.now() - t0}ms, using fallback:`, err);
     return fallbackSchedule(req);
   }
 }
@@ -145,13 +160,17 @@ export async function generateChatResponse(message: string, projectContext?: str
     return 'AI assistant is not configured. Please set GEMINI_API_KEY on the server.';
   }
 
+  const t0 = Date.now();
+  console.log('[AI] generateChatResponse start');
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent(buildChatPrompt(message, projectContext));
+    const result = await withGeminiTimeout(model.generateContent(buildChatPrompt(message, projectContext)));
+    console.log(`[AI] generateChatResponse done in ${Date.now() - t0}ms`);
     return result.response.text().trim();
   } catch (err) {
-    console.error('Gemini generateChatResponse failed:', err);
+    console.error(`[AI] generateChatResponse failed after ${Date.now() - t0}ms:`, err);
     return 'I had trouble connecting to the AI service. Please try again.';
   }
 }

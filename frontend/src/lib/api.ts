@@ -44,9 +44,9 @@ export interface ProjectMember {
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(path: string, options?: RequestInit, timeoutMs = 6_000): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 6000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -102,7 +102,7 @@ export const api = {
       request<{ success: boolean; project_id: string }>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),
-      }),
+      }, 120_000),
     chat: (data: { message: string; context?: string }) =>
       request<{ response: string }>('/ai/chat', {
         method: 'POST',

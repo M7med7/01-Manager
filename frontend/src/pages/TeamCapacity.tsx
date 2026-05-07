@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, AlertTriangle, CheckCircle2, Plus, Trash2, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { readLocalTeamMembers, saveLocalTeamMember, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
+import { useAuth } from "../contexts/AuthContext";
 
 const GRADIENTS = [
   "from-purple-600 to-purple-800",
@@ -134,6 +135,8 @@ function ConfirmDeleteModal({
 }
 
 export function TeamCapacity() {
+  const { session } = useAuth();
+  const currentUserId = session?.user.id;
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -296,17 +299,19 @@ export function TeamCapacity() {
                 : "border-white/20 hover:border-white/30 shadow-xl"
             }`}
           >
-            {/* Delete button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmId(member.id);
-              }}
-              className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
-              aria-label={`Remove ${member.name}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {/* Delete button — hidden for the signed-in user (match by ID or email) */}
+            {member.id !== currentUserId && member.role !== session?.user.email && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmId(member.id);
+                }}
+                className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
+                aria-label={`Remove ${member.name}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
 
             <div className="flex items-center gap-5 mb-8">
               <div

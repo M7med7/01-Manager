@@ -10,8 +10,22 @@ dotenv.config();
 
 const app = express();
 
-const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173';
-app.use(cors({ origin: allowedOrigin }));
+const allowedOrigins = (process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] blocked origin: ${origin}`);
+        callback(new Error(`CORS: origin "${origin}" not allowed`));
+      }
+    },
+  })
+);
 app.use(express.json());
 
 app.use('/api/projects', projectRoutes);

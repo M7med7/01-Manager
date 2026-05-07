@@ -8,12 +8,15 @@ const router = Router();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 router.post('/generate', async (req, res) => {
+  const t0 = Date.now();
   try {
     const { name, description, headcount, team_members } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ error: 'name and description are required' });
     }
+
+    console.log(`[AI] /generate received — name="${name}"`);
 
     const projectId = uuidv4();
     const headcountNum = parseInt(headcount) || 1;
@@ -73,8 +76,10 @@ router.post('/generate', async (req, res) => {
       }
     }
 
+    console.log(`[AI] /generate complete in ${Date.now() - t0}ms`);
     res.json({ success: true, project_id: project.id, schedule });
   } catch (error: any) {
+    console.error(`[AI] /generate error after ${Date.now() - t0}ms:`, error.message);
     if (isConnectivityError(error)) {
       return res.json({
         success: true,
@@ -94,8 +99,13 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
-  const response = await generateChatResponse(message as string, context as string | undefined);
-  res.json({ response });
+  try {
+    const response = await generateChatResponse(message as string, context as string | undefined);
+    res.json({ response });
+  } catch (err: any) {
+    console.error('[AI] /chat error:', err.message);
+    res.status(500).json({ response: 'AI service error. Please try again.' });
+  }
 });
 
 export default router;
