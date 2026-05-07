@@ -10,7 +10,7 @@ export function Layout() {
   const isAIActive = location.pathname.includes("task") || location.pathname.includes("create");
 
   return (
-    <div className="w-full h-full flex flex-col bg-black text-white relative">
+    <div className="w-full h-dvh flex flex-col bg-black text-white relative overflow-hidden">
       <GridBackground isAIActive={isAIActive} />
 
       {/* Full-viewport-width header — logo is truly centered */}
@@ -18,7 +18,7 @@ export function Layout() {
         <img src={logoUrl} alt="01 Manager" className="h-40 w-auto object-contain pointer-events-none" />
       </header>
 
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
       <aside className="w-64 bg-black/60 border-r border-white/10 flex flex-col relative z-20">
         <div className="px-6 py-6 border-b border-white/10">
           <Logo />
@@ -100,8 +100,8 @@ export function Layout() {
         </nav>
       </aside>
 
-      <div className={`flex-1 flex flex-col relative z-20 ${isAIActive ? "bg-black/78 backdrop-blur-md" : "bg-black/10"}`}>
-        <main className="flex-1 overflow-auto">
+      <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "bg-black/78 backdrop-blur-md" : "bg-black/10"}`}>
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <Outlet />
         </main>
       </div>
