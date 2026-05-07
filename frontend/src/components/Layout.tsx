@@ -3,6 +3,7 @@ import { Calendar, Users, FolderOpen, Plus } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion } from "motion/react";
+import logoUrl from "../assets/brand/01-logo-no-text-no-background.png";
 
 export function Layout() {
   const location = useLocation();
@@ -94,11 +95,7 @@ export function Layout() {
 
       <div className={`flex-1 flex flex-col relative z-20 ${isAIActive ? "bg-black/78 backdrop-blur-md" : "bg-black/10"}`}>
         <header className="h-14 border-b border-white/10 bg-black/35 backdrop-blur-sm flex items-center justify-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-1.5 shadow-[0_0_24px_rgba(126,34,206,0.12)]">
-            <span className="text-[11px] font-semibold text-purple-300">01</span>
-            <span className="h-3 w-px bg-white/15" />
-            <h1 className="text-sm font-medium text-gray-200">Manager</h1>
-          </div>
+          <img src={logoUrl} alt="01 Manager" className="h-40 w-auto object-contain" />
         </header>
 
         <main className="flex-1 overflow-auto">

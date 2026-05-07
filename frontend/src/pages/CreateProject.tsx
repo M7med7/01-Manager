@@ -64,7 +64,7 @@ export function CreateProject() {
       >
         <div className="mb-12 flex items-center justify-between gap-6">
           <div>
-            <h2 className="text-5xl mb-3 bg-gradient-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
+            <h2 className="text-5xl mb-3 bg-linear-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
               Create New Project
             </h2>
             <p className="text-gray-400 text-xl">AI-powered execution plan generation</p>
@@ -94,7 +94,7 @@ export function CreateProject() {
               onChange={handleChange}
               required
               placeholder="e.g., E-Commerce Platform"
-              className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
+              className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
             />
           </div>
 
@@ -110,7 +110,7 @@ export function CreateProject() {
               required
               rows={5}
               placeholder="Describe your project goals, features, and requirements. The more details you provide, the better AI can plan your project..."
-              className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 resize-none text-lg leading-relaxed"
+              className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 resize-none text-lg leading-relaxed"
             />
             <div className="mt-3 flex items-center gap-3 text-sm text-gray-400">
               <Sparkles className="w-4 h-4 text-purple-400" />
@@ -128,7 +128,7 @@ export function CreateProject() {
               required
               min="1"
               placeholder="8"
-              className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
+              className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
             />
           </div>
 
@@ -138,7 +138,7 @@ export function CreateProject() {
               <span className="text-sm text-gray-500">{selectedMembers.length} selected</span>
             </div>
             {users.length === 0 ? (
-              <div className="rounded-2xl border-2 border-white/10 bg-white/[0.03] p-6 text-gray-500">
+              <div className="rounded-2xl border-2 border-white/10 bg-white/3 p-6 text-gray-500">
                 No team members found. Add people in the Team tab first.
               </div>
             ) : (
@@ -151,13 +151,12 @@ export function CreateProject() {
                       key={user.id}
                       type="button"
                       onClick={() => toggleMember(user.id)}
-                      className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${
-                        isSelected
+                      className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${isSelected
                           ? "border-purple-500/70 bg-purple-900/25"
-                          : "border-white/10 bg-white/[0.03] hover:border-white/25"
-                      }`}
+                          : "border-white/10 bg-white/3 hover:border-white/25"
+                        }`}
                     >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-purple-900 text-sm font-bold text-white">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-purple-600 to-purple-900 text-sm font-bold text-white">
                         {displayName
                           .split(" ")
                           .map((part) => part[0])
@@ -170,9 +169,8 @@ export function CreateProject() {
                         <div className="truncate text-sm text-gray-500">{user.email}</div>
                       </div>
                       <div
-                        className={`flex h-6 w-6 items-center justify-center rounded-full border ${
-                          isSelected ? "border-purple-400 bg-purple-500" : "border-white/20"
-                        }`}
+                        className={`flex h-6 w-6 items-center justify-center rounded-full border ${isSelected ? "border-purple-400 bg-purple-500" : "border-white/20"
+                          }`}
                       >
                         {isSelected && <Users className="h-3.5 w-3.5 text-white" />}
                       </div>
@@ -191,15 +189,15 @@ export function CreateProject() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-gradient-to-br from-purple-900/30 to-black/30 border-2 border-purple-500/50 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
+            className="bg-linear-to-br from-purple-900/30 to-black/30 border-2 border-purple-500/50 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent animate-pulse" />
+            <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent animate-pulse" />
             <div className="flex items-start gap-6 relative z-10">
-              <div className="p-4 bg-gradient-to-br from-purple-600 to-purple-900 rounded-2xl shadow-xl shadow-purple-500/50">
+              <div className="p-4 bg-linear-to-br from-purple-600 to-purple-900 rounded-2xl shadow-xl shadow-purple-500/50">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
               <div className="flex-1">
-                <h4 className="mb-3 text-2xl font-semibold bg-gradient-to-r from-purple-300 to-white bg-clip-text text-transparent">
+                <h4 className="mb-3 text-2xl font-semibold bg-linear-to-r from-purple-300 to-white bg-clip-text text-transparent">
                   AI-Powered Planning
                 </h4>
                 <p className="text-base text-gray-300 leading-relaxed mb-5">
@@ -227,11 +225,10 @@ export function CreateProject() {
             disabled={isGenerating}
             whileHover={!isGenerating ? { y: -2 } : {}}
             whileTap={!isGenerating ? { scale: 0.98 } : {}}
-            className={`w-full py-7 rounded-3xl text-xl font-bold transition-all duration-300 relative overflow-hidden border ${
-              isGenerating
+            className={`w-full py-7 rounded-3xl text-xl font-bold transition-all duration-300 relative overflow-hidden border ${isGenerating
                 ? "bg-black/40 border-white/5 cursor-not-allowed text-white/40"
                 : "bg-black/80 border-white/10 text-white"
-            }`}
+              }`}
           >
             {!isGenerating && (
               <motion.div
@@ -260,7 +257,7 @@ export function CreateProject() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-10 bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-purple-500/30 rounded-3xl p-8 space-y-5"
+            className="mt-10 bg-linear-to-br from-white/5 to-white/2 border-2 border-purple-500/30 rounded-3xl p-8 space-y-5"
           >
             {[
               { label: "Analyzing project requirements", delay: 0 },

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
+import { Logo } from '../components/Logo';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -34,7 +35,7 @@ export function LoginPage() {
         className="w-full max-w-md"
       >
         <div className="mb-10 flex flex-col items-center gap-4">
-          <span className="text-2xl font-bold tracking-tight text-white">01 Manager</span>
+          <Logo />
           <h1 className="text-3xl font-bold text-white">Welcome back</h1>
           <p className="text-gray-400">Sign in to your account</p>
         </div>
