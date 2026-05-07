@@ -44,7 +44,7 @@ export interface ProjectMember {
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
-async function request<T>(path: string, options?: RequestInit, timeoutMs = 6_000): Promise<T> {
+async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_000): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
