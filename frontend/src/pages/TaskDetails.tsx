@@ -169,9 +169,9 @@ export function TaskDetails() {
   const progress = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
 
   return (
-    <div className="p-12 h-full flex gap-8 overflow-hidden">
+    <div className="p-4 sm:p-6 lg:p-10 xl:p-12 h-full flex flex-col lg:flex-row gap-6 lg:gap-8 overflow-hidden">
       {/* Left Panel */}
-      <div className="min-w-0 flex-1 space-y-8 overflow-y-auto pr-2">
+      <div className="min-w-0 flex-1 space-y-8 overflow-y-auto pr-1 lg:pr-2">
         <Link to="/">
           <motion.button
             whileHover={{ x: -5 }}
@@ -366,7 +366,7 @@ export function TaskDetails() {
       </div>
 
       {/* Right Panel — AI Assistant */}
-      <div className="w-[440px] bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
+      <div className="w-full lg:w-[400px] xl:w-[440px] shrink-0 max-h-[50vh] lg:max-h-none bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
         <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent" />
 
         <div className="p-5 border-b border-purple-500/30 bg-linear-to-r from-purple-600/12 to-black/20 relative z-10">
