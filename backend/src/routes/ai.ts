@@ -10,7 +10,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 router.post('/generate', async (req, res) => {
   const t0 = Date.now();
   try {
-    const { name, description, headcount, team_members } = req.body;
+    const { name, description, headcount, duration, team_members } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ error: 'name and description are required' });
@@ -29,10 +29,12 @@ router.post('/generate', async (req, res) => {
         ? selectedMembers.map((user_id) => ({ user_id }))
         : Array.from({ length: headcountNum }, (_, i) => ({ user_id: `user${i + 1}` }));
 
+    const durationWeeks = Math.max(1, parseInt(duration) || 8);
     const schedule = await generateSchedule({
       projectId,
       projectName: name,
       description,
+      durationWeeks,
       teamMembers: scheduleMembers,
     });
 

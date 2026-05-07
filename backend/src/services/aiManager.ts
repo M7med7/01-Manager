@@ -5,6 +5,7 @@ export interface ScheduleRequest {
   projectId: string;
   projectName: string;
   description: string;
+  durationWeeks: number;
   teamMembers: Array<{ user_id: string }>;
 }
 
@@ -44,11 +45,14 @@ function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
 function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
 
+  const totalDays = req.durationWeeks * 7;
+
   return `You are a software project planning assistant. Given the project below, produce a realistic execution plan.
 
 Project name: ${req.projectName}
 Description: ${req.description}
 Team member IDs: ${memberList || 'unassigned'}
+Project duration: ${req.durationWeeks} weeks (${totalDays} days total)
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
 {
@@ -80,6 +84,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 
 Rules:
 - Generate 4 to 8 tasks covering the full project lifecycle
+- The sum of all estimated_days MUST NOT exceed ${totalDays} days (${req.durationWeeks} weeks)
 - Distribute tasks evenly across team members
 - Only reference task IDs that exist in the tasks array
 - Assign real UUIDs (v4 format) to each task id`;
