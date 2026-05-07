@@ -8,10 +8,16 @@ import { TeamCapacity } from "./pages/TeamCapacity";
 import { CreateProject } from "./pages/CreateProject";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { SetPasswordPage } from "./pages/SetPasswordPage";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
   { path: "/signup", Component: SignupPage },
+  { path: "/forgot-password", Component: ForgotPasswordPage },
+  { path: "/reset-password", Component: ResetPasswordPage },
+  { path: "/set-password", Component: SetPasswordPage },
   {
     path: "/",
     Component: ProtectedRoute,
