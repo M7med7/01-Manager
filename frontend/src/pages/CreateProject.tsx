@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Users } from "lucide-react";
 import { motion } from "motion/react";
-import { api } from "../lib/api";
+import { api, type User } from "../lib/api";
+import { mapLocalTeamMemberToUser, readLocalTeamMembers } from "../lib/localTeamMembers";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -12,15 +13,31 @@ export function CreateProject() {
     name: "",
     description: "",
     duration: "",
-    headcount: "",
   });
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.users
+      .list()
+      .then(({ users }) => {
+        const localUsers = readLocalTeamMembers().map(mapLocalTeamMemberToUser);
+        const existingIds = new Set(users.map((user) => user.id));
+        setUsers([...users, ...localUsers.filter((user) => !existingIds.has(user.id))]);
+      })
+      .catch(() => setUsers(readLocalTeamMembers().map(mapLocalTeamMemberToUser)));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedMembers.length === 0) {
+      setError("Select at least one team member before generating the project plan");
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     try {
-      await api.ai.generate(formData);
+      await api.ai.generate({ ...formData, team_members: selectedMembers });
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate project plan");
@@ -30,6 +47,12 @@ export function CreateProject() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const toggleMember = (userId: string) => {
+    setSelectedMembers((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
   };
 
   return (
@@ -57,7 +80,7 @@ export function CreateProject() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-xl text-red-300 text-sm"
           >
-            {error} — make sure the backend is running on port 5001
+            {error}
           </motion.div>
         )}
 
@@ -95,32 +118,72 @@ export function CreateProject() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8">
-            <div>
-              <label className="block text-lg text-gray-300 mb-3 font-semibold">Expected Duration (weeks)</label>
-              <input
-                type="number"
-                name="duration"
-                value={formData.duration}
-                onChange={handleChange}
-                required
-                min="1"
-                placeholder="8"
-                className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
-              />
+          <div>
+            <label className="block text-lg text-gray-300 mb-3 font-semibold">Expected Duration (weeks)</label>
+            <input
+              type="number"
+              name="duration"
+              value={formData.duration}
+              onChange={handleChange}
+              required
+              min="1"
+              placeholder="8"
+              className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <label className="block text-lg text-gray-300 font-semibold">Assign Team Members</label>
+              <span className="text-sm text-gray-500">{selectedMembers.length} selected</span>
             </div>
-            <div>
-              <label className="block text-lg text-gray-300 mb-3 font-semibold">Assigned Headcount</label>
-              <input
-                type="number"
-                name="headcount"
-                value={formData.headcount}
-                onChange={handleChange}
-                required
-                min="1"
-                placeholder="5"
-                className="w-full px-6 py-5 bg-gradient-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
-              />
+            {users.length === 0 ? (
+              <div className="rounded-2xl border-2 border-white/10 bg-white/[0.03] p-6 text-gray-500">
+                No team members found. Add people in the Team tab first.
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {users.map((user) => {
+                  const isSelected = selectedMembers.includes(user.id);
+                  const displayName = user.full_name ?? user.email;
+                  return (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => toggleMember(user.id)}
+                      className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${
+                        isSelected
+                          ? "border-purple-500/70 bg-purple-900/25"
+                          : "border-white/10 bg-white/[0.03] hover:border-white/25"
+                      }`}
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-purple-900 text-sm font-bold text-white">
+                        {displayName
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-white">{displayName}</div>
+                        <div className="truncate text-sm text-gray-500">{user.email}</div>
+                      </div>
+                      <div
+                        className={`flex h-6 w-6 items-center justify-center rounded-full border ${
+                          isSelected ? "border-purple-400 bg-purple-500" : "border-white/20"
+                        }`}
+                      >
+                        {isSelected && <Users className="h-3.5 w-3.5 text-white" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-3 text-sm text-gray-400">
+              <Users className="w-4 h-4 text-purple-400" />
+              <span>AI will distribute generated tasks across the selected team members.</span>
             </div>
           </div>
 

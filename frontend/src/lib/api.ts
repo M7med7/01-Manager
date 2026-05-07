@@ -33,7 +33,16 @@ export interface User {
   task_count: number;
 }
 
-const BASE_URL = 'http://localhost:5001/api';
+export interface ProjectMember {
+  user_id: string;
+  role: string;
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
+const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -52,7 +61,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json();
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('API request timed out', { cause: error });
+      throw new Error('Request timed out. Please try again.');
+    }
+    if (error instanceof TypeError) {
+      throw new Error('Could not reach the server. Make sure the backend is running.');
     }
     throw error;
   } finally {
@@ -63,16 +75,30 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   projects: {
     list: () => request<{ projects: Project[] }>('/projects'),
-    get: (id: string) => request<{ project: Project; tasks: Task[] }>(`/projects/${id}`),
+    get: (id: string) =>
+      request<{ project: Project; tasks: Task[]; members: ProjectMember[] }>(`/projects/${id}`),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/projects/${id}`, { method: 'DELETE' }),
+    addMember: (projectId: string, userId: string) =>
+      request<{ success: boolean }>(`/projects/${projectId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId }),
+      }),
+    removeMember: (projectId: string, userId: string) =>
+      request<{ success: boolean }>(`/projects/${projectId}/members/${userId}`, {
+        method: 'DELETE',
+      }),
   },
   tasks: {
     list: () => request<{ tasks: Task[] }>('/tasks'),
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' }),
   },
   ai: {
-    generate: (data: { name: string; description: string; duration: string; headcount: string }) =>
+    generate: (data: { name: string; description: string; duration: string; team_members: string[] }) =>
       request<{ success: boolean; project_id: string }>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),

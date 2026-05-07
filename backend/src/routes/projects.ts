@@ -62,7 +62,12 @@ router.get('/:id', async (req, res) => {
     ] = await Promise.all([
       withTimeout(supabase.from('projects').select('*').eq('id', id).single()),
       withTimeout(supabase.from('tasks').select('*').eq('project_id', id).order('created_at')),
-      withTimeout(supabase.from('team_assignments').select('user_id').eq('project_id', id)),
+      withTimeout(
+        supabase
+          .from('team_assignments')
+          .select('user_id, role, users(id, email, full_name, avatar_url)')
+          .eq('project_id', id)
+      ),
     ]);
 
     if (projectError) throw projectError;
@@ -72,15 +77,22 @@ router.get('/:id', async (req, res) => {
     const doneTasks = taskList.filter((t) => t.status === 'Done').length;
     const progress = taskList.length > 0 ? Math.round((doneTasks / taskList.length) * 100) : 0;
 
+    const members = (assignments ?? []).map((a: any) => ({
+      user_id: a.user_id,
+      role: a.role,
+      ...(a.users ?? {}),
+    }));
+
     res.json({
-      project: { ...project, team_count: (assignments ?? []).length, progress },
+      project: { ...project, team_count: members.length, progress },
       tasks: taskList,
+      members,
     });
   } catch (error: any) {
     if (isConnectivityError(error)) {
       const project = demoProjects.find((item) => item.id === req.params.id) ?? demoProjects[0]!;
       const tasks = demoTasks.filter((task) => task.project_id === project.id);
-      return res.json({ project, tasks, source: 'demo' });
+      return res.json({ project, tasks, members: [], source: 'demo' });
     }
     res.status(500).json({ error: error.message });
   }
@@ -110,6 +122,47 @@ router.post('/', async (req, res) => {
     }
 
     res.json({ project });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await withTimeout(supabase.from('projects').delete().eq('id', id));
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/members', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, role = 'Member' } = req.body;
+
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+
+    const { error } = await withTimeout(
+      supabase.from('team_assignments').insert({ project_id: id, user_id, role })
+    );
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id/members/:userId', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { error } = await withTimeout(
+      supabase.from('team_assignments').delete().eq('project_id', id).eq('user_id', userId)
+    );
+    if (error) throw error;
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
