@@ -145,7 +145,7 @@ export function TaskDetails() {
 
   if (loading) {
     return (
-      <div className="p-12 flex items-center justify-center h-full">
+      <div className="flex-1 flex items-center justify-center p-12">
         <div className="text-center">
           <div className="w-10 h-10 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading project...</p>
@@ -156,7 +156,7 @@ export function TaskDetails() {
 
   if (error || !project) {
     return (
-      <div className="p-12 flex flex-col items-center justify-center h-full text-center">
+      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
         <p className="text-red-400 mb-4">{error ?? "Project not found"}</p>
         <Link to="/" className="text-purple-400 hover:text-purple-300 underline text-sm">
           ← Back to Projects
@@ -365,8 +365,10 @@ export function TaskDetails() {
         )}
       </div>
 
-      {/* Right Panel — AI Assistant */}
-      <div className="w-full lg:w-[400px] xl:w-[440px] shrink-0 min-h-0 max-h-[45vh] lg:max-h-full bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
+      {/* Right Panel — AI Assistant
+          Mobile (stacked): explicit h-[420px] — never ambiguous across browsers.
+          Desktop (lg+): h-auto with flex stretch fills the row height automatically. */}
+      <div className="w-full h-[420px] lg:h-auto lg:w-[400px] xl:w-[440px] shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
         <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent" />
 
         <div className="p-5 border-b border-purple-500/30 bg-linear-to-r from-purple-600/12 to-black/20 relative z-10">

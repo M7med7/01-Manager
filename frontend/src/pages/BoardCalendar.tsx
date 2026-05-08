@@ -288,7 +288,7 @@ export function BoardCalendar() {
   }
 
   return (
-    <div className="p-8 h-full flex flex-col">
+    <div className="flex-1 min-h-0 p-6 sm:p-8 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl mb-1 font-light">Board Calendar</h2>
@@ -341,7 +341,7 @@ export function BoardCalendar() {
         </motion.button>
       </div>
 
-      <div className="flex-1 bg-white/[0.02] backdrop-blur-sm border border-white/10 rounded-xl p-6 overflow-auto">
+      <div className="flex-1 min-h-0 bg-white/2 backdrop-blur-sm border border-white/10 rounded-xl p-6 overflow-auto">
         {loading && (
           <div className="flex items-center justify-center h-32 text-gray-500">
             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-3" />

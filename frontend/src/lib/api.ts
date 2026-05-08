@@ -44,10 +44,9 @@ export interface ProjectMember {
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
-async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_000): Promise<T> {
+async function attempt<T>(path: string, options: RequestInit | undefined, timeoutMs: number): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       headers: { 'Content-Type': 'application/json' },
@@ -61,7 +60,7 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_00
     return res.json();
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.');
+      throw new Error('__timeout__');
     }
     if (error instanceof TypeError) {
       throw new Error('Could not reach the server. Make sure the backend is running.');
@@ -70,6 +69,27 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_00
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_000): Promise<T> {
+  // AI requests already have a 120s timeout — no retry needed.
+  // Regular requests retry up to 2 times (3s apart) to survive Render cold starts.
+  const maxRetries = timeoutMs >= 100_000 ? 0 : 2;
+
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await attempt<T>(path, options, timeoutMs);
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.message === '__timeout__';
+      if (isTimeout && i < maxRetries) {
+        await new Promise<void>((r) => setTimeout(r, 3_000));
+        continue;
+      }
+      if (isTimeout) throw new Error('Request timed out. Please try again.');
+      throw err;
+    }
+  }
+  throw new Error('Request timed out. Please try again.');
 }
 
 export const api = {
