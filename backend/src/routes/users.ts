@@ -7,9 +7,10 @@ const router = Router();
 
 router.get('/', async (_req, res) => {
   try {
-    const [{ data: users, error: usersError }, { data: tasks }] = await Promise.all([
+    const [{ data: users, error: usersError }, { data: tasks }, { data: assignments }] = await Promise.all([
       withTimeout(supabase.from('users').select('*').order('created_at')),
       withTimeout(supabase.from('tasks').select('assigned_to')),
+      withTimeout(supabase.from('team_assignments').select('user_id')),
     ]);
 
     if (usersError) throw usersError;
@@ -17,6 +18,7 @@ router.get('/', async (_req, res) => {
     const enriched = (users ?? []).map((user) => ({
       ...user,
       task_count: (tasks ?? []).filter((t) => t.assigned_to === user.id).length,
+      project_count: (assignments ?? []).filter((a) => a.user_id === user.id).length,
     }));
 
     res.json({ users: enriched });

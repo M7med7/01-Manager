@@ -190,7 +190,7 @@ export function Layout() {
       </aside>
 
       <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "bg-black/78 backdrop-blur-md" : "bg-black/10"}`}>
-        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
           <Outlet />
         </main>
       </div>

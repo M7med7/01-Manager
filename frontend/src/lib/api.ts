@@ -31,6 +31,7 @@ export interface User {
   avatar_url: string | null;
   created_at: string;
   task_count: number;
+  project_count: number;
 }
 
 export interface ProjectMember {

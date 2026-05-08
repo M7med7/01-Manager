@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertCircle, AlertTriangle, CheckCircle2, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, FolderOpen, Plus, Trash2, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { readLocalTeamMembers, saveLocalTeamMember, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
 import { useAuth } from "../contexts/AuthContext";
@@ -40,6 +40,7 @@ interface TeamMember {
   capacity: number;
   avatar: string;
   taskCount: number;
+  projectCount: number;
   gradient: string;
   isLocal: boolean;
 }
@@ -58,6 +59,7 @@ function mapUser(user: User, index: number): TeamMember {
     capacity: computeCapacity(user.task_count),
     avatar: getInitials(user.full_name, user.email),
     taskCount: user.task_count,
+    projectCount: user.project_count,
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: false,
   };
@@ -72,6 +74,7 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
     capacity: computeCapacity(member.task_count),
     avatar: getInitials(member.full_name, member.email),
     taskCount: member.task_count,
+    projectCount: 0,
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: true,
   };
@@ -180,6 +183,7 @@ export function TeamCapacity() {
       capacity: 0,
       avatar: getInitials(storedMember.full_name, storedMember.email),
       taskCount: 0,
+      projectCount: 0,
       gradient: GRADIENTS[members.length % GRADIENTS.length],
       isLocal: true,
     };
@@ -357,20 +361,38 @@ export function TeamCapacity() {
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <CheckCircle2 className="w-5 h-5 text-gray-400" />
-                <span className="text-base text-gray-400 font-semibold">
-                  Assigned Tasks ({member.taskCount})
-                </span>
-              </div>
-              {member.taskCount === 0 ? (
-                <p className="text-sm text-gray-600 italic">No tasks assigned</p>
-              ) : (
-                <div className="px-4 py-3 bg-white/10 rounded-xl text-base text-gray-200 border border-white/10">
-                  {member.taskCount} task{member.taskCount !== 1 ? "s" : ""} in progress
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <FolderOpen className="w-5 h-5 text-gray-400" />
+                  <span className="text-base text-gray-400 font-semibold">
+                    Projects ({member.projectCount})
+                  </span>
                 </div>
-              )}
+                {member.projectCount === 0 ? (
+                  <p className="text-sm text-gray-600 italic">Not assigned to any project</p>
+                ) : (
+                  <div className="px-4 py-3 bg-purple-900/20 rounded-xl text-base text-purple-300 border border-purple-500/20">
+                    {member.projectCount} project{member.projectCount !== 1 ? "s" : ""} assigned
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <CheckCircle2 className="w-5 h-5 text-gray-400" />
+                  <span className="text-base text-gray-400 font-semibold">
+                    Assigned Tasks ({member.taskCount})
+                  </span>
+                </div>
+                {member.taskCount === 0 ? (
+                  <p className="text-sm text-gray-600 italic">No tasks assigned</p>
+                ) : (
+                  <div className="px-4 py-3 bg-white/10 rounded-xl text-base text-gray-200 border border-white/10">
+                    {member.taskCount} task{member.taskCount !== 1 ? "s" : ""} in progress
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         ))}
