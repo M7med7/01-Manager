@@ -288,7 +288,7 @@ export function BoardCalendar() {
   }
 
   return (
-    <div className="flex-1 min-h-0 p-6 sm:p-8 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 p-6 sm:p-8 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl mb-1 font-light">Board Calendar</h2>

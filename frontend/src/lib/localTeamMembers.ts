@@ -40,5 +40,6 @@ export function mapLocalTeamMemberToUser(member: StoredTeamMember): User {
     avatar_url: null,
     created_at: member.created_at,
     task_count: member.task_count,
+    project_count: 0,
   };
 }

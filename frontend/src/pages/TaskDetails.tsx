@@ -169,7 +169,7 @@ export function TaskDetails() {
   const progress = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
 
   return (
-    <div className="flex-1 min-h-0 p-4 sm:p-6 lg:p-10 xl:p-12 flex flex-col lg:flex-row gap-6 lg:gap-8 overflow-hidden">
+    <div className="h-full min-h-0 p-4 sm:p-6 lg:p-10 xl:p-12 flex flex-col lg:flex-row gap-6 lg:gap-8 overflow-hidden">
       {/* Left Panel */}
       <div className="min-w-0 min-h-0 flex-1 space-y-8 overflow-y-auto pr-1 lg:pr-2">
         <Link to="/">
