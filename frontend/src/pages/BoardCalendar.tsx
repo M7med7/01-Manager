@@ -90,6 +90,7 @@ export function BoardCalendar() {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     api.tasks
@@ -98,7 +99,22 @@ export function BoardCalendar() {
       .finally(() => setLoading(false));
   }, []);
 
-  const scheduledTasks = useMemo(() => buildSchedule(tasks), [tasks]);
+  const projectOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    tasks.forEach((t) => {
+      if (t.project_id && !seen.has(t.project_id)) {
+        seen.set(t.project_id, t.project_name ?? t.project_id);
+      }
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [tasks]);
+
+  const scheduledTasks = useMemo(() => {
+    const filtered = selectedProjectId
+      ? tasks.filter((t) => t.project_id === selectedProjectId)
+      : tasks;
+    return buildSchedule(filtered);
+  }, [tasks, selectedProjectId]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -289,33 +305,48 @@ export function BoardCalendar() {
 
   return (
     <div className="h-full min-h-0 p-6 sm:p-8 flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
           <h2 className="text-3xl mb-1 font-light">Board Calendar</h2>
           <p className="text-gray-400 text-sm">Project timeline and task schedule</p>
         </div>
 
-        <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-lg p-1">
-          {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
-            <motion.button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative px-4 py-2 rounded-md transition-all duration-200 capitalize text-sm overflow-hidden ${
-                viewMode === mode ? "text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {viewMode === mode && (
-                <motion.div
-                  layoutId="activeViewMode"
-                  className="absolute inset-0 bg-gradient-to-r from-purple-900 to-black"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
-              )}
-              <span className="relative z-10">{mode}</span>
-            </motion.button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Project filter */}
+          <select
+            value={selectedProjectId ?? ""}
+            onChange={(e) => setSelectedProjectId(e.target.value || null)}
+            className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500/50 transition-colors"
+          >
+            <option value="">All Projects</option>
+            {projectOptions.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          {/* View mode */}
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-lg p-1">
+            {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
+              <motion.button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative px-4 py-2 rounded-md transition-all duration-200 capitalize text-sm overflow-hidden ${
+                  viewMode === mode ? "text-white" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {viewMode === mode && (
+                  <motion.div
+                    layoutId="activeViewMode"
+                    className="absolute inset-0 bg-linear-to-r from-purple-900 to-black"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <span className="relative z-10">{mode}</span>
+              </motion.button>
+            ))}
+          </div>
         </div>
       </div>
 

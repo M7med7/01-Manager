@@ -112,6 +112,11 @@ export const api = {
   },
   tasks: {
     list: () => request<{ tasks: Task[] }>('/tasks'),
+    assign: (taskId: string, assignedTo: string | null) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/assign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigned_to: assignedTo }),
+      }),
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),

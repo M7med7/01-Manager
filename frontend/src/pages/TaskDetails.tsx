@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, Paperclip, Send, Sparkles, UserPlus, UserMinus, Users } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Paperclip, Send, Sparkles, UserPlus, UserMinus, Users } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { api, type Project, type Task, type ProjectMember, type User } from "../lib/api";
 
@@ -67,6 +67,10 @@ export function TaskDetails() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
+
+  // Task assignment state
+  const [assignDropdownId, setAssignDropdownId] = useState<string | null>(null);
+  const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!taskId) return;
@@ -142,6 +146,19 @@ export function TaskDetails() {
 
   const assignedIds = new Set(members.map((m) => m.user_id));
   const availableToAdd = allUsers.filter((u) => !assignedIds.has(u.id));
+
+  const handleAssignTask = async (taskId: string, userId: string | null) => {
+    setAssigningTaskId(taskId);
+    try {
+      await api.tasks.assign(taskId, userId);
+      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, assigned_to: userId } : t));
+    } catch {
+      // silently fail
+    } finally {
+      setAssigningTaskId(null);
+      setAssignDropdownId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -339,27 +356,96 @@ export function TaskDetails() {
               <Paperclip className="w-5 h-5 text-purple-400" />
               <h3 className="text-2xl font-semibold">Tasks ({tasks.length})</h3>
             </div>
-            <div className="space-y-3">
-              {tasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  whileHover={{ scale: 1.01, x: 4 }}
-                  className="flex items-center justify-between gap-4 p-4 bg-white/10 rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/10 hover:border-white/30"
-                >
-                  <span className="min-w-0 text-gray-200 wrap-break-word">{task.title}</span>
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full font-medium shrink-0 ${
-                      task.status === "Done"
-                        ? "bg-green-900/50 text-green-300"
-                        : task.status === "In Progress"
-                        ? "bg-purple-900/50 text-purple-300"
-                        : "bg-white/10 text-gray-400"
-                    }`}
-                  >
-                    {task.status}
-                  </span>
-                </motion.div>
-              ))}
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {tasks.map((task) => {
+                const assignee = members.find((m) => m.user_id === task.assigned_to);
+                const isDropdownOpen = assignDropdownId === task.id;
+                const isAssigning = assigningTaskId === task.id;
+
+                return (
+                  <div key={task.id} className="relative">
+                    <div className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-white/20 transition-all duration-200">
+                      {/* Title */}
+                      <span className="min-w-0 flex-1 text-gray-200 text-sm">{task.title}</span>
+
+                      {/* Status badge */}
+                      <span className={`text-xs px-3 py-1 rounded-full font-medium shrink-0 ${
+                        task.status === "Done"
+                          ? "bg-green-900/50 text-green-300"
+                          : task.status === "In Progress"
+                          ? "bg-purple-900/50 text-purple-300"
+                          : "bg-white/10 text-gray-400"
+                      }`}>
+                        {task.status}
+                      </span>
+
+                      {/* Assign button */}
+                      <button
+                        onClick={() => setAssignDropdownId(isDropdownOpen ? null : task.id)}
+                        disabled={isAssigning}
+                        className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-300 transition-all disabled:opacity-40"
+                      >
+                        {isAssigning ? (
+                          <div className="h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" />
+                        ) : assignee ? (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-linear-to-br from-purple-600 to-purple-800 text-[10px] font-bold text-white">
+                            {getInitials(assignee.full_name, assignee.email)}
+                          </div>
+                        ) : (
+                          <UserPlus className="h-3 w-3" />
+                        )}
+                        <span>{assignee ? (assignee.full_name ?? assignee.email).split(" ")[0] : "Assign"}</span>
+                        <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+
+                    {/* Assignment dropdown */}
+                    <AnimatePresence>
+                      {isDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl overflow-hidden"
+                        >
+                          {members.length === 0 ? (
+                            <p className="px-4 py-3 text-xs text-gray-500">No members on this project yet.</p>
+                          ) : (
+                            <div className="p-1.5 space-y-0.5">
+                              {assignee && (
+                                <button
+                                  onClick={() => handleAssignTask(task.id, null)}
+                                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                                >
+                                  <UserMinus className="h-3.5 w-3.5 shrink-0" />
+                                  Unassign
+                                </button>
+                              )}
+                              {members.map((m) => (
+                                <button
+                                  key={m.user_id}
+                                  onClick={() => handleAssignTask(task.id, m.user_id)}
+                                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs transition-colors ${
+                                    m.user_id === task.assigned_to
+                                      ? "bg-purple-900/30 text-purple-300"
+                                      : "text-gray-300 hover:bg-white/5"
+                                  }`}
+                                >
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-purple-600 to-purple-800 text-[10px] font-bold text-white">
+                                    {getInitials(m.full_name, m.email)}
+                                  </div>
+                                  <span className="truncate">{m.full_name ?? m.email}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

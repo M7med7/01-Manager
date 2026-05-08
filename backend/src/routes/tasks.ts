@@ -30,4 +30,18 @@ router.get('/', async (_req, res) => {
   }
 });
 
+router.patch('/:id/assign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigned_to } = req.body as { assigned_to: string | null };
+    const { error } = await withTimeout(
+      supabase.from('tasks').update({ assigned_to: assigned_to ?? null }).eq('id', id)
+    );
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
