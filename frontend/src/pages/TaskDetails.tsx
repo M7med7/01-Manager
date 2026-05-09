@@ -362,7 +362,7 @@ export function TaskDetails() {
 
       {/* Right Panel — Task Detail or AI Assistant */}
       <div className="w-full h-[500px] lg:h-auto lg:w-[400px] xl:w-[440px] shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
-        <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent pointer-events-none" />
 
         {selectedTask ? (
           <TaskDetailPanel
