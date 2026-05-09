@@ -43,7 +43,7 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
       const maxW = W * 0.75;
       const maxH = H * 0.75;
 
-      const spokeAlpha = isAIActive ? 0.12 : 0.09;
+      const spokeAlpha = isAIActive ? 0.22 : 0.16;
       ctx.strokeStyle = `rgba(${LINE_COLOR},${spokeAlpha})`;
       ctx.lineWidth = 0.8;
       for (let i = 0; i < SPOKES; i++) {
@@ -63,7 +63,7 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
         const rw = maxW * t;
         const rh = maxH * t;
         const fade = Math.min(1, raw * 1.2);
-        const alpha = isAIActive ? 0.08 + fade * 0.22 : 0.06 + fade * 0.16;
+        const alpha = isAIActive ? 0.15 + fade * 0.38 : 0.10 + fade * 0.26;
         ctx.strokeStyle = `rgba(${LINE_COLOR},${alpha.toFixed(3)})`;
         ctx.lineWidth = 0.75 + t * 0.75;
         ctx.strokeRect(cx - rw, cy - rh, rw * 2, rh * 2);

@@ -99,7 +99,7 @@ export function TaskDetailPanel({ task, schedule, members, projectDesc, currentU
         })()}
       </div>
 
-      {/* Detail scroll area */}
+      {/* Task detail scroll area — independent from chat */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
         {/* Schedule */}
         {schedule && (
@@ -166,51 +166,54 @@ export function TaskDetailPanel({ task, schedule, members, projectDesc, currentU
             ✓ Completed{task.completer_name ? ` by ${task.completer_name}` : ""} on {formatDate(new Date(task.completed_at))}
           </div>
         )}
-
-        {/* Chat */}
-        <div className="pt-2 border-t border-white/10">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-semibold text-gray-300">AI Chat — {task.title}</span>
-          </div>
-          <div className="space-y-3 max-h-60 overflow-y-auto">
-            {chat.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[88%] p-3 rounded-xl text-sm ${m.role === "user"
-                  ? "bg-linear-to-br from-purple-600 to-purple-900 text-white"
-                  : "bg-white/[0.07] border border-white/10 text-gray-100"
-                }`}>
-                  <pre className="whitespace-pre-wrap font-sans leading-relaxed">{m.content}</pre>
-                </div>
-              </div>
-            ))}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="bg-white/10 rounded-xl p-3 flex gap-1.5">
-                  {[0, 0.2, 0.4].map(d => (
-                    <motion.div key={d} animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 0.8, repeat: Infinity, delay: d }} className="w-2 h-2 bg-purple-400 rounded-full" />
-                  ))}
-                </div>
-              </div>
-            )}
-            <div ref={chatEnd} />
-          </div>
-        </div>
       </div>
 
-      {/* Chat input */}
-      <div className="p-4 border-t border-purple-500/30 bg-black/45">
-        <div className="flex items-center gap-2">
-          <input
-            value={message} onChange={e => setMessage(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMsg()}
-            placeholder={`Ask about "${task.title}"...`}
-            className="min-w-0 flex-1 px-3 py-2.5 bg-white/[0.07] border border-purple-500/35 rounded-xl focus:outline-none focus:border-purple-400/70 text-white placeholder-gray-500 text-sm"
-          />
-          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={sendMsg} disabled={sending}
-            className="h-10 w-10 shrink-0 flex items-center justify-center bg-linear-to-r from-purple-600 to-purple-900 rounded-xl disabled:opacity-50">
-            <Send className="w-4 h-4" />
-          </motion.button>
+      {/* AI Chat — fixed section below task details, always visible */}
+      <div className="shrink-0 flex flex-col border-t border-purple-500/30" style={{ height: "clamp(180px, 35%, 280px)" }}>
+        {/* Chat header */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-2 shrink-0">
+          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+          <span className="text-xs font-semibold text-gray-400 truncate">AI Chat — {task.title}</span>
+        </div>
+
+        {/* Messages — scroll independently */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 space-y-2 pb-2">
+          {chat.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[88%] p-2.5 rounded-xl text-sm ${m.role === "user"
+                ? "bg-linear-to-br from-purple-600 to-purple-900 text-white"
+                : "bg-white/[0.07] border border-white/10 text-gray-100"
+              }`}>
+                <pre className="whitespace-pre-wrap font-sans leading-relaxed">{m.content}</pre>
+              </div>
+            </div>
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="bg-white/10 rounded-xl p-3 flex gap-1.5">
+                {[0, 0.2, 0.4].map(d => (
+                  <motion.div key={d} animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 0.8, repeat: Infinity, delay: d }} className="w-2 h-2 bg-purple-400 rounded-full" />
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={chatEnd} />
+        </div>
+
+        {/* Input — always at bottom */}
+        <div className="shrink-0 p-3 border-t border-purple-500/20 bg-black/45">
+          <div className="flex items-center gap-2">
+            <input
+              value={message} onChange={e => setMessage(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMsg()}
+              placeholder={`Ask about "${task.title}"...`}
+              className="min-w-0 flex-1 px-3 py-2 bg-white/[0.07] border border-purple-500/35 rounded-xl focus:outline-none focus:border-purple-400/70 text-white placeholder-gray-500 text-sm"
+            />
+            <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={sendMsg} disabled={sending}
+              className="h-9 w-9 shrink-0 flex items-center justify-center bg-linear-to-r from-purple-600 to-purple-900 rounded-xl disabled:opacity-50">
+              <Send className="w-4 h-4" />
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
