@@ -10,6 +10,7 @@ export interface ScheduleRequest {
 }
 
 export interface GeneratedSchedule {
+  project_summary: string;
   tasks: Array<{
     id: string;
     title: string;
@@ -92,8 +93,9 @@ const SCHEDULE_SCHEMA = {
         required: ['tech_name', 'category', 'reasoning'],
       },
     },
+    project_summary: { type: SchemaType.STRING },
   },
-  required: ['tasks', 'dependencies', 'technology_recommendations'],
+  required: ['project_summary', 'tasks', 'dependencies', 'technology_recommendations'],
 };
 
 function buildSchedulePrompt(req: ScheduleRequest): string {
@@ -113,7 +115,8 @@ Rules:
 - Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
 - description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
 - priority: High=critical-path, Medium=standard, Low=nice-to-have.
-- For vague descriptions, infer professional defaults.`;
+- For vague descriptions, infer professional defaults.
+- project_summary: 2-3 sentence professional description of the project written in third-person present tense, suitable to display on the project page.`;
 }
 
 export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedSchedule> {

@@ -39,12 +39,13 @@ router.post('/generate', async (req, res) => {
     });
 
     const projectTable = supabase.from('projects') as any;
-    let project = { id: projectId, name, description };
+    const savedDescription = schedule.project_summary || description;
+    let project = { id: projectId, name, description: savedDescription };
 
     if (projectTable && typeof projectTable.insert === 'function') {
       const { data, error: projectError } = await withTimeout<{ data: any; error: any }>(
         projectTable
-          .insert({ id: projectId, name, description, created_by: null })
+          .insert({ id: projectId, name, description: savedDescription, created_by: null })
           .select()
           .single()
       );
