@@ -64,18 +64,29 @@ router.post('/generate', async (req, res) => {
         );
       }
 
+      console.log(`[AI] /generate — AI returned ${schedule.tasks.length} tasks`);
+
       if (schedule.tasks.length > 0) {
         const tasksToInsert = schedule.tasks.map((task) => ({
           project_id: project.id,
           title: task.title,
-          description: task.description,
+          description: task.description ?? '',
           status: 'To Do',
-          priority: (task as any).priority || 'Medium',
-          estimated_days: task.estimated_days,
-          assigned_tech: task.assigned_tech,
+          priority: (['High', 'Medium', 'Low'].includes((task as any).priority) ? (task as any).priority : 'Medium'),
+          estimated_days: Number(task.estimated_days) || 1,
+          assigned_tech: Array.isArray(task.assigned_tech) ? task.assigned_tech : [],
           assigned_to: databaseMembers.includes(task.assigned_to) ? task.assigned_to : null,
         }));
-        await withTimeout(supabase.from('tasks').insert(tasksToInsert));
+
+        const { error: taskError } = await withTimeout(
+          supabase.from('tasks').insert(tasksToInsert),
+          10_000,
+        );
+        if (taskError) {
+          console.error('[AI] /generate — task insert failed:', taskError.message);
+          throw taskError;
+        }
+        console.log(`[AI] /generate — inserted ${tasksToInsert.length} tasks`);
       }
     }
 
