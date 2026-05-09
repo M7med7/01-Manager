@@ -43,7 +43,31 @@ export function TaskDetailPanel({ task, schedule, members, projectDesc, currentU
     { role: "ai", content: `How can I help you with "${task.title}"?` },
   ]);
   const [sending, setSending] = useState(false);
+  const [chatHeight, setChatHeight] = useState(220);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const startDrag = (clientY: number) => {
+    dragRef.current = { startY: clientY, startHeight: chatHeight };
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      if (!dragRef.current) return;
+      const y = ev instanceof MouseEvent ? ev.clientY : ev.touches[0].clientY;
+      const delta = dragRef.current.startY - y; // drag up → bigger chat
+      setChatHeight(Math.max(120, Math.min(440, dragRef.current.startHeight + delta)));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  };
   const isDone = task.status === "Done";
   const priority = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.Medium;
   const { summary, steps } = parseSteps(task.description);
@@ -168,10 +192,22 @@ export function TaskDetailPanel({ task, schedule, members, projectDesc, currentU
         )}
       </div>
 
-      {/* AI Chat — fixed section below task details, always visible */}
-      <div className="shrink-0 flex flex-col border-t border-purple-500/30" style={{ height: "clamp(180px, 35%, 280px)" }}>
+      {/* AI Chat — resizable section, drag the handle up/down to resize */}
+      <div className="shrink-0 flex flex-col" style={{ height: chatHeight }}>
+        {/* Drag handle */}
+        <div
+          onMouseDown={e => startDrag(e.clientY)}
+          onTouchStart={e => startDrag(e.touches[0].clientY)}
+          className="shrink-0 flex flex-col items-center justify-center h-4 cursor-ns-resize border-t border-purple-500/30 hover:border-purple-400/60 group transition-colors select-none"
+        >
+          <div className="flex gap-1 mt-0.5">
+            <div className="w-6 h-0.5 rounded-full bg-purple-500/40 group-hover:bg-purple-400/80 transition-colors" />
+            <div className="w-3 h-0.5 rounded-full bg-purple-500/25 group-hover:bg-purple-400/50 transition-colors" />
+          </div>
+        </div>
+
         {/* Chat header */}
-        <div className="flex items-center gap-2 px-4 pt-3 pb-2 shrink-0">
+        <div className="flex items-center gap-2 px-4 pt-2 pb-2 shrink-0">
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
           <span className="text-xs font-semibold text-gray-400 truncate">AI Chat — {task.title}</span>
         </div>
