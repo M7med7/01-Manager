@@ -32,6 +32,12 @@ function computeCapacity(taskCount: number): number {
   return Math.min(Math.round((taskCount / MAX_TASKS_FULL) * 100), 100);
 }
 
+interface CompletedTaskInfo {
+  id: string;
+  title: string;
+  project_name: string | null;
+}
+
 interface TeamMember {
   id: string;
   name: string;
@@ -41,6 +47,8 @@ interface TeamMember {
   avatar: string;
   taskCount: number;
   projectCount: number;
+  completedCount: number;
+  completedTasks: CompletedTaskInfo[];
   gradient: string;
   isLocal: boolean;
 }
@@ -56,10 +64,17 @@ function mapUser(user: User, index: number): TeamMember {
     id: user.id,
     name: user.full_name ?? user.email,
     role: user.email,
+    phone: localStorage.getItem(`phone_${user.id}`) ?? undefined,
     capacity: computeCapacity(user.task_count),
     avatar: getInitials(user.full_name, user.email),
     taskCount: user.task_count,
     projectCount: user.project_count,
+    completedCount: user.completed_count ?? 0,
+    completedTasks: (user.completed_tasks ?? []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      project_name: t.project_name,
+    })),
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: false,
   };
@@ -75,6 +90,8 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
     avatar: getInitials(member.full_name, member.email),
     taskCount: member.task_count,
     projectCount: 0,
+    completedCount: 0,
+    completedTasks: [],
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: true,
   };
@@ -149,21 +166,34 @@ export function TeamCapacity() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.users
-      .list()
-      .then(({ users }) => {
-        const apiMembers = users.map(mapUser);
-        const storedMembers = readLocalTeamMembers().map((member, index) =>
-          mapStoredMember(member, apiMembers.length + index)
-        );
-        setMembers([...apiMembers, ...storedMembers]);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+    const fetchMembers = () => {
+      api.users
+        .list()
+        .then(({ users }) => {
+          const apiMembers = users.map(mapUser);
+          const storedMembers = readLocalTeamMembers().map((member, index) =>
+            mapStoredMember(member, apiMembers.length + index)
+          );
+          setMembers([...apiMembers, ...storedMembers]);
+        })
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setLoading(false));
+    };
+
+    fetchMembers();
+
+    const handleVisibility = () => { if (!document.hidden) fetchMembers(); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('userProfileUpdated', fetchMembers);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('userProfileUpdated', fetchMembers);
+    };
   }, []);
 
   const overloaded = members.filter((m) => m.capacity > 90);
   const available = members.filter((m) => m.capacity <= 90);
+  const totalCompleted = members.reduce((sum, m) => sum + m.completedCount, 0);
 
   const handleAddMember = (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -184,6 +214,8 @@ export function TeamCapacity() {
       avatar: getInitials(storedMember.full_name, storedMember.email),
       taskCount: 0,
       projectCount: 0,
+      completedCount: 0,
+      completedTasks: [],
       gradient: GRADIENTS[members.length % GRADIENTS.length],
       isLocal: true,
     };
@@ -380,7 +412,31 @@ export function TeamCapacity() {
 
               <div>
                 <div className="flex items-center gap-3 mb-3">
-                  <CheckCircle2 className="w-5 h-5 text-gray-400" />
+                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <span className="text-base text-gray-400 font-semibold">
+                    Completed ({member.completedCount})
+                  </span>
+                </div>
+                {member.completedCount === 0 ? (
+                  <p className="text-sm text-gray-600 italic">No tasks completed yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {member.completedTasks.map((ct) => (
+                      <div key={ct.id} className="flex items-start gap-2 px-3 py-2 bg-green-900/15 rounded-lg border border-green-500/15">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-sm text-gray-200 truncate">{ct.title}</div>
+                          {ct.project_name && <div className="text-[10px] text-gray-500 truncate">{ct.project_name}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <FolderOpen className="w-5 h-5 text-gray-400" />
                   <span className="text-base text-gray-400 font-semibold">
                     Assigned Tasks ({member.taskCount})
                   </span>
@@ -399,31 +455,25 @@ export function TeamCapacity() {
       </div>
 
       {members.length > 0 && (
-        <div className="grid grid-cols-3 gap-8">
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            className="bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 border-white/20 rounded-3xl p-8 hover:border-purple-500/50 transition-all duration-300"
-          >
-            <div className="text-5xl mb-3 font-bold bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              {members.length}
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 border-white/20 rounded-3xl p-8 hover:border-purple-500/50 transition-all duration-300">
+            <div className="text-5xl mb-3 font-bold bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">{members.length}</div>
             <div className="text-gray-400 text-lg">Total Members</div>
           </motion.div>
 
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            className="bg-linear-to-br from-green-900/30 to-emerald-900/30 border-2 border-green-500/50 rounded-3xl p-8 shadow-xl shadow-green-500/20 hover:border-green-500/70 transition-all duration-300"
-          >
+          <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-green-900/30 to-emerald-900/30 border-2 border-green-500/50 rounded-3xl p-8 shadow-xl shadow-green-500/20 hover:border-green-500/70 transition-all duration-300">
             <div className="text-5xl text-green-400 mb-3 font-bold">{available.length}</div>
             <div className="text-gray-300 text-lg">Available</div>
           </motion.div>
 
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            className="bg-linear-to-br from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-3xl p-8 shadow-xl shadow-red-500/20 hover:border-red-500/70 transition-all duration-300"
-          >
+          <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-3xl p-8 shadow-xl shadow-red-500/20 hover:border-red-500/70 transition-all duration-300">
             <div className="text-5xl text-red-400 mb-3 font-bold">{overloaded.length}</div>
             <div className="text-gray-300 text-lg">Overloaded</div>
+          </motion.div>
+
+          <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-purple-900/30 to-purple-900/10 border-2 border-purple-500/50 rounded-3xl p-8 shadow-xl shadow-purple-500/20 hover:border-purple-500/70 transition-all duration-300">
+            <div className="text-5xl text-purple-400 mb-3 font-bold">{totalCompleted}</div>
+            <div className="text-gray-300 text-lg">Tasks Done</div>
           </motion.div>
         </div>
       )}
@@ -440,12 +490,7 @@ export function TeamCapacity() {
                 <h3 className="text-2xl font-semibold text-white">Add Team Member</h3>
                 <p className="mt-1 text-sm text-gray-500">Create a local team profile for capacity planning.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAddMemberOpen(false)}
-                className="rounded-lg border border-white/10 p-2 text-gray-400 hover:text-white hover:bg-white/5"
-                aria-label="Close add member form"
-              >
+              <button type="button" onClick={() => setIsAddMemberOpen(false)} className="rounded-lg border border-white/10 p-2 text-gray-400 hover:text-white hover:bg-white/5" aria-label="Close add member form">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -453,54 +498,19 @@ export function TeamCapacity() {
             <form onSubmit={handleAddMember} className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.fullName}
-                  onChange={(e) => setFormData((current) => ({ ...current, fullName: e.target.value }))}
-                  placeholder="e.g., Sarah Khan"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
+                <input type="text" required value={formData.fullName} onChange={(e) => setFormData((current) => ({ ...current, fullName: e.target.value }))} placeholder="e.g., Sarah Khan" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
               </div>
-
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData((current) => ({ ...current, email: e.target.value }))}
-                  placeholder="name@example.com"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
+                <input type="email" required value={formData.email} onChange={(e) => setFormData((current) => ({ ...current, email: e.target.value }))} placeholder="name@example.com" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
               </div>
-
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Phone Number</label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.phone}
-                  onChange={(e) => setFormData((current) => ({ ...current, phone: e.target.value }))}
-                  placeholder="+966 5X XXX XXXX"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
+                <input type="tel" required value={formData.phone} onChange={(e) => setFormData((current) => ({ ...current, phone: e.target.value }))} placeholder="+966 5X XXX XXXX" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
               </div>
-
               <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddMemberOpen(false)}
-                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20"
-                >
-                  Add Member
-                </button>
+                <button type="button" onClick={() => setIsAddMemberOpen(false)} className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white">Cancel</button>
+                <button type="submit" className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20">Add Member</button>
               </div>
             </form>
           </motion.div>

@@ -70,6 +70,7 @@ router.post('/generate', async (req, res) => {
           title: task.title,
           description: task.description,
           status: 'To Do',
+          priority: (task as any).priority || 'Medium',
           estimated_days: task.estimated_days,
           assigned_tech: task.assigned_tech,
           assigned_to: databaseMembers.includes(task.assigned_to) ? task.assigned_to : null,

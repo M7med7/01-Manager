@@ -44,9 +44,12 @@ CREATE TABLE tasks (
   title TEXT NOT NULL,
   description TEXT,
   status TEXT DEFAULT 'To Do' CHECK (status IN ('To Do', 'In Progress', 'In Review', 'Done')),
+  priority TEXT DEFAULT 'Medium' CHECK (priority IN ('High', 'Medium', 'Low')),
   estimated_days NUMERIC NOT NULL,
   assigned_tech TEXT[],
   assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+  completed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -80,6 +83,15 @@ CREATE TABLE task_comments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Functions and Triggers
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ language 'plpgsql';
 
 ALTER TABLE task_comments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow authenticated users full access to task_comments" ON task_comments FOR ALL USING (auth.role() = 'authenticated');
@@ -118,14 +130,6 @@ CREATE POLICY "Allow authenticated users full access to task_dependencies" ON ta
 CREATE POLICY "Allow authenticated users full access to technology_recommendations" ON technology_recommendations FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to audit_logs" ON audit_logs FOR ALL USING (auth.role() = 'authenticated');
 
--- Functions and Triggers
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-   NEW.updated_at = NOW();
-   RETURN NEW;
-END;
-$$ language 'plpgsql';
 
 CREATE TRIGGER update_projects_updated_at
 BEFORE UPDATE ON projects

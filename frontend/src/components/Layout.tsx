@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Users, FolderOpen, Plus, LogOut } from "lucide-react";
+import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
 import logoUrl from "../assets/brand/01-logo-no-text-no-background.png";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabase";
+import { api } from "../lib/api";
 
 function getInitials(name: string | null | undefined, email: string): string {
   if (name) {
@@ -23,6 +25,11 @@ export function Layout() {
   const { session, signOut } = useAuth();
   const isAIActive = location.pathname.includes("task") || location.pathname.includes("create");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const email = session?.user.email ?? "";
@@ -30,16 +37,48 @@ export function Layout() {
   const initials = getInitials(fullName, email);
   const displayName = fullName ?? email.split("@")[0];
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+        setEditingProfile(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  const openEdit = () => {
+    setNameInput(fullName ?? "");
+    setPhoneInput(
+      session?.user.id
+        ? (localStorage.getItem(`phone_${session.user.id}`) ?? "")
+        : ""
+    );
+    setSaveError(null);
+    setEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!session?.user.id) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.users.update(session.user.id, { full_name: nameInput.trim() });
+      await supabase.auth.updateUser({ data: { full_name: nameInput.trim() } });
+      if (phoneInput.trim()) {
+        localStorage.setItem(`phone_${session.user.id}`, phoneInput.trim());
+      } else {
+        localStorage.removeItem(`phone_${session.user.id}`);
+      }
+      window.dispatchEvent(new CustomEvent('userProfileUpdated'));
+      setEditingProfile(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -76,7 +115,7 @@ export function Layout() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.97 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+                className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
               >
                 {/* User info */}
                 <div className="px-4 py-3 border-b border-white/8">
@@ -84,12 +123,82 @@ export function Layout() {
                     <div className="h-9 w-9 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shrink-0">
                       {initials}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-white">{displayName}</p>
                       <p className="truncate text-xs text-gray-500">{email}</p>
                     </div>
+                    {!editingProfile && (
+                      <button
+                        onClick={openEdit}
+                        className="shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                        title="Edit profile"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Inline profile edit form */}
+                <AnimatePresence>
+                  {editingProfile && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden border-b border-white/8"
+                    >
+                      <div className="px-4 py-3 space-y-2.5">
+                        <div>
+                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Name</label>
+                          <input
+                            value={nameInput}
+                            onChange={(e) => setNameInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+                            placeholder="Your full name"
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Phone</label>
+                          <input
+                            value={phoneInput}
+                            onChange={(e) => setPhoneInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+                            placeholder="+966 5x xxx xxxx"
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Email</label>
+                          <p className="px-3 py-2 bg-white/3 border border-white/5 rounded-lg text-sm text-gray-500 truncate">{email}</p>
+                        </div>
+                        {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+                        <div className="flex gap-2 pt-0.5">
+                          <button
+                            onClick={() => setEditingProfile(false)}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+                          >
+                            <X className="h-3 w-3" /> Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveProfile}
+                            disabled={saving}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs text-white font-semibold transition-colors disabled:opacity-50"
+                          >
+                            {saving ? (
+                              <div className="h-3 w-3 border border-white/50 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3" />
+                            )}
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Actions */}
                 <div className="p-1.5">

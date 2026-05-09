@@ -16,12 +16,22 @@ export interface Task {
   title: string;
   description: string | null;
   status: string;
+  priority: string;
   estimated_days: number;
   assigned_tech: string[];
   assigned_to: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
   project_name?: string;
+  completer_name?: string | null;
+}
+
+export interface UserCompletedTask {
+  id: string;
+  title: string;
+  project_name: string | null;
 }
 
 export interface User {
@@ -32,6 +42,8 @@ export interface User {
   created_at: string;
   task_count: number;
   project_count: number;
+  completed_count: number;
+  completed_tasks: UserCompletedTask[];
 }
 
 export interface ProjectMember {
@@ -56,7 +68,14 @@ async function attempt<T>(path: string, options: RequestInit | undefined, timeou
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`API error ${res.status}: ${body}`);
+      let message = `Request failed (${res.status})`;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.error) message = parsed.error;
+      } catch {
+        if (body) message = body;
+      }
+      throw new Error(message);
     }
     return res.json();
   } catch (error) {
@@ -112,14 +131,38 @@ export const api = {
   },
   tasks: {
     list: () => request<{ tasks: Task[] }>('/tasks'),
+    get: (id: string) => request<{ task: Task }>(`/tasks/${id}`),
+    create: (data: {
+      project_id: string;
+      title: string;
+      description?: string;
+      priority?: string;
+      assigned_to?: string | null;
+      estimated_days: number;
+      assigned_tech?: string[];
+    }) =>
+      request<{ task: Task }>('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     assign: (taskId: string, assignedTo: string | null) =>
       request<{ success: boolean }>(`/tasks/${taskId}/assign`, {
         method: 'PATCH',
         body: JSON.stringify({ assigned_to: assignedTo }),
       }),
+    complete: (taskId: string, completed: boolean, completedBy?: string) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/complete`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed, completed_by: completedBy }),
+      }),
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),
+    update: (id: string, data: { full_name: string }) =>
+      request<{ success: boolean }>(`/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' }),
   },
