@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import type { Schema } from '@google/generative-ai';
 
 export interface ScheduleRequest {
   projectId: string;
@@ -30,73 +31,89 @@ export interface GeneratedSchedule {
 }
 
 const modelName = process.env.AI_MODEL ?? 'gemini-2.5-flash';
-const GEMINI_TIMEOUT_MS = 80_000;
 
-function withGeminiTimeout<T>(promise: Promise<T>): Promise<T> {
+// Chat is short; schedule streams large JSON so we give it 3 minutes.
+const SCHEDULE_TIMEOUT_MS = 3 * 60_000;
+const CHAT_TIMEOUT_MS     = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini timed out after 80s')), GEMINI_TIMEOUT_MS)
+      setTimeout(
+        () => reject(new Error(`AI request timed out after ${ms / 1000}s. Try a shorter description or fewer weeks.`)),
+        ms,
+      )
     ),
   ]);
 }
 
+// Declared once; reused across all generateSchedule calls.
+const SCHEDULE_SCHEMA = {
+  type: SchemaType.OBJECT,
+  properties: {
+    tasks: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          id:             { type: SchemaType.STRING },
+          title:          { type: SchemaType.STRING },
+          description:    { type: SchemaType.STRING },
+          priority:       { type: SchemaType.STRING },
+          estimated_days: { type: SchemaType.NUMBER },
+          assigned_tech:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          assigned_to:    { type: SchemaType.STRING },
+        },
+        required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to'],
+      },
+    },
+    dependencies: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          task_id:             { type: SchemaType.STRING },
+          depends_on_task_id:  { type: SchemaType.STRING },
+          dependency_type:     { type: SchemaType.STRING },
+        },
+        required: ['task_id', 'depends_on_task_id', 'dependency_type'],
+      },
+    },
+    technology_recommendations: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          tech_name: { type: SchemaType.STRING },
+          category:  { type: SchemaType.STRING },
+          reasoning: { type: SchemaType.STRING },
+        },
+        required: ['tech_name', 'category', 'reasoning'],
+      },
+    },
+  },
+  required: ['tasks', 'dependencies', 'technology_recommendations'],
+};
+
 function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
-
   const totalDays = req.durationWeeks * 7;
 
-  return `You are a software project planning assistant. Given the project below, produce a realistic execution plan.
-
-Project name: ${req.projectName}
+  return `Project: ${req.projectName}
 Description: ${req.description}
-Team member IDs: ${memberList || 'unassigned'}
-Project duration: ${req.durationWeeks} weeks (${totalDays} days total)
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
-{
-  "tasks": [
-    {
-      "id": "<uuid string>",
-      "title": "<task title>",
-      "description": "<detailed description including numbered implementation steps, e.g.:\\nDesign and implement the database schema.\\n\\nSteps:\\n1. Identify all entities and relationships\\n2. Create SQL migration files\\n3. Set up tables with RLS policies\\n4. Test with seed data>",
-      "priority": "<High|Medium|Low>",
-      "estimated_days": <number>,
-      "assigned_tech": ["<tech1>", "<tech2>"],
-      "assigned_to": "<one of the team member IDs above, or empty string>"
-    }
-  ],
-  "dependencies": [
-    {
-      "task_id": "<id of dependent task>",
-      "depends_on_task_id": "<id of prerequisite task>",
-      "dependency_type": "Finish-to-Start"
-    }
-  ],
-  "technology_recommendations": [
-    {
-      "tech_name": "<name>",
-      "category": "<Frontend|Backend|Database|DevOps>",
-      "reasoning": "<one sentence>"
-    }
-  ]
-}
+Duration: ${req.durationWeeks} weeks (${totalDays} days)
+Team IDs: ${memberList || 'none'}
 
 Rules:
-- Generate as many tasks as the project genuinely requires to be 100% complete. Cover every feature, module, integration, testing phase, and deployment step. Do not group unrelated work into one task. There is no minimum or maximum task count
-- The sum of all estimated_days MUST NOT exceed ${totalDays} days (${req.durationWeeks} weeks)
-- Distribute tasks evenly across team members
-- Only reference task IDs that exist in the tasks array
-- Assign real UUIDs (v4 format) to each task id
-- Each task description MUST include a brief summary followed by "Steps:" and 3-6 numbered implementation steps
-- Assign priority: "High" for critical-path tasks, "Medium" for standard tasks, "Low" for nice-to-haves`;
-}
-
-function buildChatPrompt(message: string, projectContext?: string): string {
-  const context = projectContext
-    ? `You are an AI assistant helping with a software project. Project context: ${projectContext}\n\n`
-    : 'You are a helpful software project management assistant.\n\n';
-  return `${context}User message: ${message}\n\nRespond concisely and helpfully in plain text (no markdown).`;
+- Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
+- Sum of estimated_days ≤ ${totalDays}. Trim Low/Medium task days before dropping any task.
+- Distribute assignments evenly. assigned_to="" only when team is empty.
+- assigned_tech = task-specific tools only (derived from technology_recommendations).
+- Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
+- description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
+- priority: High=critical-path, Medium=standard, Low=nice-to-have.
+- For vague descriptions, infer professional defaults.`;
 }
 
 export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedSchedule> {
@@ -110,18 +127,29 @@ export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedS
   console.log(`[AI] generateSchedule start — model=${modelName} project="${req.projectName}"`);
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: modelName });
-  const result = await withGeminiTimeout(model.generateContent(buildSchedulePrompt(req)));
-  console.log(`[AI] generateSchedule Gemini responded in ${Date.now() - t0}ms`);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: 'You are an expert software project planner. Produce complete, realistic execution plans.',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: SCHEDULE_SCHEMA as Schema,
+    },
+  });
 
-  const text = result.response.text().trim();
-  const jsonStart = text.indexOf('{');
-  const jsonEnd = text.lastIndexOf('}');
-  if (jsonStart === -1 || jsonEnd === -1) {
-    throw new Error('AI returned an invalid response. Please try again.');
-  }
+  // Stream so bytes flow continuously — avoids infrastructure idle-timeout cuts
+  // on large projects that take 1-3 min to generate.
+  const text = await withTimeout(
+    (async () => {
+      const { stream } = await model.generateContentStream(buildSchedulePrompt(req));
+      let out = '';
+      for await (const chunk of stream) out += chunk.text();
+      return out;
+    })(),
+    SCHEDULE_TIMEOUT_MS,
+  );
+  console.log(`[AI] generateSchedule streamed in ${Date.now() - t0}ms`);
 
-  const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as GeneratedSchedule;
+  const parsed = JSON.parse(text) as GeneratedSchedule;
   if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
     throw new Error('AI returned an empty task list. Please try again with a more detailed description.');
   }
@@ -140,10 +168,15 @@ export async function generateChatResponse(message: string, projectContext?: str
   const t0 = Date.now();
   console.log('[AI] generateChatResponse start');
 
+  const ctx = projectContext ? `Project context: ${projectContext}\n\n` : '';
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await withGeminiTimeout(model.generateContent(buildChatPrompt(message, projectContext)));
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: 'You are a helpful software project management assistant. Reply concisely in plain text, no markdown.',
+    });
+    const result = await withTimeout(model.generateContent(`${ctx}${message}`), CHAT_TIMEOUT_MS);
     console.log(`[AI] generateChatResponse done in ${Date.now() - t0}ms`);
     return result.response.text().trim();
   } catch (err) {
