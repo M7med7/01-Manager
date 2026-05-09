@@ -43,5 +43,6 @@ export function mapLocalTeamMemberToUser(member: StoredTeamMember): User {
     project_count: 0,
     completed_count: 0,
     completed_tasks: [],
+    total_estimated_days: 0,
   };
 }
