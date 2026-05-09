@@ -8,6 +8,7 @@ export interface Project {
   updated_at: string;
   team_count: number;
   progress: number;
+  duration_weeks?: number | null;
 }
 
 export interface Task {
@@ -22,6 +23,8 @@ export interface Task {
   assigned_to: string | null;
   completed_by: string | null;
   completed_at: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   created_at: string;
   updated_at: string;
   project_name?: string;
@@ -39,8 +42,10 @@ export interface User {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  phone?: string | null;
   created_at: string;
   task_count: number;
+  total_estimated_days: number;
   project_count: number;
   completed_count: number;
   completed_tasks: UserCompletedTask[];
@@ -155,10 +160,15 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ completed, completed_by: completedBy }),
       }),
+    updateSchedule: (taskId: string, data: { start_date: string | null; end_date: string | null; estimated_days?: number }) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/schedule`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),
-    update: (id: string, data: { full_name: string }) =>
+    update: (id: string, data: { full_name: string; phone?: string }) =>
       request<{ success: boolean }>(`/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
@@ -167,7 +177,7 @@ export const api = {
       request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' }),
   },
   ai: {
-    generate: (data: { name: string; description: string; duration: string; team_members: string[] }) =>
+    generate: (data: { name: string; description: string; duration: string; team_members: string[]; expand_description?: boolean }) =>
       request<{ success: boolean; project_id: string }>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),

@@ -9,6 +9,7 @@ export function CreateProject() {
   const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandDescription, setExpandDescription] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -37,7 +38,7 @@ export function CreateProject() {
     setIsGenerating(true);
     setError(null);
     try {
-      await api.ai.generate({ ...formData, team_members: selectedMembers });
+      await api.ai.generate({ ...formData, team_members: selectedMembers, expand_description: expandDescription });
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate project plan");
@@ -112,6 +113,22 @@ export function CreateProject() {
               placeholder="Describe your project goals, features, and requirements. The more details you provide, the better AI can plan your project..."
               className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 resize-none text-lg leading-relaxed"
             />
+            <label className="mt-4 flex items-start gap-3 cursor-pointer group">
+              <div className="relative mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={expandDescription}
+                  onChange={(e) => setExpandDescription(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 peer-checked:border-purple-500 peer-checked:bg-purple-600 transition-all flex items-center justify-center">
+                  {expandDescription && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+              </div>
+              <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors leading-5">
+                <span className="text-white font-medium">Enhance description with AI</span> — AI will rewrite your description as a polished project summary. Uncheck to use your exact wording as-is.
+              </span>
+            </label>
             <div className="mt-3 flex items-center gap-3 text-sm text-gray-400">
               <Sparkles className="w-4 h-4 text-purple-400" />
               <span>AI will generate: Timeline, Sprints, Tasks, Cost Estimation, Feasibility Analysis</span>

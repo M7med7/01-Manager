@@ -33,8 +33,16 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 function buildSchedule(tasks: Task[]): Map<string, ScheduleInfo> {
-  const ordered = [...tasks].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const map = new Map<string, ScheduleInfo>();
+  const needsCompute = tasks.filter(t => !t.start_date || !t.end_date);
+
+  for (const t of tasks) {
+    if (t.start_date && t.end_date) {
+      map.set(t.id, { start: new Date(t.start_date), end: new Date(t.end_date) });
+    }
+  }
+
+  const ordered = [...needsCompute].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const anchor = ordered[0]?.created_at ? new Date(ordered[0].created_at) : new Date();
   let cursor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
 

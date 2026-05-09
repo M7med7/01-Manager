@@ -143,6 +143,29 @@ router.patch('/:id/complete', async (req, res) => {
   }
 });
 
+// Update task schedule (start_date, end_date, estimated_days)
+router.patch('/:id/schedule', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, estimated_days } = req.body as {
+      start_date?: string | null;
+      end_date?: string | null;
+      estimated_days?: number;
+    };
+
+    const updates: Record<string, unknown> = {};
+    if (start_date !== undefined) updates.start_date = start_date || null;
+    if (end_date !== undefined) updates.end_date = end_date || null;
+    if (estimated_days !== undefined) updates.estimated_days = Math.max(1, Math.round(Number(estimated_days)));
+
+    const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Assign a task to a user
 router.patch('/:id/assign', async (req, res) => {
   try {

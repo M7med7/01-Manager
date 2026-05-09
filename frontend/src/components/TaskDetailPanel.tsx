@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Send, Sparkles, Tag, User as UserIcon, Clock } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X } from "lucide-react";
 import { api, type Task, type ProjectMember } from "../lib/api";
 
 interface ChatMessage { role: "user" | "ai"; content: string; }
@@ -34,18 +34,50 @@ interface Props {
   projectDesc?: string;
   currentUserId?: string;
   onComplete: (taskId: string, completed: boolean) => void;
+  onTaskUpdated?: (updated: Task) => void;
   onBack: () => void;
 }
 
-export function TaskDetailPanel({ task, schedule, members, projectDesc, currentUserId, onComplete, onBack }: Props) {
+function toDateInput(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function TaskDetailPanel({ task, schedule, members, projectDesc, currentUserId, onComplete, onTaskUpdated, onBack }: Props) {
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState<ChatMessage[]>([
     { role: "ai", content: `How can I help you with "${task.title}"?` },
   ]);
   const [sending, setSending] = useState(false);
   const [chatHeight, setChatHeight] = useState(220);
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [schedStart, setSchedStart] = useState("");
+  const [schedEnd, setSchedEnd] = useState("");
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const openScheduleEdit = () => {
+    setSchedStart(task.start_date ?? (schedule ? toDateInput(schedule.start) : ""));
+    setSchedEnd(task.end_date ?? (schedule ? toDateInput(schedule.end) : ""));
+    setEditingSchedule(true);
+  };
+
+  const saveSchedule = async () => {
+    if (!schedStart || !schedEnd) return;
+    setSavingSchedule(true);
+    try {
+      const start = new Date(schedStart);
+      const end = new Date(schedEnd);
+      const estimatedDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+      await api.tasks.updateSchedule(task.id, { start_date: schedStart, end_date: schedEnd, estimated_days: estimatedDays });
+      onTaskUpdated?.({ ...task, start_date: schedStart, end_date: schedEnd, estimated_days: estimatedDays });
+      setEditingSchedule(false);
+    } catch {
+      // leave edit open on error
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
 
   const startDrag = (clientY: number) => {
     dragRef.current = { startY: clientY, startHeight: chatHeight };
@@ -126,13 +158,46 @@ export function TaskDetailPanel({ task, schedule, members, projectDesc, currentU
       {/* Task detail scroll area — independent from chat */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
         {/* Schedule */}
-        {schedule && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-            <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0" />
-            <div className="text-sm">
-              <span className="text-gray-400">Schedule: </span>
-              <span className="text-white">{formatDate(schedule.start)} → {formatDate(schedule.end)}</span>
-            </div>
+        {(schedule || task.start_date) && (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+            {editingSchedule ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                  <CalendarIcon className="w-3.5 h-3.5 text-purple-400" /> Edit timeframe
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input type="date" value={schedStart} onChange={e => setSchedStart(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-black/40 border border-purple-500/40 rounded-lg text-sm text-white focus:outline-none focus:border-purple-400" />
+                  <span className="text-gray-500 text-xs">→</span>
+                  <input type="date" value={schedEnd} onChange={e => setSchedEnd(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-black/40 border border-purple-500/40 rounded-lg text-sm text-white focus:outline-none focus:border-purple-400" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setEditingSchedule(false)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors">
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                  <button onClick={saveSchedule} disabled={savingSchedule || !schedStart || !schedEnd}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs text-white font-semibold transition-colors disabled:opacity-50">
+                    {savingSchedule ? <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" /> : <Check className="w-3 h-3" />}
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0" />
+                <div className="flex-1 text-sm">
+                  <span className="text-gray-400">Schedule: </span>
+                  <span className="text-white">
+                    {schedule ? `${formatDate(schedule.start)} → ${formatDate(schedule.end)}` : `${task.start_date} → ${task.end_date}`}
+                  </span>
+                </div>
+                <button onClick={openScheduleEdit} className="shrink-0 p-1 rounded-md text-gray-500 hover:text-purple-300 hover:bg-purple-900/30 transition-colors" title="Edit schedule">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

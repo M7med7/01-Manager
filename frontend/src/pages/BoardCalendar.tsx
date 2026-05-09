@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
-import { api, type Task } from "../lib/api";
+import { api, type Task, type Project } from "../lib/api";
 
 type ViewMode = "day" | "week" | "month" | "year";
 
@@ -71,31 +71,67 @@ function formatShortDate(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function buildSchedule(tasks: Task[]): ScheduledTask[] {
-  const ordered = [...tasks].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.title.localeCompare(b.title));
-  const firstDate = ordered[0]?.created_at ? startOfDay(new Date(ordered[0].created_at)) : startOfDay(new Date());
-  let cursor = firstDate;
+function buildSchedule(tasks: Task[], projectDurations: Map<string, number> = new Map()): ScheduledTask[] {
+  const byProject = new Map<string, Task[]>();
+  for (const task of tasks) {
+    const pid = task.project_id ?? '_';
+    if (!byProject.has(pid)) byProject.set(pid, []);
+    byProject.get(pid)!.push(task);
+  }
 
-  return ordered.map((task) => {
-    const duration = Math.max(1, Math.ceil(Number(task.estimated_days || 1)));
-    const start = cursor;
-    const end = addDays(start, duration - 1);
-    cursor = addDays(end, 1);
-    return { task, start, end };
-  });
+  const result: ScheduledTask[] = [];
+
+  for (const [pid, projectTasks] of byProject) {
+    const withDates = projectTasks.filter(t => t.start_date && t.end_date);
+    const needsCompute = projectTasks.filter(t => !t.start_date || !t.end_date);
+
+    for (const task of withDates) {
+      result.push({ task, start: new Date(task.start_date!), end: new Date(task.end_date!) });
+    }
+
+    if (needsCompute.length === 0) continue;
+
+    const ordered = [...needsCompute].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.title.localeCompare(b.title));
+    const firstDate = ordered[0]?.created_at ? startOfDay(new Date(ordered[0].created_at)) : startOfDay(new Date());
+
+    const durationWeeks = projectDurations.get(pid);
+    let scale = 1;
+    if (durationWeeks) {
+      const totalAllowed = durationWeeks * 7;
+      const totalEstimated = ordered.reduce((sum, t) => sum + Math.max(1, Math.ceil(Number(t.estimated_days || 1))), 0);
+      if (totalEstimated > totalAllowed) scale = totalAllowed / totalEstimated;
+    }
+
+    let cursor = firstDate;
+    for (const task of ordered) {
+      const rawDays = Math.max(1, Math.ceil(Number(task.estimated_days || 1)));
+      const duration = Math.max(1, Math.round(rawDays * scale));
+      const start = cursor;
+      const end = addDays(start, duration - 1);
+      cursor = addDays(end, 1);
+      result.push({ task, start, end });
+    }
+  }
+
+  return result;
 }
 
 export function BoardCalendar() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectDurations, setProjectDurations] = useState<Map<string, number>>(new Map());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.tasks
-      .list()
-      .then(({ tasks }) => setTasks(tasks))
+    Promise.all([api.tasks.list(), api.projects.list()])
+      .then(([{ tasks }, { projects }]) => {
+        setTasks(tasks);
+        const map = new Map<string, number>();
+        (projects as Project[]).forEach(p => { if (p.duration_weeks) map.set(p.id, p.duration_weeks); });
+        setProjectDurations(map);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -113,8 +149,8 @@ export function BoardCalendar() {
     const filtered = selectedProjectId
       ? tasks.filter((t) => t.project_id === selectedProjectId)
       : tasks;
-    return buildSchedule(filtered);
-  }, [tasks, selectedProjectId]);
+    return buildSchedule(filtered, projectDurations);
+  }, [tasks, selectedProjectId, projectDurations]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();

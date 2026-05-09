@@ -64,7 +64,7 @@ export function Layout() {
     setSaving(true);
     setSaveError(null);
     try {
-      await api.users.update(session.user.id, { full_name: nameInput.trim() });
+      await api.users.update(session.user.id, { full_name: nameInput.trim(), phone: phoneInput.trim() });
       await supabase.auth.updateUser({ data: { full_name: nameInput.trim() } });
       if (phoneInput.trim()) {
         localStorage.setItem(`phone_${session.user.id}`, phoneInput.trim());

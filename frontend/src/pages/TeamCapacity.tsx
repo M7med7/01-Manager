@@ -14,7 +14,7 @@ const GRADIENTS = [
   "from-purple-500 to-purple-700",
 ];
 
-const MAX_TASKS_FULL = 8;
+const MAX_STORY_POINTS = 40;
 
 function getInitials(fullName: string | null, email: string): string {
   if (fullName) {
@@ -28,8 +28,8 @@ function getInitials(fullName: string | null, email: string): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-function computeCapacity(taskCount: number): number {
-  return Math.min(Math.round((taskCount / MAX_TASKS_FULL) * 100), 100);
+function computeCapacity(storyPoints: number): number {
+  return Math.min(Math.round((storyPoints / MAX_STORY_POINTS) * 100), 100);
 }
 
 interface CompletedTaskInfo {
@@ -44,6 +44,7 @@ interface TeamMember {
   role: string;
   phone?: string;
   capacity: number;
+  storyPoints: number;
   avatar: string;
   taskCount: number;
   projectCount: number;
@@ -60,12 +61,14 @@ interface MemberFormData {
 }
 
 function mapUser(user: User, index: number): TeamMember {
+  const sp = user.total_estimated_days ?? 0;
   return {
     id: user.id,
     name: user.full_name ?? user.email,
     role: user.email,
-    phone: localStorage.getItem(`phone_${user.id}`) ?? undefined,
-    capacity: computeCapacity(user.task_count),
+    phone: user.phone ?? undefined,
+    storyPoints: sp,
+    capacity: computeCapacity(sp),
     avatar: getInitials(user.full_name, user.email),
     taskCount: user.task_count,
     projectCount: user.project_count,
@@ -86,7 +89,8 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
     name: member.full_name,
     role: member.email,
     phone: member.phone,
-    capacity: computeCapacity(member.task_count),
+    storyPoints: 0,
+    capacity: 0,
     avatar: getInitials(member.full_name, member.email),
     taskCount: member.task_count,
     projectCount: 0,
@@ -210,6 +214,7 @@ export function TeamCapacity() {
       name: storedMember.full_name,
       role: storedMember.email,
       phone: storedMember.phone,
+      storyPoints: 0,
       capacity: 0,
       avatar: getInitials(storedMember.full_name, storedMember.email),
       taskCount: 0,
@@ -365,17 +370,20 @@ export function TeamCapacity() {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-base text-gray-400 font-semibold">Capacity</span>
-                <span
-                  className={`text-lg font-bold ${
-                    member.capacity > 90
-                      ? "text-red-400"
-                      : member.capacity > 75
-                      ? "text-yellow-400"
-                      : "text-green-400"
-                  }`}
-                >
-                  {member.capacity}%
-                </span>
+                <div className="text-right">
+                  <span
+                    className={`text-lg font-bold ${
+                      member.capacity > 90
+                        ? "text-red-400"
+                        : member.capacity > 75
+                        ? "text-yellow-400"
+                        : "text-green-400"
+                    }`}
+                  >
+                    {member.capacity}%
+                  </span>
+                  <span className="ml-2 text-xs text-gray-500">{member.storyPoints} / {MAX_STORY_POINTS} SP</span>
+                </div>
               </div>
               <div className="h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
                 <motion.div
