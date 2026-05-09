@@ -155,9 +155,8 @@ export function BoardCalendar() {
       <Link to={`/task/${item.task.project_id}`}>
         <motion.div
           whileHover={{ scale: 1.03, x: 2 }}
-          className={`${TASK_COLORS[getTaskType(item.task)]} text-white ${
-            compact ? "text-[10px] px-2 py-1" : "text-xs px-3 py-2"
-          } rounded cursor-pointer font-medium border backdrop-blur-sm`}
+          className={`${TASK_COLORS[getTaskType(item.task)]} text-white ${compact ? "text-[10px] px-2 py-1" : "text-xs px-3 py-2"
+            } rounded cursor-pointer font-medium border backdrop-blur-sm`}
           title={`${item.task.title} (${formatShortDate(item.start)} - ${formatShortDate(item.end)})`}
         >
           <span className="block truncate">{item.task.title}</span>
@@ -180,7 +179,7 @@ export function BoardCalendar() {
           <div className="mt-1 text-3xl font-light">{currentDate.getDate()}</div>
         </div>
         {dayTasks.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center text-gray-500">
+          <div className="rounded-xl border border-white/10 bg-white/2 p-8 text-center text-gray-500">
             No scheduled work for this day
           </div>
         ) : (
@@ -201,9 +200,8 @@ export function BoardCalendar() {
           return (
             <div
               key={date.toISOString()}
-              className={`min-h-[520px] rounded-xl border p-3 ${
-                isToday ? "border-purple-500/50 bg-purple-900/10" : "border-white/10 bg-white/[0.02]"
-              }`}
+              className={`min-h-[520px] rounded-xl border p-3 ${isToday ? "border-purple-500/50 bg-purple-900/10" : "border-white/10 bg-white/2"
+                }`}
             >
               <div className="mb-4">
                 <div className="text-xs uppercase tracking-wider text-gray-500">{DAY_NAMES[date.getDay()]}</div>
@@ -247,13 +245,12 @@ export function BoardCalendar() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.004 }}
-                className={`aspect-square border rounded-lg p-2 transition-all duration-200 relative overflow-hidden group ${
-                  isToday
+                className={`aspect-square border rounded-lg p-2 transition-all duration-200 relative overflow-hidden group ${isToday
                     ? "border-purple-500/50 bg-purple-900/10"
-                    : "border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/[0.04]"
-                }`}
+                    : "border-white/10 hover:border-white/20 bg-white/2 hover:bg-white/4"
+                  }`}
               >
-                <motion.div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <motion.div className="absolute inset-0 bg-linear-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                 <div className={`text-sm font-medium mb-1 relative z-10 ${isToday ? "text-purple-400" : "text-gray-300"}`}>
                   {day}
@@ -332,9 +329,8 @@ export function BoardCalendar() {
                 onClick={() => setViewMode(mode)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className={`relative px-4 py-2 rounded-md transition-all duration-200 capitalize text-sm overflow-hidden ${
-                  viewMode === mode ? "text-white" : "text-gray-400 hover:text-white"
-                }`}
+                className={`relative px-4 py-2 rounded-md transition-all duration-200 capitalize text-sm overflow-hidden ${viewMode === mode ? "text-white" : "text-gray-400 hover:text-white"
+                  }`}
               >
                 {viewMode === mode && (
                   <motion.div
