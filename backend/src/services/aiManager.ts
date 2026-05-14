@@ -6,7 +6,7 @@ export interface ScheduleRequest {
   projectName: string;
   description: string;
   durationWeeks: number;
-  teamMembers: Array<{ user_id: string }>;
+  teamMembers: Array<{ user_id: string; skills?: string[]; experience_summary?: string }>;
 }
 
 export interface GeneratedSchedule {
@@ -102,15 +102,30 @@ function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
   const totalDays = req.durationWeeks * 7;
 
+  let memberDetails = '';
+  if (req.teamMembers.some((m) => m.skills && m.skills.length > 0)) {
+    memberDetails =
+      '\\nTeam Member Skills:\\n' +
+      req.teamMembers
+        .map((m) => {
+          if (!m.skills || m.skills.length === 0) return '';
+          return `- User ID ${m.user_id}: Skills [${m.skills.join(', ')}]. Experience: ${m.experience_summary ?? ''}`;
+        })
+        .filter(Boolean)
+        .join('\\n') +
+      '\\n';
+  }
+
   return `Project: ${req.projectName}
 Description: ${req.description}
 Duration: ${req.durationWeeks} weeks (${totalDays} days)
 Team IDs: ${memberList || 'none'}
-
+${memberDetails}
 Rules:
 - Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
 - Sum of estimated_days ≤ ${totalDays}. Trim Low/Medium task days before dropping any task.
 - Distribute assignments evenly. assigned_to="" only when team is empty.
+- You MUST force the assignment of each task to the member whose skills best match that task's required technologies.
 - assigned_tech = task-specific tools only (derived from technology_recommendations).
 - Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
 - description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
@@ -186,4 +201,45 @@ export async function generateChatResponse(message: string, projectContext?: str
     console.error(`[AI] generateChatResponse failed after ${Date.now() - t0}ms:`, err);
     return 'I had trouble connecting to the AI service. Please try again.';
   }
+}
+
+export async function extractCVData(text: string): Promise<{ skills: string[]; experience_summary: string }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('AI generation is not configured: GEMINI_API_KEY is not set.');
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: 'You are an expert HR parser. Extract the candidate\'s skills and a brief experience summary from their CV.',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: SchemaType.OBJECT,
+        properties: {
+          skills: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+          experience_summary: {
+            type: SchemaType.STRING,
+            description: 'A brief plain-English summary of the candidate\'s experience in 2 to 4 sentences.',
+          },
+        },
+        required: ['skills', 'experience_summary'],
+      } as Schema,
+    },
+  });
+
+  const prompt = `Extract skills and experience summary from the following CV text:\n\n${text}`;
+  const response = await withTimeout(model.generateContent(prompt), CHAT_TIMEOUT_MS);
+  
+  const responseText = response.response.text();
+  const parsed = JSON.parse(responseText);
+  
+  return {
+    skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+    experience_summary: typeof parsed.experience_summary === 'string' ? parsed.experience_summary : '',
+  };
 }

@@ -201,7 +201,18 @@ export function Layout() {
                 </AnimatePresence>
 
                 {/* Actions */}
-                <div className="p-1.5">
+                <div className="p-1.5 flex flex-col">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate("/profile");
+                    }}
+                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors duration-150"
+                  >
+                    <Users className="h-4 w-4 shrink-0" />
+                    View profile
+                  </button>
+                  <div className="h-px w-full bg-white/10 my-1"></div>
                   <button
                     onClick={handleSignOut}
                     className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors duration-150"

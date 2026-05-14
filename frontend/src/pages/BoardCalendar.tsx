@@ -282,8 +282,8 @@ export function BoardCalendar() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.004 }}
                 className={`aspect-square border rounded-lg p-2 transition-all duration-200 relative overflow-hidden group ${isToday
-                    ? "border-purple-500/50 bg-purple-900/10"
-                    : "border-white/10 hover:border-white/20 bg-white/2 hover:bg-white/4"
+                  ? "border-purple-500/50 bg-purple-900/10"
+                  : "border-white/10 hover:border-white/20 bg-white/2 hover:bg-white/4"
                   }`}
               >
                 <motion.div className="absolute inset-0 bg-linear-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -320,7 +320,7 @@ export function BoardCalendar() {
             (item) => item.start.getFullYear() === year && item.start.getMonth() === monthIndex
           );
           return (
-            <div key={name} className="min-h-44 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div key={name} className="min-h-44 rounded-xl border border-white/10 bg-white/2 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h4 className="text-lg font-light">{name}</h4>
                 <span className="text-xs text-gray-500">{monthTasks.length} tasks</span>

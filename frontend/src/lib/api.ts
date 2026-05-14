@@ -45,10 +45,22 @@ export interface User {
   phone?: string | null;
   created_at: string;
   task_count: number;
-  total_estimated_days: number;
   project_count: number;
   completed_count: number;
-  completed_tasks: UserCompletedTask[];
+  completed_tasks: { id: string; title: string; project_name: string | null }[];
+  total_estimated_days: number;
+  skills: string[];
+  experience_summary: string | null;
+  cv_parsed_at: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  x_url: string | null;
+  job_title?: string | null;
+}
+
+export interface ProfileData extends User {
+  weekly_streak: number;
+  achievements: string[];
 }
 
 export interface ProjectMember {
@@ -168,13 +180,54 @@ export const api = {
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),
-    update: (id: string, data: { full_name: string; phone?: string }) =>
+    getProfile: (id: string) => request<{ profile: ProfileData }>(`/users/${id}/profile`),
+    update: (id: string, data: { full_name?: string; phone?: string; experience_summary?: string; github_url?: string; linkedin_url?: string; x_url?: string; skills?: string[]; job_title?: string }) =>
       request<{ success: boolean }>(`/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' }),
+    uploadCV: async (id: string, file: File) => {
+      const formData = new FormData();
+      formData.append('cv', file);
+      const res = await fetch(`${BASE_URL}/users/${id}/cv`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        let message = `Request failed (${res.status})`;
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed.error) message = parsed.error;
+        } catch {
+          if (body) message = body;
+        }
+        throw new Error(message);
+      }
+      return res.json() as Promise<{ success: boolean; skills: string[]; experience_summary: string }>;
+    },
+    uploadAvatar: async (id: string, file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await fetch(`${BASE_URL}/users/${id}/avatar`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        let message = `Request failed (${res.status})`;
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed.error) message = parsed.error;
+        } catch {
+          if (body) message = body;
+        }
+        throw new Error(message);
+      }
+      return res.json() as Promise<{ success: boolean; avatar_url: string }>;
+    },
   },
   ai: {
     generate: (data: { name: string; description: string; duration: string; team_members: string[]; expand_description?: boolean }) =>

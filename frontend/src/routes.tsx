@@ -11,6 +11,7 @@ import { SignupPage } from "./pages/SignupPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SetPasswordPage } from "./pages/SetPasswordPage";
+import { Profile } from "./pages/Profile";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
           { path: "task/:taskId", Component: TaskDetails },
           { path: "team", Component: TeamCapacity },
           { path: "create", Component: CreateProject },
+          { path: "profile", Component: Profile },
         ],
       },
     ],

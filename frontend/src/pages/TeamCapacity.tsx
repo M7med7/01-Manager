@@ -14,8 +14,6 @@ const GRADIENTS = [
   "from-purple-500 to-purple-700",
 ];
 
-const MAX_STORY_POINTS = 40;
-
 function getInitials(fullName: string | null, email: string): string {
   if (fullName) {
     return fullName
@@ -28,8 +26,8 @@ function getInitials(fullName: string | null, email: string): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-function computeCapacity(storyPoints: number): number {
-  return Math.min(Math.round((storyPoints / MAX_STORY_POINTS) * 100), 100);
+function computeCapacity(storyPoints: number, maxSP: number): number {
+  return Math.min(Math.round((storyPoints / maxSP) * 100), 100);
 }
 
 interface CompletedTaskInfo {
@@ -52,6 +50,9 @@ interface TeamMember {
   completedTasks: CompletedTaskInfo[];
   gradient: string;
   isLocal: boolean;
+  skills: string[];
+  experienceSummary: string | null;
+  cvParsedAt: string | null;
 }
 
 interface MemberFormData {
@@ -60,7 +61,7 @@ interface MemberFormData {
   phone: string;
 }
 
-function mapUser(user: User, index: number): TeamMember {
+function mapUser(user: User, index: number, maxSP: number): TeamMember {
   const sp = user.total_estimated_days ?? 0;
   return {
     id: user.id,
@@ -68,7 +69,7 @@ function mapUser(user: User, index: number): TeamMember {
     role: user.email,
     phone: user.phone ?? undefined,
     storyPoints: sp,
-    capacity: computeCapacity(sp),
+    capacity: computeCapacity(sp, maxSP),
     avatar: getInitials(user.full_name, user.email),
     taskCount: user.task_count,
     projectCount: user.project_count,
@@ -80,17 +81,20 @@ function mapUser(user: User, index: number): TeamMember {
     })),
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: false,
+    skills: user.skills ?? [],
+    experienceSummary: user.experience_summary ?? null,
+    cvParsedAt: user.cv_parsed_at ?? null,
   };
 }
 
-function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
+function mapStoredMember(member: StoredTeamMember, index: number, maxSP: number): TeamMember {
   return {
     id: member.id,
     name: member.full_name,
     role: member.email,
     phone: member.phone,
     storyPoints: 0,
-    capacity: 0,
+    capacity: computeCapacity(0, maxSP),
     avatar: getInitials(member.full_name, member.email),
     taskCount: member.task_count,
     projectCount: 0,
@@ -98,6 +102,9 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
     completedTasks: [],
     gradient: GRADIENTS[index % GRADIENTS.length],
     isLocal: true,
+    skills: [],
+    experienceSummary: null,
+    cvParsedAt: null,
   };
 }
 
@@ -168,15 +175,33 @@ export function TeamCapacity() {
   const [formData, setFormData] = useState<MemberFormData>({ fullName: "", email: "", phone: "" });
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [uploadingCVId, setUploadingCVId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [maxStoryPointsInput, setMaxStoryPointsInput] = useState<string>(() => {
+    const saved = localStorage.getItem('maxStoryPoints');
+    return saved ? saved : '40';
+  });
+
+  const maxStoryPoints = Math.max(1, parseInt(maxStoryPointsInput, 10) || 1);
+
+  useEffect(() => {
+    localStorage.setItem('maxStoryPoints', maxStoryPoints.toString());
+    setMembers((current) => current.map(m => ({
+      ...m,
+      capacity: computeCapacity(m.storyPoints, maxStoryPoints)
+    })));
+  }, [maxStoryPoints]);
 
   useEffect(() => {
     const fetchMembers = () => {
       api.users
         .list()
         .then(({ users }) => {
-          const apiMembers = users.map(mapUser);
+          const apiMembers = users.map((u, i) => mapUser(u, i, maxStoryPoints));
           const storedMembers = readLocalTeamMembers().map((member, index) =>
-            mapStoredMember(member, apiMembers.length + index)
+            mapStoredMember(member, apiMembers.length + index, maxStoryPoints)
           );
           setMembers([...apiMembers, ...storedMembers]);
         })
@@ -194,6 +219,38 @@ export function TeamCapacity() {
       window.removeEventListener('userProfileUpdated', fetchMembers);
     };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (expandedMemberId && !(e.target as Element).closest('.member-card')) {
+        setExpandedMemberId(null);
+        setUploadError(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [expandedMemberId]);
+
+  const handleUploadCV = async (memberId: string, file: File) => {
+    try {
+      setUploadingCVId(memberId);
+      setUploadError(null);
+      const res = await api.users.uploadCV(memberId, file);
+      if (res.success) {
+        setMembers((current) =>
+          current.map((m) =>
+            m.id === memberId
+              ? { ...m, skills: res.skills, experienceSummary: res.experience_summary, cvParsedAt: new Date().toISOString() }
+              : m
+          )
+        );
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to upload CV");
+    } finally {
+      setUploadingCVId(null);
+    }
+  };
 
   const overloaded = members.filter((m) => m.capacity > 90);
   const available = members.filter((m) => m.capacity <= 90);
@@ -223,6 +280,9 @@ export function TeamCapacity() {
       completedTasks: [],
       gradient: GRADIENTS[members.length % GRADIENTS.length],
       isLocal: true,
+      skills: [],
+      experienceSummary: null,
+      cvParsedAt: null,
     };
 
     saveLocalTeamMember(storedMember);
@@ -263,16 +323,28 @@ export function TeamCapacity() {
           </h2>
           <p className="text-gray-500 text-lg">Real-time workload monitoring and task distribution</p>
         </div>
-        <motion.button
-          type="button"
-          onClick={() => setIsAddMemberOpen(true)}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          className="inline-flex items-center gap-3 rounded-xl border border-purple-500/40 bg-purple-900/30 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 hover:border-purple-400/70 hover:bg-purple-800/40 transition-all"
-        >
-          <Plus className="h-4 w-4" />
-          Add Member
-        </motion.button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
+            <span className="text-sm font-semibold text-gray-400">Max SP:</span>
+            <input 
+              type="number" 
+              min="1" 
+              value={maxStoryPointsInput} 
+              onChange={(e) => setMaxStoryPointsInput(e.target.value)}
+              className="w-16 bg-transparent text-lg text-white font-bold outline-none"
+            />
+          </div>
+          <motion.button
+            type="button"
+            onClick={() => setIsAddMemberOpen(true)}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            className="inline-flex items-center gap-3 rounded-xl border border-purple-500/40 bg-purple-900/30 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 hover:border-purple-400/70 hover:bg-purple-800/40 transition-all"
+          >
+            <Plus className="h-4 w-4" />
+            Add Member
+          </motion.button>
+        </div>
       </div>
 
       {error && (
@@ -333,10 +405,20 @@ export function TeamCapacity() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1, type: "spring", stiffness: 100 }}
-            whileHover={{ y: -8, scale: 1.02 }}
-            className={`relative bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${
+            onClick={() => {
+              if (expandedMemberId === member.id) {
+                setExpandedMemberId(null);
+                setUploadError(null);
+              } else {
+                setExpandedMemberId(member.id);
+                setUploadError(null);
+              }
+            }}
+            className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${
               member.capacity > 90
                 ? "border-red-500/50 hover:border-red-500/70 shadow-xl shadow-red-500/20"
+                : expandedMemberId === member.id 
+                ? "border-purple-500/50 shadow-xl shadow-purple-500/20" 
                 : "border-white/20 hover:border-white/30 shadow-xl"
             }`}
           >
@@ -382,7 +464,7 @@ export function TeamCapacity() {
                   >
                     {member.capacity}%
                   </span>
-                  <span className="ml-2 text-xs text-gray-500">{member.storyPoints} / {MAX_STORY_POINTS} SP</span>
+                  <span className="ml-2 text-xs text-gray-500">{member.storyPoints} / {maxStoryPoints} SP</span>
                 </div>
               </div>
               <div className="h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
@@ -458,6 +540,67 @@ export function TeamCapacity() {
                 )}
               </div>
             </div>
+
+            <AnimatePresence>
+              {expandedMemberId === member.id && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: "auto", marginTop: 24 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  className="overflow-hidden border-t border-white/10 pt-6"
+                >
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-300 mb-3">Skills</h4>
+                    {member.skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {member.skills.map((skill, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No skills on file</p>
+                    )}
+                  </div>
+
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-300 mb-2">Experience Summary</h4>
+                    {member.experienceSummary ? (
+                      <p className="text-sm text-gray-400 leading-relaxed">{member.experienceSummary}</p>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No CV uploaded yet.</p>
+                    )}
+                  </div>
+
+                  {!member.isLocal && member.id === currentUserId && (
+                    <div>
+                      {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
+                      {uploadingCVId === member.id ? (
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-400">
+                          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                          Parsing CV...
+                        </div>
+                      ) : (
+                        <label className="inline-flex items-center justify-center cursor-pointer px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-xl text-sm text-purple-200 transition-colors">
+                          {member.cvParsedAt ? "Re-upload CV" : "Upload CV"}
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.txt"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadCV(member.id, file);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ))}
       </div>

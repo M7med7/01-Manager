@@ -31,6 +31,8 @@ app.use(express.json());
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
+import cvRoutes from './routes/cv';
+app.use('/api/users', cvRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get('/health', (_req, res) => {

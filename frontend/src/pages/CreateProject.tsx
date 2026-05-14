@@ -169,8 +169,8 @@ export function CreateProject() {
                       type="button"
                       onClick={() => toggleMember(user.id)}
                       className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${isSelected
-                          ? "border-purple-500/70 bg-purple-900/25"
-                          : "border-white/10 bg-white/3 hover:border-white/25"
+                        ? "border-purple-500/70 bg-purple-900/25"
+                        : "border-white/10 bg-white/3 hover:border-white/25"
                         }`}
                     >
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-purple-600 to-purple-900 text-sm font-bold text-white">
@@ -243,8 +243,8 @@ export function CreateProject() {
             whileHover={!isGenerating ? { y: -2 } : {}}
             whileTap={!isGenerating ? { scale: 0.98 } : {}}
             className={`w-full py-7 rounded-3xl text-xl font-bold transition-all duration-300 relative overflow-hidden border ${isGenerating
-                ? "bg-black/40 border-white/5 cursor-not-allowed text-white/40"
-                : "bg-black/80 border-white/10 text-white"
+              ? "bg-black/40 border-white/5 cursor-not-allowed text-white/40"
+              : "bg-black/80 border-white/10 text-white"
               }`}
           >
             {!isGenerating && (
@@ -292,7 +292,7 @@ export function CreateProject() {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full flex-shrink-0"
+                  className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full shrink-0"
                 />
                 <span>{step.label}</span>
               </motion.div>

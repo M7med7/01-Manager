@@ -24,9 +24,32 @@ router.post('/generate', async (req, res) => {
       ? team_members.filter((userId: unknown): userId is string => typeof userId === 'string' && userId.length > 0)
       : [];
     const databaseMembers = selectedMembers.filter((userId) => UUID_PATTERN.test(userId));
+
+    let memberDataMap: Record<string, { skills?: string[]; experience_summary?: string }> = {};
+    if (databaseMembers.length > 0) {
+      try {
+        const { data } = await supabase.from('users').select('id, skills, experience_summary').in('id', databaseMembers);
+        if (data) {
+          for (const user of data) {
+            memberDataMap[user.id] = {
+              skills: user.skills ?? [],
+              experience_summary: user.experience_summary ?? '',
+            };
+          }
+        }
+      } catch (err) {
+        console.error('[AI] /generate — failed to fetch user skills:', err);
+        // proceed without skills
+      }
+    }
+
     const scheduleMembers =
       selectedMembers.length > 0
-        ? selectedMembers.map((user_id) => ({ user_id }))
+        ? selectedMembers.map((user_id) => ({
+            user_id,
+            skills: memberDataMap[user_id]?.skills,
+            experience_summary: memberDataMap[user_id]?.experience_summary,
+          }))
         : Array.from({ length: headcountNum }, (_, i) => ({ user_id: `user${i + 1}` }));
 
     const durationWeeks = Math.max(1, parseInt(duration) || 8);

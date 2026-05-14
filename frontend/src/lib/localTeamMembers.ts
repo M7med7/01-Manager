@@ -44,5 +44,12 @@ export function mapLocalTeamMemberToUser(member: StoredTeamMember): User {
     completed_count: 0,
     completed_tasks: [],
     total_estimated_days: 0,
+    skills: [],
+    experience_summary: null,
+    cv_parsed_at: null,
+    github_url: null,
+    linkedin_url: null,
+    x_url: null,
+    job_title: null,
   };
 }
