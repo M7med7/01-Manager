@@ -5,6 +5,11 @@ jest.mock('../../../backend/src/lib/supabase', () => ({
 }));
 
 jest.mock('../../../backend/src/services/aiManager', () => ({
+  durationToDays: jest.fn((value: number, unit: string) => {
+    if (unit === 'Months') return value * 30;
+    if (unit === 'Years') return value * 365;
+    return value * 7;
+  }),
   generateSchedule: jest.fn().mockResolvedValue({
     tasks: [
       { id: 't1', title: 'Database Schema', description: 'D1', estimated_days: 2, assigned_tech: ['PostgreSQL'], assigned_to: 'u1' },

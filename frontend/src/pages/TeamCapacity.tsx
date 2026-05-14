@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, CheckCircle2, FolderOpen, Plus, Trash2, X }
 import { api, type User } from "../lib/api";
 import { readLocalTeamMembers, saveLocalTeamMember, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
 import { useAuth } from "../contexts/AuthContext";
+import { computeCapacity, getInitials } from "../lib/teamUtils";
 
 const GRADIENTS = [
   "from-purple-600 to-purple-800",
@@ -13,22 +14,6 @@ const GRADIENTS = [
   "from-indigo-600 to-purple-600",
   "from-purple-500 to-purple-700",
 ];
-
-function getInitials(fullName: string | null, email: string): string {
-  if (fullName) {
-    return fullName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
-  return email.slice(0, 2).toUpperCase();
-}
-
-function computeCapacity(storyPoints: number, maxSP: number): number {
-  return Math.min(Math.round((storyPoints / maxSP) * 100), 100);
-}
 
 interface CompletedTaskInfo {
   id: string;
@@ -322,10 +307,10 @@ export function TeamCapacity() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
             <span className="text-sm font-semibold text-gray-400">Max SP:</span>
-            <input 
-              type="number" 
-              min="1" 
-              value={maxStoryPointsInput} 
+            <input
+              type="number"
+              min="1"
+              value={maxStoryPointsInput}
               onChange={(e) => setMaxStoryPointsInput(e.target.value)}
               className="w-16 bg-transparent text-lg text-white font-bold outline-none"
             />
@@ -387,7 +372,7 @@ export function TeamCapacity() {
                 key={m.id}
                 className="px-5 py-2 bg-linear-to-r from-red-600 to-orange-600 rounded-full text-base text-white font-semibold shadow-lg"
               >
-                {m.name} ({m.capacity}%)
+                {m.name} ({computeCapacity(m.storyPoints, maxStoryPoints)}%)
               </span>
             ))}
           </div>
@@ -410,13 +395,12 @@ export function TeamCapacity() {
                 setUploadError(null);
               }
             }}
-            className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${
-              member.capacity > 90
+            className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
                 ? "border-red-500/50 hover:border-red-500/70 shadow-xl shadow-red-500/20"
-                : expandedMemberId === member.id 
-                ? "border-purple-500/50 shadow-xl shadow-purple-500/20" 
-                : "border-white/20 hover:border-white/30 shadow-xl"
-            }`}
+                : expandedMemberId === member.id
+                  ? "border-purple-500/50 shadow-xl shadow-purple-500/20"
+                  : "border-white/20 hover:border-white/30 shadow-xl"
+              }`}
           >
             {/* Delete button — hidden for the signed-in user (match by ID or email) */}
             {member.id !== currentUserId && member.role !== session?.user.email && (
@@ -458,15 +442,14 @@ export function TeamCapacity() {
                 <span className="text-base text-gray-400 font-semibold">Capacity</span>
                 <div className="text-right">
                   <span
-                    className={`text-lg font-bold ${
-                      member.capacity > 90
+                    className={`text-lg font-bold ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
                         ? "text-red-400"
-                        : member.capacity > 75
-                        ? "text-yellow-400"
-                        : "text-green-400"
-                    }`}
+                        : computeCapacity(member.storyPoints, maxStoryPoints) > 75
+                          ? "text-yellow-400"
+                          : "text-green-400"
+                      }`}
                   >
-                    {member.capacity}%
+                    {computeCapacity(member.storyPoints, maxStoryPoints)}%
                   </span>
                   <span className="ml-2 text-xs text-gray-500">{member.storyPoints} / {maxStoryPoints} SP</span>
                 </div>
@@ -474,15 +457,14 @@ export function TeamCapacity() {
               <div className="h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${member.capacity}%` }}
+                  animate={{ width: `${computeCapacity(member.storyPoints, maxStoryPoints)}%` }}
                   transition={{ delay: index * 0.1 + 0.3, duration: 1, ease: "easeOut" }}
-                  className={`h-full rounded-full ${
-                    member.capacity > 90
+                  className={`h-full rounded-full ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
                       ? "bg-linear-to-r from-red-600 to-orange-600 shadow-lg shadow-red-500/50"
-                      : member.capacity > 75
-                      ? "bg-linear-to-r from-yellow-600 to-orange-600 shadow-lg shadow-yellow-500/50"
-                      : "bg-linear-to-r from-green-600 to-emerald-600 shadow-lg shadow-green-500/50"
-                  }`}
+                      : computeCapacity(member.storyPoints, maxStoryPoints) > 75
+                        ? "bg-linear-to-r from-yellow-600 to-orange-600 shadow-lg shadow-yellow-500/50"
+                        : "bg-linear-to-r from-green-600 to-emerald-600 shadow-lg shadow-green-500/50"
+                    }`}
                 />
               </div>
             </div>

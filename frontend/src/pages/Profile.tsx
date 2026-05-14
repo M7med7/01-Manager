@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { api, type ProfileData } from "../lib/api";
+import { computeLevelInfo, getInitials } from "../lib/teamUtils";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Camera,
@@ -144,12 +145,8 @@ export function Profile() {
     );
   }
 
-  const initials = profile.full_name
-    ? profile.full_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
-    : profile.email.slice(0, 2).toUpperCase();
-
-  const level = Math.floor(profile.completed_count / 5) + 1;
-  const levelProgress = (profile.completed_count % 5) / 5 * 100;
+  const initials = getInitials(profile.full_name, profile.email);
+  const { level, progress: levelProgress } = computeLevelInfo(profile.completed_count);
 
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto">
@@ -183,7 +180,7 @@ export function Profile() {
         </div>
         <div className="flex-1 text-center md:text-left">
           <h1 className="text-4xl font-bold text-white mb-2">{profile.full_name || profile.email}</h1>
-          <div className="flex items-center justify-center md:justify-start gap-2">
+          <div className="flex items-center justify-center md:justify-start gap-2 mb-3">
             <Briefcase className="w-5 h-5 text-purple-400" />
             {isEditingTitle ? (
               <div className="flex items-center gap-2">
@@ -206,6 +203,11 @@ export function Profile() {
                 <Edit2 className="w-4 h-4 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             )}
+          </div>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-gray-400">
+            <span>{profile.email}</span>
+            {profile.phone && <span className="text-gray-500">·</span>}
+            {profile.phone && <span>{profile.phone}</span>}
           </div>
         </div>
         <div className="flex flex-wrap gap-4 mt-6 md:mt-0 justify-center">

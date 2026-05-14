@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
-import { generateSchedule, generateChatResponse } from '../services/aiManager';
+import { generateSchedule, generateChatResponse, durationToDays } from '../services/aiManager';
 
 const router = Router();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -56,10 +56,7 @@ router.post('/generate', async (req, res) => {
     const validUnits = ['Weeks', 'Months', 'Years'] as const;
     const durationUnit = validUnits.includes(duration_unit as any) ? (duration_unit as typeof validUnits[number]) : 'Weeks';
 
-    let daysMultiplier = 7;
-    if (durationUnit === 'Months') daysMultiplier = 30;
-    if (durationUnit === 'Years') daysMultiplier = 365;
-    const totalDays = durationValue * daysMultiplier;
+    const totalDays = durationToDays(durationValue, durationUnit);
     const durationWeeks = Math.max(1, Math.round(totalDays / 7));
 
     const schedule = await generateSchedule({

@@ -3,6 +3,7 @@ import multer from 'multer';
 import { supabase } from '../lib/supabase';
 import { demoUsers } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
+import { computeAchievements } from '../lib/achievements';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -150,14 +151,11 @@ router.get('/:id/profile', async (req, res) => {
       }
     }
 
-    // Achievements
-    const achievements = [];
-    if (completedTasks.length >= 1) achievements.push("First Task Completed");
-    if (completedTasks.length >= 10) achievements.push("Task Master (10+)");
-    if (completedTasks.length >= 50) achievements.push("Productivity Guru (50+)");
-    if ((assignments?.length ?? 0) >= 1) achievements.push("Team Player (1+ Projects)");
-    if ((assignments?.length ?? 0) >= 5) achievements.push("Veteran (5+ Projects)");
-    if (weeklyStreak >= 4) achievements.push("On Fire (4+ Week Streak)");
+    const achievements = computeAchievements(
+      completedTasks.length,
+      assignments?.length ?? 0,
+      weeklyStreak,
+    );
 
     const profileData = {
       ...user,

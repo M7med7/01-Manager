@@ -99,13 +99,15 @@ const SCHEDULE_SCHEMA = {
   required: ['project_summary', 'tasks', 'dependencies', 'technology_recommendations'],
 };
 
+export function durationToDays(value: number, unit: 'Weeks' | 'Months' | 'Years'): number {
+  if (unit === 'Months') return value * 30;
+  if (unit === 'Years') return value * 365;
+  return value * 7;
+}
+
 function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
-  
-  let daysMultiplier = 7;
-  if (req.durationUnit === 'Months') daysMultiplier = 30;
-  if (req.durationUnit === 'Years') daysMultiplier = 365;
-  const totalDays = req.durationValue * daysMultiplier;
+  const totalDays = durationToDays(req.durationValue, req.durationUnit);
 
   let memberDetails = '';
   if (req.teamMembers.some((m) => m.skills && m.skills.length > 0)) {
