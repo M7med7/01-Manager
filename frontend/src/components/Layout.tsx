@@ -36,6 +36,23 @@ export function Layout() {
   const fullName = session?.user.user_metadata?.full_name as string | undefined;
   const initials = getInitials(fullName, email);
   const displayName = fullName ?? email.split("@")[0];
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => {});
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    const refresh = () => {
+      const userId = session?.user.id;
+      if (!userId) return;
+      api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => {});
+    };
+    window.addEventListener('userProfileUpdated', refresh);
+    return () => window.removeEventListener('userProfileUpdated', refresh);
+  }, [session?.user.id]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -100,8 +117,8 @@ export function Layout() {
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-white/8 transition-colors duration-200"
           >
-            <div className="h-8 w-8 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shadow-md shadow-purple-500/30 shrink-0">
-              {initials}
+            <div className="h-8 w-8 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shadow-md shadow-purple-500/30 shrink-0 overflow-hidden">
+              {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
             </div>
             <span className="hidden sm:block max-w-[120px] truncate text-sm font-medium text-gray-300">
               {displayName}
@@ -120,8 +137,8 @@ export function Layout() {
                 {/* User info */}
                 <div className="px-4 py-3 border-b border-white/8">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                      {initials}
+                    <div className="h-9 w-9 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                      {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-white">{displayName}</p>
