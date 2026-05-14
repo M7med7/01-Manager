@@ -5,7 +5,8 @@ export interface ScheduleRequest {
   projectId: string;
   projectName: string;
   description: string;
-  durationWeeks: number;
+  durationValue: number;
+  durationUnit: 'Weeks' | 'Months' | 'Years';
   teamMembers: Array<{ user_id: string; skills?: string[]; experience_summary?: string }>;
 }
 
@@ -100,7 +101,11 @@ const SCHEDULE_SCHEMA = {
 
 function buildSchedulePrompt(req: ScheduleRequest): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
-  const totalDays = req.durationWeeks * 7;
+  
+  let daysMultiplier = 7;
+  if (req.durationUnit === 'Months') daysMultiplier = 30;
+  if (req.durationUnit === 'Years') daysMultiplier = 365;
+  const totalDays = req.durationValue * daysMultiplier;
 
   let memberDetails = '';
   if (req.teamMembers.some((m) => m.skills && m.skills.length > 0)) {
@@ -118,12 +123,14 @@ function buildSchedulePrompt(req: ScheduleRequest): string {
 
   return `Project: ${req.projectName}
 Description: ${req.description}
-Duration: ${req.durationWeeks} weeks (${totalDays} days)
+Duration: ${req.durationValue} ${req.durationUnit} (${totalDays} days)
 Team IDs: ${memberList || 'none'}
 ${memberDetails}
 Rules:
 - Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
-- Sum of estimated_days ≤ ${totalDays}. Trim Low/Medium task days before dropping any task.
+- You MUST ensure the project is 100% completed within exactly ${totalDays} days.
+- DO NOT OMIT any necessary tasks due to time constraints. If the duration is extremely short, aggressively compress the schedule by reducing individual task estimated_days to fit within the timeframe or by assigning tasks to run in parallel.
+- Sum of estimated_days across the critical path MUST be ≤ ${totalDays}.
 - Distribute assignments evenly. assigned_to="" only when team is empty.
 - You MUST force the assignment of each task to the member whose skills best match that task's required technologies.
 - assigned_tech = task-specific tools only (derived from technology_recommendations).

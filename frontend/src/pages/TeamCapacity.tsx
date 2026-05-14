@@ -41,9 +41,9 @@ interface TeamMember {
   name: string;
   role: string;
   phone?: string;
-  capacity: number;
   storyPoints: number;
   avatar: string;
+  avatar_url?: string | null;
   taskCount: number;
   projectCount: number;
   completedCount: number;
@@ -61,7 +61,7 @@ interface MemberFormData {
   phone: string;
 }
 
-function mapUser(user: User, index: number, maxSP: number): TeamMember {
+function mapUser(user: User, index: number): TeamMember {
   const sp = user.total_estimated_days ?? 0;
   return {
     id: user.id,
@@ -69,8 +69,8 @@ function mapUser(user: User, index: number, maxSP: number): TeamMember {
     role: user.email,
     phone: user.phone ?? undefined,
     storyPoints: sp,
-    capacity: computeCapacity(sp, maxSP),
     avatar: getInitials(user.full_name, user.email),
+    avatar_url: user.avatar_url,
     taskCount: user.task_count,
     projectCount: user.project_count,
     completedCount: user.completed_count ?? 0,
@@ -87,15 +87,15 @@ function mapUser(user: User, index: number, maxSP: number): TeamMember {
   };
 }
 
-function mapStoredMember(member: StoredTeamMember, index: number, maxSP: number): TeamMember {
+function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
   return {
     id: member.id,
     name: member.full_name,
     role: member.email,
     phone: member.phone,
     storyPoints: 0,
-    capacity: computeCapacity(0, maxSP),
     avatar: getInitials(member.full_name, member.email),
+    avatar_url: null,
     taskCount: member.task_count,
     projectCount: 0,
     completedCount: 0,
@@ -188,10 +188,6 @@ export function TeamCapacity() {
 
   useEffect(() => {
     localStorage.setItem('maxStoryPoints', maxStoryPoints.toString());
-    setMembers((current) => current.map(m => ({
-      ...m,
-      capacity: computeCapacity(m.storyPoints, maxStoryPoints)
-    })));
   }, [maxStoryPoints]);
 
   useEffect(() => {
@@ -199,9 +195,9 @@ export function TeamCapacity() {
       api.users
         .list()
         .then(({ users }) => {
-          const apiMembers = users.map((u, i) => mapUser(u, i, maxStoryPoints));
+          const apiMembers = users.map((u, i) => mapUser(u, i));
           const storedMembers = readLocalTeamMembers().map((member, index) =>
-            mapStoredMember(member, apiMembers.length + index, maxStoryPoints)
+            mapStoredMember(member, apiMembers.length + index)
           );
           setMembers([...apiMembers, ...storedMembers]);
         })
@@ -252,8 +248,8 @@ export function TeamCapacity() {
     }
   };
 
-  const overloaded = members.filter((m) => m.capacity > 90);
-  const available = members.filter((m) => m.capacity <= 90);
+  const overloaded = members.filter((m) => computeCapacity(m.storyPoints, maxStoryPoints) > 90);
+  const available = members.filter((m) => computeCapacity(m.storyPoints, maxStoryPoints) <= 90);
   const totalCompleted = members.reduce((sum, m) => sum + m.completedCount, 0);
 
   const handleAddMember = (e: { preventDefault(): void }) => {
@@ -272,8 +268,8 @@ export function TeamCapacity() {
       role: storedMember.email,
       phone: storedMember.phone,
       storyPoints: 0,
-      capacity: 0,
       avatar: getInitials(storedMember.full_name, storedMember.email),
+      avatar_url: null,
       taskCount: 0,
       projectCount: 0,
       completedCount: 0,
@@ -438,9 +434,17 @@ export function TeamCapacity() {
 
             <div className="flex items-center gap-5 mb-8">
               <div
-                className={`w-20 h-20 rounded-2xl bg-linear-to-br ${member.gradient} flex items-center justify-center shadow-2xl`}
+                className={`w-20 h-20 rounded-2xl bg-linear-to-br ${member.gradient} flex items-center justify-center shadow-2xl overflow-hidden shrink-0`}
               >
-                <span className="text-2xl text-white font-bold">{member.avatar}</span>
+                {member.avatar_url ? (
+                  <img
+                    src={member.avatar_url}
+                    alt={member.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl text-white font-bold">{member.avatar}</span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-xl mb-2 font-semibold truncate">{member.name}</h3>

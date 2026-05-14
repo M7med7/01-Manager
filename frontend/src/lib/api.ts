@@ -230,7 +230,7 @@ export const api = {
     },
   },
   ai: {
-    generate: (data: { name: string; description: string; duration: string; team_members: string[]; expand_description?: boolean }) =>
+    generate: (data: { name: string; description: string; duration: string; duration_unit: string; team_members: string[]; expand_description?: boolean }) =>
       request<{ success: boolean; project_id: string }>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),

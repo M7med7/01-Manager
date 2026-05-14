@@ -10,13 +10,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 router.post('/generate', async (req, res) => {
   const t0 = Date.now();
   try {
-    const { name, description, headcount, duration, team_members, expand_description } = req.body;
+    const { name, description, headcount, duration, duration_unit, team_members, expand_description } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ error: 'name and description are required' });
     }
 
-    console.log(`[AI] /generate received — name="${name}"`);
+    console.log(`[AI] /generate received — name="${name}" duration="${duration} ${duration_unit}"`);
 
     const projectId = uuidv4();
     const headcountNum = parseInt(headcount) || 1;
@@ -52,12 +52,22 @@ router.post('/generate', async (req, res) => {
           }))
         : Array.from({ length: headcountNum }, (_, i) => ({ user_id: `user${i + 1}` }));
 
-    const durationWeeks = Math.max(1, parseInt(duration) || 8);
+    const durationValue = Math.max(1, parseInt(duration) || 8);
+    const validUnits = ['Weeks', 'Months', 'Years'] as const;
+    const durationUnit = validUnits.includes(duration_unit as any) ? (duration_unit as typeof validUnits[number]) : 'Weeks';
+
+    let daysMultiplier = 7;
+    if (durationUnit === 'Months') daysMultiplier = 30;
+    if (durationUnit === 'Years') daysMultiplier = 365;
+    const totalDays = durationValue * daysMultiplier;
+    const durationWeeks = Math.max(1, Math.round(totalDays / 7));
+
     const schedule = await generateSchedule({
       projectId,
       projectName: name,
       description,
-      durationWeeks,
+      durationValue,
+      durationUnit,
       teamMembers: scheduleMembers,
     });
 

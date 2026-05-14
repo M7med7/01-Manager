@@ -14,6 +14,7 @@ export function CreateProject() {
     name: "",
     description: "",
     duration: "",
+    duration_unit: "Weeks",
   });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -46,7 +47,7 @@ export function CreateProject() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -136,17 +137,30 @@ export function CreateProject() {
           </div>
 
           <div>
-            <label className="block text-lg text-gray-300 mb-3 font-semibold">Expected Duration (weeks)</label>
-            <input
-              type="number"
-              name="duration"
-              value={formData.duration}
-              onChange={handleChange}
-              required
-              min="1"
-              placeholder="8"
-              className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
-            />
+            <label className="block text-lg text-gray-300 mb-3 font-semibold">Expected Duration</label>
+            <div className="flex gap-4">
+              <input
+                type="number"
+                name="duration"
+                value={formData.duration}
+                onChange={handleChange}
+                required
+                min="1"
+                placeholder="8"
+                className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
+              />
+              <select
+                name="duration_unit"
+                value={formData.duration_unit}
+                onChange={handleChange}
+                className="w-48 px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white transition-all duration-300 hover:border-white/30 text-lg appearance-none cursor-pointer"
+                style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
+              >
+                <option value="Weeks" className="bg-gray-900">Weeks</option>
+                <option value="Months" className="bg-gray-900">Months</option>
+                <option value="Years" className="bg-gray-900">Years</option>
+              </select>
+            </div>
           </div>
 
           <div>
