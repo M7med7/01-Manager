@@ -231,7 +231,7 @@ export function Profile() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Column */}
         <div className="lg:col-span-2 space-y-8">
-          
+
           {/* Summary */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -246,7 +246,7 @@ export function Profile() {
                 </button>
               )}
             </div>
-            
+
             {isEditingSummary ? (
               <div className="space-y-4">
                 <textarea
@@ -327,7 +327,7 @@ export function Profile() {
 
         {/* Right Sidebar */}
         <div className="space-y-8">
-          
+
           {/* Socials */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -347,15 +347,15 @@ export function Profile() {
               <div className="space-y-4">
                 <div className="relative">
                   <Github className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
-                  <input type="text" value={socialsDraft.github} onChange={e => setSocialsDraft({...socialsDraft, github: e.target.value})} placeholder="GitHub URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
+                  <input type="text" value={socialsDraft.github} onChange={e => setSocialsDraft({ ...socialsDraft, github: e.target.value })} placeholder="GitHub URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
                 </div>
                 <div className="relative">
                   <Linkedin className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
-                  <input type="text" value={socialsDraft.linkedin} onChange={e => setSocialsDraft({...socialsDraft, linkedin: e.target.value})} placeholder="LinkedIn URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
+                  <input type="text" value={socialsDraft.linkedin} onChange={e => setSocialsDraft({ ...socialsDraft, linkedin: e.target.value })} placeholder="LinkedIn URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
                 </div>
                 <div className="relative">
                   <Twitter className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
-                  <input type="text" value={socialsDraft.x} onChange={e => setSocialsDraft({...socialsDraft, x: e.target.value})} placeholder="X/Twitter URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
+                  <input type="text" value={socialsDraft.x} onChange={e => setSocialsDraft({ ...socialsDraft, x: e.target.value })} placeholder="X/Twitter URL" className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none" />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button onClick={() => setIsEditingSocials(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>

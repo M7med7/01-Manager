@@ -396,10 +396,10 @@ export function TeamCapacity() {
               }
             }}
             className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-                ? "border-red-500/50 hover:border-red-500/70 shadow-xl shadow-red-500/20"
-                : expandedMemberId === member.id
-                  ? "border-purple-500/50 shadow-xl shadow-purple-500/20"
-                  : "border-white/20 hover:border-white/30 shadow-xl"
+              ? "border-red-500/50 hover:border-red-500/70 shadow-xl shadow-red-500/20"
+              : expandedMemberId === member.id
+                ? "border-purple-500/50 shadow-xl shadow-purple-500/20"
+                : "border-white/20 hover:border-white/30 shadow-xl"
               }`}
           >
             {/* Delete button — hidden for the signed-in user (match by ID or email) */}
@@ -443,10 +443,10 @@ export function TeamCapacity() {
                 <div className="text-right">
                   <span
                     className={`text-lg font-bold ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-                        ? "text-red-400"
-                        : computeCapacity(member.storyPoints, maxStoryPoints) > 75
-                          ? "text-yellow-400"
-                          : "text-green-400"
+                      ? "text-red-400"
+                      : computeCapacity(member.storyPoints, maxStoryPoints) > 75
+                        ? "text-yellow-400"
+                        : "text-green-400"
                       }`}
                   >
                     {computeCapacity(member.storyPoints, maxStoryPoints)}%
@@ -460,15 +460,16 @@ export function TeamCapacity() {
                   animate={{ width: `${computeCapacity(member.storyPoints, maxStoryPoints)}%` }}
                   transition={{ delay: index * 0.1 + 0.3, duration: 1, ease: "easeOut" }}
                   className={`h-full rounded-full ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-                      ? "bg-linear-to-r from-red-600 to-orange-600 shadow-lg shadow-red-500/50"
-                      : computeCapacity(member.storyPoints, maxStoryPoints) > 75
-                        ? "bg-linear-to-r from-yellow-600 to-orange-600 shadow-lg shadow-yellow-500/50"
-                        : "bg-linear-to-r from-green-600 to-emerald-600 shadow-lg shadow-green-500/50"
+                    ? "bg-linear-to-r from-red-600 to-orange-600 shadow-lg shadow-red-500/50"
+                    : computeCapacity(member.storyPoints, maxStoryPoints) > 75
+                      ? "bg-linear-to-r from-yellow-600 to-orange-600 shadow-lg shadow-yellow-500/50"
+                      : "bg-linear-to-r from-green-600 to-emerald-600 shadow-lg shadow-green-500/50"
                     }`}
                 />
               </div>
             </div>
 
+            {/* Stats row — always visible */}
             <div className="space-y-6">
               <div>
                 <div className="flex items-center gap-3 mb-3">
@@ -527,6 +528,7 @@ export function TeamCapacity() {
               </div>
             </div>
 
+            {/* Skills + Experience — slide in when card is opened */}
             <AnimatePresence>
               {expandedMemberId === member.id && (
                 <motion.div
@@ -535,12 +537,16 @@ export function TeamCapacity() {
                   exit={{ opacity: 0, height: 0, marginTop: 0 }}
                   className="overflow-hidden border-t border-white/10 pt-6"
                 >
-                  <div className="mb-6">
+                  {/* Skills */}
+                  <div className="mb-5">
                     <h4 className="text-sm font-semibold text-gray-300 mb-3">Skills</h4>
                     {member.skills.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {member.skills.map((skill, idx) => (
-                          <span key={idx} className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200">
+                          <span
+                            key={idx}
+                            className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200"
+                          >
                             {skill}
                           </span>
                         ))}
@@ -550,7 +556,8 @@ export function TeamCapacity() {
                     )}
                   </div>
 
-                  <div className="mb-6">
+                  {/* Experience Summary */}
+                  <div className={!member.isLocal && member.id === currentUserId ? "mb-5" : ""}>
                     <h4 className="text-sm font-semibold text-gray-300 mb-2">Experience Summary</h4>
                     {member.experienceSummary ? (
                       <p className="text-sm text-gray-400 leading-relaxed">{member.experienceSummary}</p>
@@ -559,6 +566,7 @@ export function TeamCapacity() {
                     )}
                   </div>
 
+                  {/* CV upload — only for the signed-in user */}
                   {!member.isLocal && member.id === currentUserId && (
                     <div>
                       {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
