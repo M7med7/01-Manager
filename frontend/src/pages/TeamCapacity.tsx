@@ -160,7 +160,7 @@ export function TeamCapacity() {
   const [formData, setFormData] = useState<MemberFormData>({ fullName: "", email: "", phone: "" });
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [skillsVisible, setSkillsVisible] = useState(false);
   const [uploadingCVId, setUploadingCVId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -200,17 +200,6 @@ export function TeamCapacity() {
       window.removeEventListener('userProfileUpdated', fetchMembers);
     };
   }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (expandedMemberId && !(e.target as Element).closest('.member-card')) {
-        setExpandedMemberId(null);
-        setUploadError(null);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [expandedMemberId]);
 
   const handleUploadCV = async (memberId: string, file: File) => {
     try {
@@ -386,18 +375,10 @@ export function TeamCapacity() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1, type: "spring", stiffness: 100 }}
-            onClick={() => {
-              if (expandedMemberId === member.id) {
-                setExpandedMemberId(null);
-                setUploadError(null);
-              } else {
-                setExpandedMemberId(member.id);
-                setUploadError(null);
-              }
-            }}
+            onClick={() => setSkillsVisible((v) => !v)}
             className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-              ? "border-red-500/50 hover:border-red-500/70 shadow-xl shadow-red-500/20"
-              : expandedMemberId === member.id
+              ? "border-red-500/50 shadow-xl shadow-red-500/20"
+              : skillsVisible
                 ? "border-purple-500/50 shadow-xl shadow-purple-500/20"
                 : "border-white/20 hover:border-white/30 shadow-xl"
               }`}
@@ -528,72 +509,72 @@ export function TeamCapacity() {
               </div>
             </div>
 
-            {/* Skills + Experience — slide in when card is opened */}
+            {/* Skills + Experience — visible when any card is clicked */}
             <AnimatePresence>
-              {expandedMemberId === member.id && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                  animate={{ opacity: 1, height: "auto", marginTop: 24 }}
-                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                  className="overflow-hidden border-t border-white/10 pt-6"
-                >
-                  {/* Skills */}
-                  <div className="mb-5">
-                    <h4 className="text-sm font-semibold text-gray-300 mb-3">Skills</h4>
-                    {member.skills.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {member.skills.map((skill, idx) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200"
-                          >
-                            {skill}
-                          </span>
-                        ))}
+            {skillsVisible && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: "auto", marginTop: 24 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                className="overflow-hidden border-t border-white/10 pt-6"
+              >
+                {/* Skills */}
+                <div className="mb-5">
+                  <h4 className="text-sm font-semibold text-gray-300 mb-3">Skills</h4>
+                  {member.skills.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {member.skills.map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No CV uploaded yet</p>
+                  )}
+                </div>
+
+                {/* Experience Summary */}
+                <div className={!member.isLocal && member.id === currentUserId ? "mb-5" : ""}>
+                  <h4 className="text-sm font-semibold text-gray-300 mb-2">Experience Summary</h4>
+                  {member.experienceSummary ? (
+                    <p className="text-sm text-gray-400 leading-relaxed">{member.experienceSummary}</p>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No summary available</p>
+                  )}
+                </div>
+
+                {/* CV upload — only the signed-in user can upload their own CV */}
+                {!member.isLocal && member.id === currentUserId && (
+                  <div>
+                    {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
+                    {uploadingCVId === member.id ? (
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-400">
+                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        Parsing CV...
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No skills on file</p>
+                      <label className="inline-flex items-center justify-center cursor-pointer px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-xl text-sm text-purple-200 transition-colors">
+                        {member.cvParsedAt ? "Re-upload CV" : "Upload CV"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.txt"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadCV(member.id, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     )}
                   </div>
-
-                  {/* Experience Summary */}
-                  <div className={!member.isLocal && member.id === currentUserId ? "mb-5" : ""}>
-                    <h4 className="text-sm font-semibold text-gray-300 mb-2">Experience Summary</h4>
-                    {member.experienceSummary ? (
-                      <p className="text-sm text-gray-400 leading-relaxed">{member.experienceSummary}</p>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No CV uploaded yet.</p>
-                    )}
-                  </div>
-
-                  {/* CV upload — only for the signed-in user */}
-                  {!member.isLocal && member.id === currentUserId && (
-                    <div>
-                      {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
-                      {uploadingCVId === member.id ? (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-400">
-                          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                          Parsing CV...
-                        </div>
-                      ) : (
-                        <label className="inline-flex items-center justify-center cursor-pointer px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-xl text-sm text-purple-200 transition-colors">
-                          {member.cvParsedAt ? "Re-upload CV" : "Upload CV"}
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.txt"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleUploadCV(member.id, file);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              )}
+                )}
+              </motion.div>
+            )}
             </AnimatePresence>
           </motion.div>
         ))}
