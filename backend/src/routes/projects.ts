@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../lib/supabase';
 import { demoProjects, demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
+import { enrichTasksWithDependencies, fetchProjectDependencies } from '../lib/taskDependencies';
 
 const router = Router();
 
@@ -59,6 +60,7 @@ router.get('/:id', async (req, res) => {
       { data: project, error: projectError },
       { data: tasks, error: tasksError },
       { data: assignments },
+      { data: activity },
     ] = await Promise.all([
       withTimeout(supabase.from('projects').select('*').eq('id', id).single()),
       withTimeout(supabase.from('tasks').select('*').eq('project_id', id).order('created_at')),
@@ -68,12 +70,23 @@ router.get('/:id', async (req, res) => {
           .select('user_id, role, users(id, email, full_name, avatar_url)')
           .eq('project_id', id)
       ),
+      withTimeout(supabase.from('task_activity').select('task_id, created_at').order('created_at', { ascending: false })),
     ]);
 
     if (projectError) throw projectError;
     if (tasksError) throw tasksError;
 
     const taskList = tasks ?? [];
+    const dependencies = await fetchProjectDependencies(id);
+    const latestByTask = new Map<string, string>();
+    for (const item of activity ?? []) {
+      if (!latestByTask.has(item.task_id)) latestByTask.set(item.task_id, item.created_at);
+    }
+    const withActivity = taskList.map((task) => ({
+      ...task,
+      latest_activity_at: latestByTask.get(task.id) ?? task.updated_at,
+    }));
+    const enrichedTasks = enrichTasksWithDependencies(withActivity, dependencies);
     const doneTasks = taskList.filter((t) => t.status === 'Done').length;
     const progress = taskList.length > 0 ? Math.round((doneTasks / taskList.length) * 100) : 0;
 
@@ -85,7 +98,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       project: { ...project, team_count: members.length, progress },
-      tasks: taskList,
+      tasks: enrichedTasks,
       members,
     });
   } catch (error: any) {

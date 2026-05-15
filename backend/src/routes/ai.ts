@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { generateSchedule, generateChatResponse, durationToDays } from '../services/aiManager';
+import { wouldCreateCycle, type TaskDependencyRow } from '../lib/taskDependencies';
+import { resolveTemplate } from './templates';
 
 const router = Router();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,7 +12,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 router.post('/generate', async (req, res) => {
   const t0 = Date.now();
   try {
-    const { name, description, headcount, duration, duration_unit, team_members, expand_description } = req.body;
+    const { name, description, headcount, duration, duration_unit, team_members, expand_description, template_id } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ error: 'name and description are required' });
@@ -66,6 +68,7 @@ router.post('/generate', async (req, res) => {
       durationValue,
       durationUnit,
       teamMembers: scheduleMembers,
+      template: await resolveTemplate(template_id),
     });
 
     const projectTable = supabase.from('projects') as any;
@@ -98,16 +101,24 @@ router.post('/generate', async (req, res) => {
       console.log(`[AI] /generate — AI returned ${schedule.tasks.length} tasks`);
 
       if (schedule.tasks.length > 0) {
-        const tasksToInsert = schedule.tasks.map((task) => ({
-          project_id: project.id,
-          title: task.title,
-          description: task.description ?? '',
-          status: 'To Do',
-          priority: (['High', 'Medium', 'Low'].includes((task as any).priority) ? (task as any).priority : 'Medium'),
-          estimated_days: Number(task.estimated_days) || 1,
-          assigned_tech: Array.isArray(task.assigned_tech) ? task.assigned_tech : [],
-          assigned_to: databaseMembers.includes(task.assigned_to) ? task.assigned_to : null,
-        }));
+        const taskIdMap = new Map<string, string>();
+        const tasksToInsert = schedule.tasks.map((task) => {
+          const generatedId = String(task.id || uuidv4());
+          const savedId = UUID_PATTERN.test(generatedId) ? generatedId : uuidv4();
+          taskIdMap.set(generatedId, savedId);
+
+          return {
+            id: savedId,
+            project_id: project.id,
+            title: task.title,
+            description: task.description ?? '',
+            status: 'To Do',
+            priority: (['High', 'Medium', 'Low'].includes((task as any).priority) ? (task as any).priority : 'Medium'),
+            estimated_days: Number(task.estimated_days) || 1,
+            assigned_tech: Array.isArray(task.assigned_tech) ? task.assigned_tech : [],
+            assigned_to: databaseMembers.includes(task.assigned_to) ? task.assigned_to : null,
+          };
+        });
 
         const { error: taskError } = await withTimeout(
           supabase.from('tasks').insert(tasksToInsert),
@@ -118,6 +129,44 @@ router.post('/generate', async (req, res) => {
           throw taskError;
         }
         console.log(`[AI] /generate — inserted ${tasksToInsert.length} tasks`);
+
+        const insertedTaskIds = new Set(tasksToInsert.map((task) => task.id));
+        const dependencyRows: TaskDependencyRow[] = [];
+        for (const dep of schedule.dependencies ?? []) {
+          const taskId = taskIdMap.get(String(dep.task_id)) ?? dep.task_id;
+          const dependsOnTaskId = taskIdMap.get(String(dep.depends_on_task_id)) ?? dep.depends_on_task_id;
+          if (
+            !insertedTaskIds.has(taskId) ||
+            !insertedTaskIds.has(dependsOnTaskId) ||
+            taskId === dependsOnTaskId
+          ) {
+            continue;
+          }
+          if (dependencyRows.some((item) => item.task_id === taskId && item.depends_on_task_id === dependsOnTaskId)) {
+            continue;
+          }
+          if (wouldCreateCycle(taskId, dependsOnTaskId, dependencyRows)) {
+            continue;
+          }
+          dependencyRows.push({
+            task_id: taskId,
+            depends_on_task_id: dependsOnTaskId,
+          });
+        }
+
+        if (dependencyRows.length > 0) {
+          const { error: dependencyError } = await withTimeout(
+            supabase.from('task_dependencies').insert(
+              dependencyRows.map((dep) => ({
+                ...dep,
+                dependency_type: 'Finish-to-Start',
+              })),
+            ),
+            10_000,
+          );
+          if (dependencyError) throw dependencyError;
+          console.log(`[AI] /generate — inserted ${dependencyRows.length} dependencies`);
+        }
       }
     }
 

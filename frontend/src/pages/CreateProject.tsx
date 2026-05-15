@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Loader2, Users } from "lucide-react";
+import { Copy, Loader2, Sparkles, Users } from "lucide-react";
 import { motion } from "motion/react";
-import { api, type User } from "../lib/api";
+import { api, type ProjectTemplate, type User } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { mapLocalTeamMemberToUser, readLocalTeamMembers } from "../lib/localTeamMembers";
 
 export function CreateProject() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandDescription, setExpandDescription] = useState(true);
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("blank");
+  const [duplicatingTemplateId, setDuplicatingTemplateId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -30,6 +35,25 @@ export function CreateProject() {
       .catch(() => setUsers(readLocalTeamMembers().map(mapLocalTeamMemberToUser)));
   }, []);
 
+  useEffect(() => {
+    api.templates
+      .list()
+      .then(({ templates }) => setTemplates(templates))
+      .catch(() => {
+        setTemplates([
+          {
+            id: "blank",
+            name: "Blank Project",
+            description: "Start from your own description without template guidance.",
+            category: "Blank",
+            phases: [],
+            recommended_technologies: [],
+            is_custom: false,
+          },
+        ]);
+      });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedMembers.length === 0) {
@@ -39,7 +63,12 @@ export function CreateProject() {
     setIsGenerating(true);
     setError(null);
     try {
-      await api.ai.generate({ ...formData, team_members: selectedMembers, expand_description: expandDescription });
+      await api.ai.generate({
+        ...formData,
+        team_members: selectedMembers,
+        expand_description: expandDescription,
+        template_id: selectedTemplateId,
+      });
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate project plan");
@@ -57,12 +86,28 @@ export function CreateProject() {
     );
   };
 
+  const handleDuplicateTemplate = async (templateId: string) => {
+    setDuplicatingTemplateId(templateId);
+    setError(null);
+    try {
+      const { template } = await api.templates.duplicate(templateId, session?.user.id ?? null);
+      setTemplates((current) => [template, ...current]);
+      setSelectedTemplateId(template.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate template");
+    } finally {
+      setDuplicatingTemplateId(null);
+    }
+  };
+
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
+
   return (
     <div className="min-h-full px-12 py-10 flex justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-3xl"
+        className="w-full max-w-5xl"
       >
         <div className="mb-12 flex items-center justify-between gap-6">
           <div>
@@ -87,6 +132,83 @@ export function CreateProject() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <label className="block text-lg text-gray-300 font-semibold">Project Template</label>
+              <span className="text-sm text-gray-500">Optional</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {templates.map((template) => {
+                const isSelected = selectedTemplateId === template.id;
+                const canDuplicate = template.id !== "blank";
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => setSelectedTemplateId(template.id)}
+                    className={`group min-h-[150px] rounded-2xl border-2 p-4 text-left transition-all ${isSelected
+                      ? "border-purple-500/70 bg-purple-900/25 shadow-lg shadow-purple-500/10"
+                      : "border-white/10 bg-white/3 hover:border-white/25"
+                      }`}
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-base font-semibold text-white">{template.name}</div>
+                        <div className="mt-1 text-xs text-purple-300">{template.category}{template.is_custom ? " template" : ""}</div>
+                      </div>
+                      {canDuplicate && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDuplicateTemplate(template.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              handleDuplicateTemplate(template.id);
+                            }
+                          }}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-gray-500 opacity-100 transition-colors hover:border-purple-500/40 hover:bg-purple-900/30 hover:text-purple-200 md:opacity-0 md:group-hover:opacity-100"
+                          aria-label={`Duplicate ${template.name}`}
+                          title="Duplicate template"
+                        >
+                          {duplicatingTemplateId === template.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <p className="line-clamp-3 text-sm leading-5 text-gray-400">{template.description}</p>
+                    {template.phases.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {template.phases.slice(0, 3).map((phase) => (
+                          <span key={phase} className="rounded-md border border-white/10 bg-black/25 px-2 py-1 text-[11px] text-gray-400">
+                            {phase}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedTemplate && selectedTemplate.recommended_technologies.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+                <span className="text-gray-500">Recommended:</span>
+                {selectedTemplate.recommended_technologies.slice(0, 8).map((tech) => (
+                  <span key={tech} className="rounded-full border border-purple-500/20 bg-purple-900/20 px-2.5 py-1 text-xs text-purple-200">
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-lg text-gray-300 mb-3 font-semibold">Project Name</label>
             <input

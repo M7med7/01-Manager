@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
 import { api, type Task, type Project } from "../lib/api";
+import { buildDependencyAwareSchedule } from "../lib/schedule";
 
 type ViewMode = "day" | "week" | "month" | "year";
 
@@ -72,48 +73,13 @@ function formatShortDate(date: Date): string {
 }
 
 function buildSchedule(tasks: Task[], projectDurations: Map<string, number> = new Map()): ScheduledTask[] {
-  const byProject = new Map<string, Task[]>();
-  for (const task of tasks) {
-    const pid = task.project_id ?? '_';
-    if (!byProject.has(pid)) byProject.set(pid, []);
-    byProject.get(pid)!.push(task);
-  }
-
-  const result: ScheduledTask[] = [];
-
-  for (const [pid, projectTasks] of byProject) {
-    const withDates = projectTasks.filter(t => t.start_date && t.end_date);
-    const needsCompute = projectTasks.filter(t => !t.start_date || !t.end_date);
-
-    for (const task of withDates) {
-      result.push({ task, start: new Date(task.start_date!), end: new Date(task.end_date!) });
-    }
-
-    if (needsCompute.length === 0) continue;
-
-    const ordered = [...needsCompute].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.title.localeCompare(b.title));
-    const firstDate = ordered[0]?.created_at ? startOfDay(new Date(ordered[0].created_at)) : startOfDay(new Date());
-
-    const durationWeeks = projectDurations.get(pid);
-    let scale = 1;
-    if (durationWeeks) {
-      const totalAllowed = durationWeeks * 7;
-      const totalEstimated = ordered.reduce((sum, t) => sum + Math.max(1, Math.ceil(Number(t.estimated_days || 1))), 0);
-      if (totalEstimated > totalAllowed) scale = totalAllowed / totalEstimated;
-    }
-
-    let cursor = firstDate;
-    for (const task of ordered) {
-      const rawDays = Math.max(1, Math.ceil(Number(task.estimated_days || 1)));
-      const duration = Math.max(1, Math.round(rawDays * scale));
-      const start = cursor;
-      const end = addDays(start, duration - 1);
-      cursor = addDays(end, 1);
-      result.push({ task, start, end });
-    }
-  }
-
-  return result;
+  const scheduleMap = buildDependencyAwareSchedule(tasks, projectDurations);
+  return tasks
+    .map((task) => {
+      const schedule = scheduleMap.get(task.id);
+      return schedule ? { task, start: schedule.start, end: schedule.end } : null;
+    })
+    .filter((item): item is ScheduledTask => Boolean(item));
 }
 
 export function BoardCalendar() {

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import type { Schema } from '@google/generative-ai';
+import { formatTemplateForPrompt, type ProjectTemplate } from '../lib/projectTemplates';
 
 export interface ScheduleRequest {
   projectId: string;
@@ -8,6 +9,7 @@ export interface ScheduleRequest {
   durationValue: number;
   durationUnit: 'Weeks' | 'Months' | 'Years';
   teamMembers: Array<{ user_id: string; skills?: string[]; experience_summary?: string }>;
+  template?: ProjectTemplate | null;
 }
 
 export interface GeneratedSchedule {
@@ -128,6 +130,7 @@ Description: ${req.description}
 Duration: ${req.durationValue} ${req.durationUnit} (${totalDays} days)
 Team IDs: ${memberList || 'none'}
 ${memberDetails}
+${formatTemplateForPrompt(req.template)}
 Rules:
 - Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
 - You MUST ensure the project is 100% completed within exactly ${totalDays} days.
@@ -137,6 +140,8 @@ Rules:
 - You MUST force the assignment of each task to the member whose skills best match that task's required technologies.
 - assigned_tech = task-specific tools only (derived from technology_recommendations).
 - Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
+- Create dependencies when one task clearly needs another task first, especially setup before feature work, backend/API before frontend integration, schema before services, implementation before testing, and deployment after validation.
+- dependencies[] must use only generated task IDs, avoid circular dependencies, and use dependency_type="Finish-to-Start".
 - description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
 - priority: High=critical-path, Medium=standard, Low=nice-to-have.
 - For vague descriptions, infer professional defaults.

@@ -5,6 +5,8 @@ import projectRoutes from './routes/projects';
 import taskRoutes from './routes/tasks';
 import userRoutes from './routes/users';
 import aiRoutes from './routes/ai';
+import notificationRoutes from './routes/notifications';
+import templateRoutes from './routes/templates';
 
 dotenv.config();
 
@@ -34,6 +36,8 @@ app.use('/api/users', userRoutes);
 import cvRoutes from './routes/cv';
 app.use('/api/users', cvRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/templates', templateRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });

@@ -29,6 +29,96 @@ export interface Task {
   updated_at: string;
   project_name?: string;
   completer_name?: string | null;
+  blocked_by?: TaskDependencyRef[];
+  unlocks?: TaskDependencyRef[];
+  is_blocked?: boolean;
+  blocking_count?: number;
+  latest_activity_at?: string | null;
+}
+
+export interface CollaborationUser {
+  id: string;
+  full_name: string | null;
+  email: string;
+  avatar_url: string | null;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  user_id: string | null;
+  content: string;
+  edited_at: string | null;
+  created_at: string;
+  updated_at: string;
+  users?: CollaborationUser | null;
+}
+
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  uploaded_by: string | null;
+  file_name: string;
+  file_url: string;
+  file_type: string | null;
+  file_size: number | null;
+  is_image: boolean;
+  created_at: string;
+  users?: CollaborationUser | null;
+}
+
+export interface TaskActivity {
+  id: string;
+  task_id: string;
+  user_id: string | null;
+  activity_type: string;
+  summary: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  users?: CollaborationUser | null;
+}
+
+export interface NotificationPreferences {
+  assignments: boolean;
+  mentions: boolean;
+  comments: boolean;
+  status_changes: boolean;
+  due_reminders: boolean;
+  overdue_alerts: boolean;
+  project_risk: boolean;
+}
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  actor_id: string | null;
+  task_id: string | null;
+  project_id: string | null;
+  notification_type: string;
+  message: string;
+  link_path: string | null;
+  read_at: string | null;
+  created_at: string;
+  tasks?: { title: string; project_id: string | null } | null;
+  projects?: { name: string } | null;
+}
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  phases: string[];
+  recommended_technologies: string[];
+  task_blueprints?: Array<Record<string, unknown>>;
+  source_project_id?: string | null;
+  is_custom?: boolean;
+}
+
+export interface TaskDependencyRef {
+  id: string;
+  title: string;
+  status: string;
 }
 
 export interface UserCompletedTask {
@@ -97,10 +187,10 @@ async function attempt<T>(path: string, options: RequestInit | undefined, timeou
     return res.json();
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('__timeout__');
+      throw new Error('__timeout__', { cause: error });
     }
     if (error instanceof TypeError) {
-      throw new Error('Could not reach the server. Make sure the backend is running.');
+      throw new Error('Could not reach the server. Make sure the backend is running.', { cause: error });
     }
     throw error;
   } finally {
@@ -122,7 +212,7 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_00
         await new Promise<void>((r) => setTimeout(r, 3_000));
         continue;
       }
-      if (isTimeout) throw new Error('Request timed out. Please try again.');
+      if (isTimeout) throw new Error('Request timed out. Please try again.', { cause: err });
       throw err;
     }
   }
@@ -162,21 +252,78 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    assign: (taskId: string, assignedTo: string | null) =>
+    assign: (taskId: string, assignedTo: string | null, userId?: string | null) =>
       request<{ success: boolean }>(`/tasks/${taskId}/assign`, {
         method: 'PATCH',
-        body: JSON.stringify({ assigned_to: assignedTo }),
+        body: JSON.stringify({ assigned_to: assignedTo, user_id: userId ?? null }),
       }),
     complete: (taskId: string, completed: boolean, completedBy?: string) =>
       request<{ success: boolean }>(`/tasks/${taskId}/complete`, {
         method: 'PATCH',
         body: JSON.stringify({ completed, completed_by: completedBy }),
       }),
-    updateSchedule: (taskId: string, data: { start_date: string | null; end_date: string | null; estimated_days?: number }) =>
+    updateStatus: (taskId: string, status: string, completedBy?: string | null) =>
+      request<{ success: boolean; status: string; completed_by?: string | null; completed_at?: string | null }>(`/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, completed_by: completedBy ?? null }),
+      }),
+    updatePriority: (taskId: string, priority: string, userId?: string | null) =>
+      request<{ success: boolean; priority: string }>(`/tasks/${taskId}/priority`, {
+        method: 'PATCH',
+        body: JSON.stringify({ priority, user_id: userId ?? null }),
+      }),
+    updateSchedule: (taskId: string, data: { start_date: string | null; end_date: string | null; estimated_days?: number; user_id?: string | null }) =>
       request<{ success: boolean }>(`/tasks/${taskId}/schedule`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+    addDependency: (taskId: string, dependsOnTaskId: string) =>
+      request<{ success: boolean; already_exists?: boolean }>(`/tasks/${taskId}/dependencies`, {
+        method: 'POST',
+        body: JSON.stringify({ depends_on_task_id: dependsOnTaskId }),
+      }),
+    removeDependency: (taskId: string, dependsOnTaskId: string) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/dependencies/${dependsOnTaskId}`, {
+        method: 'DELETE',
+      }),
+    collaboration: (taskId: string) =>
+      request<{ comments: TaskComment[]; attachments: TaskAttachment[]; activity: TaskActivity[] }>(`/tasks/${taskId}/collaboration`),
+    addComment: (taskId: string, data: { user_id?: string | null; content: string; mentioned_user_ids?: string[] }) =>
+      request<{ comment: TaskComment }>(`/tasks/${taskId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateComment: (taskId: string, commentId: string, data: { user_id?: string | null; content: string }) =>
+      request<{ comment: TaskComment }>(`/tasks/${taskId}/comments/${commentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    deleteComment: (taskId: string, commentId: string, userId?: string | null) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/comments/${commentId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ user_id: userId ?? null }),
+      }),
+    uploadAttachment: async (taskId: string, file: File, userId?: string | null) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (userId) formData.append('user_id', userId);
+      const res = await fetch(`${BASE_URL}/tasks/${taskId}/attachments`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        let message = `Request failed (${res.status})`;
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed.error) message = parsed.error;
+        } catch {
+          if (body) message = body;
+        }
+        throw new Error(message);
+      }
+      return res.json() as Promise<{ attachment: TaskAttachment }>;
+    },
   },
   users: {
     list: () => request<{ users: User[] }>('/users'),
@@ -230,7 +377,7 @@ export const api = {
     },
   },
   ai: {
-    generate: (data: { name: string; description: string; duration: string; duration_unit: string; team_members: string[]; expand_description?: boolean }) =>
+    generate: (data: { name: string; description: string; duration: string; duration_unit: string; team_members: string[]; expand_description?: boolean; template_id?: string }) =>
       request<{ success: boolean; project_id: string }>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -239,6 +386,35 @@ export const api = {
       request<{ response: string }>('/ai/chat', {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+  },
+  templates: {
+    list: () => request<{ templates: ProjectTemplate[] }>('/templates'),
+    saveFromProject: (projectId: string, data: { name?: string; created_by?: string | null }) =>
+      request<{ template: ProjectTemplate }>(`/templates/from-project/${projectId}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    duplicate: (id: string, createdBy?: string | null) =>
+      request<{ template: ProjectTemplate }>(`/templates/${id}/duplicate`, {
+        method: 'POST',
+        body: JSON.stringify({ created_by: createdBy ?? null }),
+      }),
+  },
+  notifications: {
+    list: (userId: string) =>
+      request<{ notifications: AppNotification[]; unread_count: number; preferences: NotificationPreferences }>(`/notifications/${userId}`),
+    markRead: (id: string, read = true) =>
+      request<{ success: boolean }>(`/notifications/${id}/read`, {
+        method: 'PATCH',
+        body: JSON.stringify({ read }),
+      }),
+    markAllRead: (userId: string) =>
+      request<{ success: boolean }>(`/notifications/${userId}/read-all`, { method: 'PATCH' }),
+    updatePreferences: (userId: string, preferences: Partial<NotificationPreferences>) =>
+      request<{ preferences: NotificationPreferences }>(`/notifications/${userId}/preferences`, {
+        method: 'PATCH',
+        body: JSON.stringify(preferences),
       }),
   },
 };

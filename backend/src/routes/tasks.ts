@@ -1,9 +1,43 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { supabase } from '../lib/supabase';
 import { demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
+import { enrichTasksWithDependencies, fetchProjectDependencies, wouldCreateCycle } from '../lib/taskDependencies';
+import { notifyUsers } from '../lib/notifications';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+async function createActivity(taskId: string, userId: string | null | undefined, activityType: string, summary: string, metadata: Record<string, unknown> = {}) {
+  await withTimeout(
+    supabase.from('task_activity').insert({
+      task_id: taskId,
+      user_id: userId ?? null,
+      activity_type: activityType,
+      summary,
+      metadata,
+    }),
+  ).catch((err) => console.error('[activity] insert failed:', err.message));
+}
+
+async function createNotifications(taskId: string, actorId: string | null | undefined, userIds: string[], type: string, message: string) {
+  const { data: task } = await withTimeout(supabase.from('tasks').select('project_id').eq('id', taskId).single());
+  await notifyUsers(userIds, type, message, {
+    actorId: actorId ?? null,
+    taskId,
+    projectId: task?.project_id ?? null,
+    linkPath: task?.project_id ? `/task/${task.project_id}` : null,
+  }).catch((err) => console.error('[notifications] insert failed:', err.message));
+}
+
+async function projectMemberIdsForTask(taskId: string): Promise<string[]> {
+  const { data: task } = await withTimeout(supabase.from('tasks').select('project_id, assigned_to').eq('id', taskId).single());
+  const { data: members } = await withTimeout(supabase.from('team_assignments').select('user_id').eq('project_id', task?.project_id));
+  const ids = (members ?? []).map((m: any) => m.user_id);
+  if (task?.assigned_to) ids.push(task.assigned_to);
+  return ids;
+}
 
 // List all tasks (with project name)
 router.get('/', async (_req, res) => {
@@ -17,12 +51,26 @@ router.get('/', async (_req, res) => {
 
     if (error) throw error;
 
+    const { data: activity, error: activityError } = await withTimeout(
+      supabase.from('task_activity').select('task_id, created_at').order('created_at', { ascending: false }),
+    );
+    if (activityError) throw activityError;
+    const latestByTask = new Map<string, string>();
+    for (const item of activity ?? []) {
+      if (!latestByTask.has(item.task_id)) latestByTask.set(item.task_id, item.created_at);
+    }
+
     const formatted = (tasks ?? []).map(({ projects, ...task }) => ({
       ...task,
       project_name: (projects as { name: string } | null)?.name ?? null,
+      latest_activity_at: latestByTask.get(task.id) ?? task.updated_at,
     }));
+    const { data: dependencies, error: depError } = await withTimeout(
+      supabase.from('task_dependencies').select('task_id, depends_on_task_id'),
+    );
+    if (depError) throw depError;
 
-    res.json({ tasks: formatted });
+    res.json({ tasks: enrichTasksWithDependencies(formatted, dependencies ?? []) });
   } catch (error: any) {
     if (isConnectivityError(error)) {
       return res.json({ tasks: demoTasks, source: 'demo' });
@@ -46,9 +94,15 @@ router.get('/:id', async (req, res) => {
     if (error) throw error;
 
     const { projects, completer, ...rest } = task as any;
+    const [{ data: projectTasks, error: projectTasksError }, dependencies] = await Promise.all([
+      withTimeout(supabase.from('tasks').select('*').eq('project_id', rest.project_id)),
+      fetchProjectDependencies(rest.project_id),
+    ]);
+    if (projectTasksError) throw projectTasksError;
+    const enriched = enrichTasksWithDependencies(projectTasks ?? [], dependencies).find((item) => item.id === id) ?? rest;
     res.json({
       task: {
-        ...rest,
+        ...enriched,
         project_name: projects?.name ?? null,
         completer_name: completer?.full_name ?? completer?.email ?? null,
       },
@@ -125,18 +179,28 @@ router.patch('/:id/complete', async (req, res) => {
     const { error: e1 } = await withTimeout(
       supabase.from('tasks').update(withTimestamp).eq('id', id)
     );
-    if (!e1) return res.json({ success: true, ...withTimestamp });
+    if (!e1) {
+      await createActivity(id, completed_by, 'status_changed', completed ? 'Marked task Done' : 'Reopened task', { to: baseUpdates.status });
+      await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', completed ? 'A task was marked Done' : 'A task was reopened');
+      return res.json({ success: true, ...withTimestamp });
+    }
 
     const { error: e2 } = await withTimeout(
       supabase.from('tasks').update(baseUpdates).eq('id', id)
     );
-    if (!e2) return res.json({ success: true, ...baseUpdates });
+    if (!e2) {
+      await createActivity(id, completed_by, 'status_changed', completed ? 'Marked task Done' : 'Reopened task', { to: baseUpdates.status });
+      await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', completed ? 'A task was marked Done' : 'A task was reopened');
+      return res.json({ success: true, ...baseUpdates });
+    }
 
     const { error: e3 } = await withTimeout(
       supabase.from('tasks').update({ status: baseUpdates.status }).eq('id', id)
     );
     if (e3) throw e3;
 
+    await createActivity(id, completed_by, 'status_changed', completed ? 'Marked task Done' : 'Reopened task', { to: baseUpdates.status });
+    await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', completed ? 'A task was marked Done' : 'A task was reopened');
     res.json({ success: true, status: baseUpdates.status });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -147,18 +211,129 @@ router.patch('/:id/complete', async (req, res) => {
 router.patch('/:id/schedule', async (req, res) => {
   try {
     const { id } = req.params;
-    const { start_date, end_date, estimated_days } = req.body as {
+    const { start_date, end_date, estimated_days, user_id } = req.body as {
       start_date?: string | null;
       end_date?: string | null;
       estimated_days?: number;
+      user_id?: string | null;
     };
 
+    const { data: before } = await withTimeout(supabase.from('tasks').select('start_date, end_date, estimated_days').eq('id', id).single());
     const updates: Record<string, unknown> = {};
     if (start_date !== undefined) updates.start_date = start_date || null;
     if (end_date !== undefined) updates.end_date = end_date || null;
     if (estimated_days !== undefined) updates.estimated_days = Math.max(1, Math.round(Number(estimated_days)));
 
     const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
+    if (error) throw error;
+    await createActivity(id, user_id, 'due_date_changed', 'Updated task schedule', { from: before ?? null, to: updates });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update task workflow status
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, completed_by } = req.body as { status?: string; completed_by?: string | null };
+    const allowed = new Set(['Backlog', 'To Do', 'In Progress', 'In Review', 'Done']);
+
+    if (!status || !allowed.has(status)) {
+      return res.status(400).json({ error: 'Invalid task status' });
+    }
+
+    const { data: before } = await withTimeout(supabase.from('tasks').select('status').eq('id', id).single());
+    const updates =
+      status === 'Done'
+        ? { status, completed_by: completed_by ?? null, completed_at: new Date().toISOString() }
+        : { status, completed_by: null, completed_at: null };
+
+    const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
+    if (error) throw error;
+    await createActivity(id, completed_by, 'status_changed', `Moved task to ${status}`, { from: before?.status, to: status });
+    await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', `A task moved to ${status}`);
+    res.json({ success: true, ...updates });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/priority', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority, user_id } = req.body as { priority?: string; user_id?: string | null };
+    if (!priority || !['High', 'Medium', 'Low'].includes(priority)) {
+      return res.status(400).json({ error: 'Invalid priority' });
+    }
+
+    const { data: before } = await withTimeout(supabase.from('tasks').select('priority').eq('id', id).single());
+    const { error } = await withTimeout(supabase.from('tasks').update({ priority }).eq('id', id));
+    if (error) throw error;
+    await createActivity(id, user_id, 'priority_changed', `Changed priority to ${priority}`, { from: before?.priority, to: priority });
+    res.json({ success: true, priority });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/dependencies', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { depends_on_task_id } = req.body as { depends_on_task_id?: string };
+
+    if (!depends_on_task_id) {
+      return res.status(400).json({ error: 'depends_on_task_id is required' });
+    }
+    if (depends_on_task_id === id) {
+      return res.status(400).json({ error: 'A task cannot block itself.' });
+    }
+
+    const { data: taskRows, error: taskError } = await withTimeout(
+      supabase.from('tasks').select('id, project_id').in('id', [id, depends_on_task_id]),
+    );
+    if (taskError) throw taskError;
+
+    const currentTask = (taskRows ?? []).find((task: any) => task.id === id);
+    const blockerTask = (taskRows ?? []).find((task: any) => task.id === depends_on_task_id);
+    if (!currentTask || !blockerTask) return res.status(404).json({ error: 'Task not found.' });
+    if (currentTask.project_id !== blockerTask.project_id) {
+      return res.status(400).json({ error: 'Blockers must be in the same project.' });
+    }
+
+    const dependencies = await fetchProjectDependencies(currentTask.project_id);
+    const exists = dependencies.some((dep) => dep.task_id === id && dep.depends_on_task_id === depends_on_task_id);
+    if (exists) return res.json({ success: true, already_exists: true });
+
+    if (wouldCreateCycle(id, depends_on_task_id, dependencies)) {
+      return res.status(400).json({ error: 'This would create a loop.' });
+    }
+
+    const { error } = await withTimeout(
+      supabase.from('task_dependencies').insert({
+        task_id: id,
+        depends_on_task_id,
+        dependency_type: 'Finish-to-Start',
+      }),
+    );
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id/dependencies/:dependsOnTaskId', async (req, res) => {
+  try {
+    const { id, dependsOnTaskId } = req.params;
+    const { error } = await withTimeout(
+      supabase
+        .from('task_dependencies')
+        .delete()
+        .eq('task_id', id)
+        .eq('depends_on_task_id', dependsOnTaskId),
+    );
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
@@ -170,12 +345,124 @@ router.patch('/:id/schedule', async (req, res) => {
 router.patch('/:id/assign', async (req, res) => {
   try {
     const { id } = req.params;
-    const { assigned_to } = req.body as { assigned_to: string | null };
+    const { assigned_to, user_id } = req.body as { assigned_to: string | null; user_id?: string | null };
+    const { data: before } = await withTimeout(supabase.from('tasks').select('assigned_to').eq('id', id).single());
     const { error } = await withTimeout(
       supabase.from('tasks').update({ assigned_to: assigned_to ?? null }).eq('id', id)
     );
     if (error) throw error;
+    await createActivity(id, user_id, 'assignee_changed', assigned_to ? 'Assigned task' : 'Unassigned task', { from: before?.assigned_to ?? null, to: assigned_to ?? null });
+    if (assigned_to) await createNotifications(id, user_id, [assigned_to], 'assignment', 'You were assigned to a task');
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:id/collaboration', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [{ data: comments, error: commentsError }, { data: attachments, error: attachmentsError }, { data: activity, error: activityError }] = await Promise.all([
+      withTimeout(supabase.from('task_comments').select('*, users(id, full_name, email, avatar_url)').eq('task_id', id).order('created_at', { ascending: true })),
+      withTimeout(supabase.from('task_attachments').select('*, users(id, full_name, email, avatar_url)').eq('task_id', id).order('created_at', { ascending: false })),
+      withTimeout(supabase.from('task_activity').select('*, users(id, full_name, email, avatar_url)').eq('task_id', id).order('created_at', { ascending: false })),
+    ]);
+    if (commentsError) throw commentsError;
+    if (attachmentsError) throw attachmentsError;
+    if (activityError) throw activityError;
+    res.json({ comments: comments ?? [], attachments: attachments ?? [], activity: activity ?? [] });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, content, mentioned_user_ids } = req.body as { user_id?: string; content?: string; mentioned_user_ids?: string[] };
+    if (!content?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+
+    const { data: comment, error } = await withTimeout(
+      supabase.from('task_comments').insert({ task_id: id, user_id: user_id ?? null, content: content.trim() }).select('*, users(id, full_name, email, avatar_url)').single(),
+    );
+    if (error) throw error;
+    await createActivity(id, user_id, 'comment_added', 'Added a comment');
+    await createNotifications(id, user_id, await projectMemberIdsForTask(id), 'comment', 'A new comment was added');
+    await createNotifications(id, user_id, mentioned_user_ids ?? [], 'mention', 'You were mentioned in a task comment');
+    res.json({ comment });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { user_id, content } = req.body as { user_id?: string; content?: string };
+    if (!content?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+
+    const { data: existing, error: fetchError } = await withTimeout(supabase.from('task_comments').select('user_id').eq('id', commentId).single());
+    if (fetchError) throw fetchError;
+    if (existing.user_id && user_id && existing.user_id !== user_id) return res.status(403).json({ error: 'You can only edit your own comments.' });
+
+    const { data: comment, error } = await withTimeout(
+      supabase.from('task_comments').update({ content: content.trim(), edited_at: new Date().toISOString() }).eq('id', commentId).select('*, users(id, full_name, email, avatar_url)').single(),
+    );
+    if (error) throw error;
+    res.json({ comment });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { user_id } = req.body as { user_id?: string };
+    const { data: existing, error: fetchError } = await withTimeout(supabase.from('task_comments').select('user_id').eq('id', commentId).single());
+    if (fetchError) throw fetchError;
+    if (existing.user_id && user_id && existing.user_id !== user_id) return res.status(403).json({ error: 'You can only delete your own comments.' });
+
+    const { error } = await withTimeout(supabase.from('task_comments').delete().eq('id', commentId));
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/attachments', upload.single('file'), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { user_id } = req.body as { user_id?: string };
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file provided' });
+
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${id}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from('task-attachments').upload(path, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('task-attachments').getPublicUrl(path);
+    const isImage = file.mimetype.startsWith('image/');
+
+    const { data: attachment, error } = await withTimeout(
+      supabase.from('task_attachments').insert({
+        task_id: id,
+        uploaded_by: user_id ?? null,
+        file_name: file.originalname,
+        file_url: data.publicUrl,
+        file_type: file.mimetype,
+        file_size: file.size,
+        is_image: isImage,
+      }).select('*, users(id, full_name, email, avatar_url)').single(),
+    );
+    if (error) throw error;
+    await createActivity(id, user_id, 'file_uploaded', `Uploaded ${file.originalname}`, { file_name: file.originalname });
+    await createNotifications(id, user_id, await projectMemberIdsForTask(id), 'file_uploaded', 'A file was uploaded to a task');
+    res.json({ attachment });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

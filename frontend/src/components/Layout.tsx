@@ -1,13 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check } from "lucide-react";
+import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
 import logoUrl from "../assets/brand/01-logo-no-text-no-background.png";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-import { api } from "../lib/api";
+import { api, type AppNotification, type NotificationPreferences } from "../lib/api";
 
 function getInitials(name: string | null | undefined, email: string): string {
   if (name) {
@@ -30,7 +30,13 @@ export function Layout() {
   const [phoneInput, setPhoneInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const [showPreferences, setShowPreferences] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   const email = session?.user.email ?? "";
   const fullName = session?.user.user_metadata?.full_name as string | undefined;
@@ -43,6 +49,24 @@ export function Layout() {
     if (!userId) return;
     api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => {});
   }, [session?.user.id]);
+
+  const refreshNotifications = useCallback(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    api.notifications.list(userId)
+      .then((data) => {
+        setNotifications(data.notifications);
+        setUnreadCount(data.unread_count);
+        setPreferences(data.preferences);
+      })
+      .catch(() => {});
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    refreshNotifications();
+    const timer = window.setInterval(refreshNotifications, 60_000);
+    return () => window.clearInterval(timer);
+  }, [refreshNotifications]);
 
   useEffect(() => {
     const refresh = () => {
@@ -59,6 +83,10 @@ export function Layout() {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
         setEditingProfile(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+        setShowPreferences(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -103,6 +131,37 @@ export function Layout() {
     navigate("/login");
   };
 
+  const openNotification = async (item: AppNotification) => {
+    if (!item.read_at) {
+      await api.notifications.markRead(item.id, true).catch(() => {});
+      setNotifications((current) => current.map((n) => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n));
+      setUnreadCount((count) => Math.max(0, count - 1));
+    }
+    setNotificationsOpen(false);
+    navigate(item.link_path ?? (item.project_id ? `/task/${item.project_id}` : "/"));
+  };
+
+  const markAllRead = async () => {
+    if (!session?.user.id) return;
+    await api.notifications.markAllRead(session.user.id);
+    setNotifications((current) => current.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
+    setUnreadCount(0);
+  };
+
+  const toggleRead = async (item: AppNotification, read: boolean) => {
+    await api.notifications.markRead(item.id, read);
+    setNotifications((current) => current.map((n) => n.id === item.id ? { ...n, read_at: read ? new Date().toISOString() : null } : n));
+    setUnreadCount((count) => Math.max(0, count + (read ? -1 : 1)));
+  };
+
+  const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
+    if (!session?.user.id || !preferences) return;
+    const next = { ...preferences, [key]: value };
+    setPreferences(next);
+    const { preferences: saved } = await api.notifications.updatePreferences(session.user.id, { [key]: value });
+    setPreferences(saved);
+  };
+
   return (
     <div className="w-full h-dvh flex flex-col bg-black text-white relative overflow-hidden">
       <GridBackground isAIActive={isAIActive} />
@@ -112,7 +171,104 @@ export function Layout() {
         <img src={logoUrl} alt="01 Manager" className="h-40 w-auto object-contain pointer-events-none" />
 
         {/* Profile — absolute right so logo stays centered */}
-        <div className="absolute right-4 top-0 h-full flex items-center" ref={menuRef}>
+        <div className="absolute right-4 top-0 h-full flex items-center gap-2">
+          <div className="relative" ref={notificationRef}>
+            <button
+              onClick={() => {
+                setNotificationsOpen((v) => !v);
+                setMenuOpen(false);
+                refreshNotifications();
+              }}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/25 text-gray-300 hover:bg-white/8 hover:text-white transition-colors"
+              aria-label="Notifications"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {notificationsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  className="absolute right-0 top-full mt-2 w-96 overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">Notifications</div>
+                      <div className="text-xs text-gray-500">{unreadCount} unread</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={markAllRead} className="text-xs text-purple-300 hover:text-white">Mark all read</button>
+                      <button onClick={() => setShowPreferences((v) => !v)} className="rounded-lg p-1.5 text-gray-500 hover:bg-white/10 hover:text-white">
+                        <Settings className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {showPreferences && preferences && (
+                    <div className="border-b border-white/10 px-4 py-3">
+                      <div className="mb-2 text-xs font-semibold text-gray-400">Preferences</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(preferences).map(([key, value]) => (
+                          <label key={key} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(value)}
+                              onChange={(e) => updatePreference(key as keyof NotificationPreferences, e.target.checked)}
+                              className="accent-purple-500"
+                            />
+                            {key.replace("_", " ")}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="max-h-[420px] overflow-y-auto p-2">
+                    {notifications.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-gray-500">No notifications yet</div>
+                    ) : (
+                      notifications.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => openNotification(item)}
+                          className={`mb-1 w-full rounded-xl border px-3 py-3 text-left transition-colors ${item.read_at ? "border-white/5 bg-white/[0.02] text-gray-400" : "border-purple-500/30 bg-purple-900/20 text-white"}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!item.read_at && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-purple-400" />}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-medium">{item.message}</div>
+                              <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
+                                <span>{item.notification_type.replace("_", " ")}</span>
+                                <span>{new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                              </div>
+                            </div>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRead(item, !item.read_at);
+                              }}
+                              className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-[10px] text-gray-400 hover:border-purple-500/40 hover:text-white"
+                            >
+                              {item.read_at ? "Unread" : "Read"}
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+        <div className="h-full flex items-center" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-white/8 transition-colors duration-200"
@@ -241,6 +397,7 @@ export function Layout() {
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
         </div>
       </header>
 
