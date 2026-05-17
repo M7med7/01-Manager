@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2 } from "lucide-react";
-import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity } from "../lib/api";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal } from "lucide-react";
+import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem } from "../lib/api";
+import { riskStyle, scoreTaskRisk } from "../lib/riskScoring";
 
 interface ChatMessage { role: "user" | "ai"; content: string; }
 
@@ -27,10 +28,39 @@ function parseSteps(desc: string | null): { summary: string; steps: string[] } {
   return { summary, steps };
 }
 
+function newChecklistItem(text = ""): TaskChecklistItem {
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return { id, text, checked: false };
+}
+
+function incompleteQualityItems(task: Task): TaskChecklistItem[] {
+  return [
+    ...(task.acceptance_criteria ?? []),
+    ...(task.definition_of_done ?? []),
+  ].filter((item) => !item.checked);
+}
+
+function parseQualityJson(text: string): { acceptance_criteria: string[]; definition_of_done: string[] } | null {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]);
+    return {
+      acceptance_criteria: Array.isArray(parsed.acceptance_criteria) ? parsed.acceptance_criteria.filter((item: unknown) => typeof item === "string") : [],
+      definition_of_done: Array.isArray(parsed.definition_of_done) ? parsed.definition_of_done.filter((item: unknown) => typeof item === "string") : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   task: Task;
   schedule: ScheduleInfo | null;
   members: ProjectMember[];
+  projectName?: string;
   projectDesc?: string;
   currentUserId?: string;
   allTasks?: Task[];
@@ -83,10 +113,21 @@ function wouldCreateCycle(taskId: string, blockerId: string, tasks: Task[]): boo
   return false;
 }
 
+function summarizeChecklist(items: TaskChecklistItem[] | undefined): string {
+  if (!items || items.length === 0) return "None yet";
+  return items.slice(0, 6).map((item) => `${item.checked ? "[x]" : "[ ]"} ${item.text}`).join("; ");
+}
+
+function taskLine(item: Pick<Task, "title" | "status" | "priority" | "assigned_to">, members: ProjectMember[]): string {
+  const owner = members.find((member) => member.user_id === item.assigned_to);
+  return `${item.title} (${item.status}, ${item.priority}, owner: ${owner?.full_name ?? owner?.email ?? "Unassigned"})`;
+}
+
 export function TaskDetailPanel({
   task,
   schedule,
   members,
+  projectName,
   projectDesc,
   currentUserId,
   allTasks = [],
@@ -120,6 +161,8 @@ export function TaskDetailPanel({
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [collabError, setCollabError] = useState<string | null>(null);
   const [savingPriority, setSavingPriority] = useState(false);
+  const [savingQuality, setSavingQuality] = useState(false);
+  const [improvingQuality, setImprovingQuality] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -171,7 +214,20 @@ export function TaskDetailPanel({
   const priority = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.Medium;
   const { summary, steps } = parseSteps(task.description);
   const assignee = members.find(m => m.user_id === task.assigned_to);
+  const acceptanceCriteria = task.acceptance_criteria ?? [];
+  const definitionOfDone = task.definition_of_done ?? [];
+  const incompleteQualityCount = incompleteQualityItems(task).length;
+  const taskRisk = scoreTaskRisk(task, { schedule, members, allTasks });
   const unfinishedBlockers = (task.blocked_by ?? []).filter((item) => item.status !== "Done");
+  const relatedTasks = allTasks
+    .filter((item) => item.id !== task.id && item.project_id === task.project_id)
+    .filter((item) => (
+      (task.blocked_by ?? []).some((dep) => dep.id === item.id) ||
+      (task.unlocks ?? []).some((dep) => dep.id === item.id) ||
+      item.assigned_to === task.assigned_to ||
+      (item.assigned_tech ?? []).some((tech) => (task.assigned_tech ?? []).includes(tech))
+    ))
+    .slice(0, 6);
   const availableBlockers = allTasks.filter((item) => (
     item.id !== task.id &&
     item.project_id === task.project_id &&
@@ -191,20 +247,90 @@ export function TaskDetailPanel({
       .finally(() => setCollabLoading(false));
   }, [task.id]);
 
-  const sendMsg = async () => {
-    if (!message.trim() || sending) return;
-    const msg = message.trim();
+  const buildTaskAiContext = () => {
+    const dueDate = task.end_date ?? (schedule ? formatDate(schedule.end) : "Not scheduled");
+    const startDate = task.start_date ?? (schedule ? formatDate(schedule.start) : "Not scheduled");
+    const recentComments = comments.slice(-5).map((comment) => `${displayUser(comment.users)}: ${comment.content}`).join("\n") || "No human comments yet";
+    const recentActivity = activity.slice(0, 6).map((item) => `${formatCompactDate(item.created_at)} - ${item.summary}`).join("\n") || "No activity yet";
+    const fileList = attachments.slice(0, 6).map((file) => `${file.file_name}${file.is_image ? " (image)" : ""}`).join(", ") || "No attached files";
+    const blockedBy = (task.blocked_by ?? []).map((item) => `${item.title} (${item.status})`).join(", ") || "None";
+    const unlocks = (task.unlocks ?? []).map((item) => `${item.title} (${item.status})`).join(", ") || "None";
+    const related = relatedTasks.map((item) => taskLine(item, members)).join("\n") || "No closely related tasks found";
+    return [
+      `Project name: ${projectName ?? task.project_name ?? "Untitled project"}`,
+      `Project description and goals: ${projectDesc ?? "Not provided"}`,
+      `Task title: ${task.title}`,
+      `Task status: ${task.status}`,
+      `Task priority: ${task.priority}`,
+      `Task description: ${summary || task.description || "Not provided"}`,
+      `Implementation steps: ${steps.length > 0 ? steps.map((step, index) => `${index + 1}. ${step}`).join(" ") : "None listed"}`,
+      `Suggested technologies: ${(task.assigned_tech ?? []).join(", ") || "None listed"}`,
+      `Assignee: ${assignee?.full_name ?? assignee?.email ?? "Unassigned"}`,
+      `Assignee skills: ${(assignee?.skills ?? []).join(", ") || "No skills listed"}`,
+      `Assignee experience: ${assignee?.experience_summary ?? "No experience summary listed"}`,
+      `Blocked by: ${blockedBy}`,
+      `Unlocks: ${unlocks}`,
+      `Current blockers: ${unfinishedBlockers.length > 0 ? unfinishedBlockers.map((item) => item.title).join(", ") : "None"}`,
+      `Start date: ${startDate}`,
+      `Due date: ${dueDate}`,
+      `Estimate: ${task.estimated_days ?? 1} day(s)`,
+      `Acceptance criteria: ${summarizeChecklist(task.acceptance_criteria)}`,
+      `Definition of done: ${summarizeChecklist(task.definition_of_done)}`,
+      `Task risk: ${taskRisk.level}. Reasons: ${taskRisk.reasons.join("; ")}. Suggested actions: ${taskRisk.actions.join("; ")}`,
+      `Related tasks: ${related}`,
+      `Recent human comments, if allowed: ${recentComments}`,
+      `Recent activity history, if allowed: ${recentActivity}`,
+      `Attached files: ${fileList}`,
+    ].join("\n");
+  };
+
+  const sendPrompt = async (prompt: string, displayText = prompt) => {
+    const msg = prompt.trim();
+    if (!msg || sending) return;
     setMessage("");
-    setChat(p => [...p, { role: "user", content: msg }]);
+    setChat(p => [...p, { role: "user", content: displayText }]);
     setSending(true);
     try {
-      const ctx = `Task: ${task.title}\nTech: ${(task.assigned_tech ?? []).join(", ")}\nDescription: ${task.description ?? ""}\nProject: ${projectDesc ?? ""}`;
+      const ctx = buildTaskAiContext();
       const { response } = await api.ai.chat({ message: msg, context: ctx });
       setChat(p => [...p, { role: "ai", content: response }]);
     } catch {
       setChat(p => [...p, { role: "ai", content: "I'm having trouble connecting. Please try again." }]);
     } finally { setSending(false); }
   };
+
+  const sendMsg = async () => {
+    if (!message.trim() || sending) return;
+    await sendPrompt(message.trim());
+  };
+
+  const quickActions = [
+    {
+      label: "Explain",
+      icon: Sparkles,
+      prompt: "Explain how to complete this task. Include why it matters, the safest execution path, and the next best action. Keep it concise and specific to the task context.",
+    },
+    {
+      label: "Break Down",
+      icon: SplitSquareHorizontal,
+      prompt: "Break this task into 3 to 6 concrete subtasks. Include owner hints if useful, expected output for each subtask, and any dependency order.",
+    },
+    {
+      label: "Find Risks",
+      icon: Search,
+      prompt: "Find the task risks and blockers from the provided context. Give exact reasons and practical actions to reduce risk.",
+    },
+    {
+      label: "Write Update",
+      icon: FileText,
+      prompt: "Write a short progress update for this task. Mention status, recent activity, blockers, next action, and due-date risk if relevant.",
+    },
+    {
+      label: "Improve Criteria",
+      icon: ListChecks,
+      prompt: "Suggest improved acceptance criteria and definition of done for this task. Use concise checkbox-style items that are specific and testable.",
+    },
+  ];
 
   const addBlocker = async () => {
     if (!selectedBlockerId || !onAddDependency) return;
@@ -315,6 +441,81 @@ export function TaskDetailPanel({
     }
   };
 
+  const saveQuality = async (nextAcceptance = acceptanceCriteria, nextDone = definitionOfDone) => {
+    setSavingQuality(true);
+    setCollabError(null);
+    try {
+      const { task: updated } = await api.tasks.updateQuality(task.id, {
+        acceptance_criteria: nextAcceptance,
+        definition_of_done: nextDone,
+        user_id: currentUserId ?? null,
+      });
+      onTaskUpdated?.({ ...task, ...updated, latest_activity_at: new Date().toISOString() });
+      setActivity((current) => [{ id: `local-${Date.now()}`, task_id: task.id, user_id: currentUserId ?? null, activity_type: "quality_updated", summary: "Updated acceptance criteria", metadata: {}, created_at: new Date().toISOString() }, ...current]);
+    } catch (err) {
+      setCollabError(err instanceof Error ? err.message : "Could not update acceptance criteria");
+    } finally {
+      setSavingQuality(false);
+    }
+  };
+
+  const updateQualityItem = (kind: "acceptance" | "done", itemId: string, patch: Partial<TaskChecklistItem>) => {
+    const nextAcceptance = kind === "acceptance"
+      ? acceptanceCriteria.map((item) => item.id === itemId ? { ...item, ...patch } : item)
+      : acceptanceCriteria;
+    const nextDone = kind === "done"
+      ? definitionOfDone.map((item) => item.id === itemId ? { ...item, ...patch } : item)
+      : definitionOfDone;
+    onTaskUpdated?.({ ...task, acceptance_criteria: nextAcceptance, definition_of_done: nextDone });
+    saveQuality(nextAcceptance, nextDone);
+  };
+
+  const addQualityItem = (kind: "acceptance" | "done") => {
+    const next = newChecklistItem(kind === "acceptance" ? "New acceptance criterion" : "New done check");
+    const nextAcceptance = kind === "acceptance" ? [...acceptanceCriteria, next] : acceptanceCriteria;
+    const nextDone = kind === "done" ? [...definitionOfDone, next] : definitionOfDone;
+    onTaskUpdated?.({ ...task, acceptance_criteria: nextAcceptance, definition_of_done: nextDone });
+    saveQuality(nextAcceptance, nextDone);
+  };
+
+  const removeQualityItem = (kind: "acceptance" | "done", itemId: string) => {
+    const nextAcceptance = kind === "acceptance" ? acceptanceCriteria.filter((item) => item.id !== itemId) : acceptanceCriteria;
+    const nextDone = kind === "done" ? definitionOfDone.filter((item) => item.id !== itemId) : definitionOfDone;
+    onTaskUpdated?.({ ...task, acceptance_criteria: nextAcceptance, definition_of_done: nextDone });
+    saveQuality(nextAcceptance, nextDone);
+  };
+
+  const improveQuality = async () => {
+    setImprovingQuality(true);
+    setCollabError(null);
+    try {
+      const { response } = await api.ai.chat({
+        message: "Return JSON only with acceptance_criteria and definition_of_done arrays. Make each item specific, testable, concise, and practical for this software task. Improve vague criteria if present.",
+        context: `Task: ${task.title}\nDescription: ${task.description ?? ""}\nTech: ${(task.assigned_tech ?? []).join(", ")}\nCurrent acceptance criteria: ${acceptanceCriteria.map((item) => item.text).join("; ")}\nCurrent definition of done: ${definitionOfDone.map((item) => item.text).join("; ")}`,
+      });
+      const parsed = parseQualityJson(response);
+      if (!parsed || (parsed.acceptance_criteria.length === 0 && parsed.definition_of_done.length === 0)) {
+        throw new Error("AI did not return usable criteria. Try again.");
+      }
+      const nextAcceptance = parsed.acceptance_criteria.slice(0, 6).map((text) => newChecklistItem(text));
+      const nextDone = parsed.definition_of_done.slice(0, 5).map((text) => newChecklistItem(text));
+      onTaskUpdated?.({ ...task, acceptance_criteria: nextAcceptance, definition_of_done: nextDone });
+      await saveQuality(nextAcceptance, nextDone);
+    } catch (err) {
+      setCollabError(err instanceof Error ? err.message : "Could not improve criteria");
+    } finally {
+      setImprovingQuality(false);
+    }
+  };
+
+  const handleCompleteClick = () => {
+    if (!isDone && incompleteQualityCount > 0) {
+      const ok = window.confirm(`${incompleteQualityCount} acceptance/done check${incompleteQualityCount === 1 ? " is" : "s are"} still unchecked. Mark this task Done anyway?`);
+      if (!ok) return;
+    }
+    onComplete(task.id, !isDone);
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -335,7 +536,7 @@ export function TaskDetailPanel({
             <motion.button
               whileHover={canComplete ? { scale: 1.02 } : {}}
               whileTap={canComplete ? { scale: 0.97 } : {}}
-              onClick={() => canComplete && onComplete(task.id, !isDone)}
+              onClick={() => canComplete && handleCompleteClick()}
               title={!canComplete ? "Only the assigned user can complete this task" : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${isDone
                 ? "bg-green-900/40 border-green-500/50 text-green-300 hover:bg-green-900/60"
@@ -423,6 +624,27 @@ export function TaskDetailPanel({
           <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-gray-300">
             <Clock className="w-3 h-3" /> {task.estimated_days}d
           </span>
+        </div>
+
+        <div className={`space-y-3 rounded-xl border p-3 ${riskStyle(taskRisk.level)}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <AlertTriangle className="h-4 w-4" /> Task Risk
+            </div>
+            <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] font-semibold">{taskRisk.level}</span>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">Reasons</div>
+            <ul className="space-y-1 text-xs leading-5">
+              {taskRisk.reasons.slice(0, 4).map((reason) => <li key={reason}>- {reason}</li>)}
+            </ul>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">Actions</div>
+            <ul className="space-y-1 text-xs leading-5">
+              {taskRisk.actions.slice(0, 3).map((action) => <li key={action}>- {action}</li>)}
+            </ul>
+          </div>
         </div>
 
         {/* Assignee */}
@@ -529,6 +751,82 @@ export function TaskDetailPanel({
             )}
           </div>
         )}
+
+        {/* Acceptance Criteria + Definition of Done */}
+        <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-200">Acceptance Criteria</div>
+              <div className="text-[11px] text-gray-600">Specific checks for correct completion</div>
+            </div>
+            <button
+              onClick={improveQuality}
+              disabled={improvingQuality || savingQuality}
+              className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-900/20 px-2.5 py-1.5 text-xs text-purple-200 hover:bg-purple-900/35 disabled:opacity-40"
+            >
+              {improvingQuality ? <div className="h-3 w-3 animate-spin rounded-full border border-purple-300 border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Improve
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {acceptanceCriteria.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">No criteria yet</p>
+            ) : acceptanceCriteria.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2 py-2">
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  onChange={(e) => updateQualityItem("acceptance", item.id, { checked: e.target.checked })}
+                  className="h-4 w-4 accent-purple-500"
+                />
+                <input
+                  value={item.text}
+                  onChange={(e) => onTaskUpdated?.({ ...task, acceptance_criteria: acceptanceCriteria.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
+                  onBlur={(e) => updateQualityItem("acceptance", item.id, { text: e.target.value })}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
+                />
+                <button onClick={() => removeQualityItem("acceptance", item.id)} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => addQualityItem("acceptance")} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100">
+              <Plus className="h-3.5 w-3.5" /> Add criterion
+            </button>
+          </div>
+
+          <div className="border-t border-white/10 pt-4">
+            <div className="mb-2 text-sm font-semibold text-gray-200">Definition of Done</div>
+            <div className="space-y-2">
+              {definitionOfDone.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">No done checks yet</p>
+              ) : definitionOfDone.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={(e) => updateQualityItem("done", item.id, { checked: e.target.checked })}
+                    className="h-4 w-4 accent-purple-500"
+                  />
+                  <input
+                    value={item.text}
+                    onChange={(e) => onTaskUpdated?.({ ...task, definition_of_done: definitionOfDone.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
+                    onBlur={(e) => updateQualityItem("done", item.id, { text: e.target.value })}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
+                  />
+                  <button onClick={() => removeQualityItem("done", item.id)} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => addQualityItem("done")} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100">
+                <Plus className="h-3.5 w-3.5" /> Add done check
+              </button>
+            </div>
+          </div>
+          {savingQuality && <p className="text-[11px] text-gray-500">Saving criteria...</p>}
+        </div>
 
         {/* Completed by */}
         {isDone && task.completed_at && (
@@ -688,6 +986,26 @@ export function TaskDetailPanel({
         <div className="flex items-center gap-2 px-4 pt-2 pb-2 shrink-0">
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
           <span className="text-xs font-semibold text-gray-400 truncate">AI Chat — {task.title}</span>
+        </div>
+
+        <div className="shrink-0 px-4 pb-2">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={() => sendPrompt(action.prompt, action.label)}
+                  disabled={sending}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-colors hover:border-purple-400/50 hover:bg-purple-500/15 disabled:opacity-50"
+                >
+                  <Icon className="h-3 w-3 text-purple-300" />
+                  {action.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Messages — scroll independently */}

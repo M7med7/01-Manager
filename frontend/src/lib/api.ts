@@ -1,3 +1,115 @@
+// ── AI Plan Quality types ─────────────────────────────────────────────────────
+
+export interface GeneratedTask {
+  id: string;
+  title: string;
+  description: string;
+  estimated_days: number;
+  assigned_tech: string[];
+  assigned_to: string;
+  priority?: string;
+  acceptance_criteria: string[];
+  definition_of_done: string[];
+}
+
+export interface GeneratedSchedule {
+  project_summary: string;
+  tasks: GeneratedTask[];
+  dependencies: Array<{
+    task_id: string;
+    depends_on_task_id: string;
+    dependency_type: string;
+  }>;
+  technology_recommendations: Array<{
+    tech_name: string;
+    category: string;
+    reasoning: string;
+  }>;
+}
+
+export interface QualityIssue {
+  id: string;
+  severity: 'high' | 'medium' | 'low';
+  category: 'timeline' | 'workload' | 'dependencies' | 'completeness' | 'quality';
+  title: string;
+  description: string;
+  suggestion: string;
+  affectedTasks?: string[];
+}
+
+export interface QualityReport {
+  score: number;
+  level: 'excellent' | 'good' | 'fair' | 'poor';
+  issues: QualityIssue[];
+  passedChecks: string[];
+}
+
+export interface AssignmentRecommendation {
+  userId: string;
+  confidence: number;       // 0–100
+  reason: string;           // short human-readable explanation
+  skillMatches: string[];
+  skillGaps: string[];
+  overloadWarning?: string;
+  trainingSuggestion?: string;
+}
+
+export interface PlanPreviewResult {
+  success: boolean;
+  projectId: string;
+  schedule: GeneratedSchedule;
+  qualityReport: QualityReport;
+  savedDescription: string;
+  durationWeeks: number;
+  databaseMembers: string[];
+  totalDays: number;
+  offline?: boolean;
+  recommendations?: Record<string, AssignmentRecommendation>; // keyed by task ID
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  scheduleSnapshot?: GeneratedSchedule;
+}
+
+export interface TaskDiff {
+  added: GeneratedTask[];
+  removed: GeneratedTask[];
+  modified: Array<{ before: GeneratedTask; after: GeneratedTask }>;
+  unchanged: GeneratedTask[];
+}
+
+export interface RefinementResult extends PlanPreviewResult {
+  refinementSummary: string;
+}
+
+export function computeTaskDiff(before: GeneratedSchedule, after: GeneratedSchedule): TaskDiff {
+  const beforeById = new Map(before.tasks.map((t) => [t.id, t]));
+  const afterById  = new Map(after.tasks.map((t) => [t.id, t]));
+
+  const added    = after.tasks.filter((t) => !beforeById.has(t.id));
+  const removed  = before.tasks.filter((t) => !afterById.has(t.id));
+  const modified: TaskDiff['modified'] = [];
+  const unchanged: GeneratedTask[] = [];
+
+  for (const afterTask of after.tasks) {
+    const beforeTask = beforeById.get(afterTask.id);
+    if (!beforeTask) continue;
+    if (JSON.stringify(afterTask) !== JSON.stringify(beforeTask)) {
+      modified.push({ before: beforeTask, after: afterTask });
+    } else {
+      unchanged.push(afterTask);
+    }
+  }
+
+  return { added, removed, modified, unchanged };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface Project {
   id: string;
   name: string;
@@ -9,7 +121,12 @@ export interface Project {
   team_count: number;
   progress: number;
   duration_weeks?: number | null;
+  health_score?: number;
+  risk_level?: RiskLevel;
+  risk_reasons?: string[];
 }
+
+export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 
 export interface Task {
   id: string;
@@ -21,6 +138,8 @@ export interface Task {
   estimated_days: number;
   assigned_tech: string[];
   assigned_to: string | null;
+  acceptance_criteria?: TaskChecklistItem[];
+  definition_of_done?: TaskChecklistItem[];
   completed_by: string | null;
   completed_at: string | null;
   start_date?: string | null;
@@ -34,6 +153,12 @@ export interface Task {
   is_blocked?: boolean;
   blocking_count?: number;
   latest_activity_at?: string | null;
+}
+
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  checked: boolean;
 }
 
 export interface CollaborationUser {
@@ -160,6 +285,8 @@ export interface ProjectMember {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  skills?: string[];
+  experience_summary?: string | null;
 }
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
@@ -277,6 +404,11 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+    updateQuality: (taskId: string, data: { acceptance_criteria?: TaskChecklistItem[]; definition_of_done?: TaskChecklistItem[]; user_id?: string | null }) =>
+      request<{ task: Task }>(`/tasks/${taskId}/quality`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     addDependency: (taskId: string, dependsOnTaskId: string) =>
       request<{ success: boolean; already_exists?: boolean }>(`/tasks/${taskId}/dependencies`, {
         method: 'POST',
@@ -377,11 +509,66 @@ export const api = {
     },
   },
   ai: {
-    generate: (data: { name: string; description: string; duration: string; duration_unit: string; team_members: string[]; expand_description?: boolean; template_id?: string }) =>
-      request<{ success: boolean; project_id: string }>('/ai/generate', {
+    generate: (data: {
+      name: string;
+      description: string;
+      duration: string;
+      duration_unit: string;
+      team_members: string[];
+      expand_description?: boolean;
+      template_id?: string;
+    }) =>
+      request<PlanPreviewResult>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),
       }, 120_000),
+
+    save: (data: {
+      projectId: string;
+      schedule: GeneratedSchedule;
+      name: string;
+      savedDescription: string;
+      durationWeeks: number;
+      databaseMembers: string[];
+    }) =>
+      request<{ success: boolean; project_id: string }>('/ai/save', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }, 30_000),
+
+    improve: (data: {
+      currentSchedule: GeneratedSchedule;
+      issues: QualityIssue[];
+      name: string;
+      description: string;
+      duration: string;
+      duration_unit: string;
+      team_members: string[];
+      databaseMembers: string[];
+      totalDays: number;
+    }) =>
+      request<PlanPreviewResult>('/ai/improve', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }, 120_000),
+
+    refine: (data: {
+      currentSchedule: GeneratedSchedule;
+      userMessage: string;
+      conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+      name: string;
+      description: string;
+      duration: string;
+      duration_unit: string;
+      team_members: string[];
+      databaseMembers: string[];
+      totalDays: number;
+    }) =>
+      request<RefinementResult>('/ai/refine', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }, 120_000),
+
     chat: (data: { message: string; context?: string }) =>
       request<{ response: string }>('/ai/chat', {
         method: 'POST',

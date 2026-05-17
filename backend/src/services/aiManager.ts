@@ -21,6 +21,8 @@ export interface GeneratedSchedule {
     estimated_days: number;
     assigned_tech: string[];
     assigned_to: string;
+    acceptance_criteria: string[];
+    definition_of_done: string[];
   }>;
   dependencies: Array<{
     task_id: string;
@@ -68,8 +70,10 @@ const SCHEDULE_SCHEMA = {
           estimated_days: { type: SchemaType.NUMBER },
           assigned_tech:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           assigned_to:    { type: SchemaType.STRING },
+          acceptance_criteria: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          definition_of_done:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
         },
-        required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to'],
+        required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to', 'acceptance_criteria', 'definition_of_done'],
       },
     },
     dependencies: {
@@ -143,6 +147,8 @@ Rules:
 - Create dependencies when one task clearly needs another task first, especially setup before feature work, backend/API before frontend integration, schema before services, implementation before testing, and deployment after validation.
 - dependencies[] must use only generated task IDs, avoid circular dependencies, and use dependency_type="Finish-to-Start".
 - description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
+- acceptance_criteria = 3–5 specific, testable checkbox-style outcomes for this task. Avoid generic wording.
+- definition_of_done = 2–4 practical completion checks for quality, review, tests, integration, or documentation where relevant.
 - priority: High=critical-path, Medium=standard, Low=nice-to-have.
 - For vague descriptions, infer professional defaults.
 - project_summary: 2-3 sentence professional description of the project written in third-person present tense, suitable to display on the project page.`;
@@ -190,6 +196,195 @@ export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedS
   return parsed;
 }
 
+export async function generateImprovedSchedule(
+  req: ScheduleRequest,
+  currentSchedule: GeneratedSchedule,
+  issueSummary: string,
+): Promise<GeneratedSchedule> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('AI generation is not configured: GEMINI_API_KEY is not set on the server.');
+  }
+
+  const t0 = Date.now();
+  console.log(`[AI] generateImprovedSchedule start — project="${req.projectName}"`);
+
+  const currentTaskList = currentSchedule.tasks
+    .map((t) => `  - [${(t as any).priority ?? 'Medium'}] ${t.title} (${t.estimated_days}d)`)
+    .join('\n');
+
+  const improvementPrompt =
+    buildSchedulePrompt(req) +
+    `\n\nCURRENT PLAN (improve this — do not just copy it):\n${currentTaskList}\n` +
+    `\nDETECTED QUALITY ISSUES — you MUST fix every one of these:\n${issueSummary}\n` +
+    `\nGenerate a new, improved plan that addresses all issues above while keeping the same project scope.`;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: 'You are an expert software project planner. Produce complete, realistic execution plans.',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: SCHEDULE_SCHEMA as Schema,
+    },
+  });
+
+  const text = await withTimeout(
+    (async () => {
+      const { stream } = await model.generateContentStream(improvementPrompt);
+      let out = '';
+      for await (const chunk of stream) out += chunk.text();
+      return out;
+    })(),
+    SCHEDULE_TIMEOUT_MS,
+  );
+  console.log(`[AI] generateImprovedSchedule streamed in ${Date.now() - t0}ms`);
+
+  const parsed = JSON.parse(text) as GeneratedSchedule;
+  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+    throw new Error('AI returned an empty task list. Please try again.');
+  }
+
+  console.log(`[AI] generateImprovedSchedule parsed ${parsed.tasks.length} tasks in ${Date.now() - t0}ms total`);
+  return parsed;
+}
+
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface RefinementOutput {
+  schedule: GeneratedSchedule;
+  refinementSummary: string;
+}
+
+function summariseRefinement(
+  before: GeneratedSchedule,
+  after: GeneratedSchedule,
+  userMessage: string,
+): string {
+  const beforeIds = new Set(before.tasks.map((t) => t.id));
+  const afterIds  = new Set(after.tasks.map((t) => t.id));
+
+  const added    = after.tasks.filter((t) => !beforeIds.has(t.id)).length;
+  const removed  = before.tasks.filter((t) => !afterIds.has(t.id)).length;
+  const modified = after.tasks.filter((t) => {
+    if (!beforeIds.has(t.id)) return false;
+    const prev = before.tasks.find((b) => b.id === t.id);
+    return prev && JSON.stringify(t) !== JSON.stringify(prev);
+  }).length;
+
+  const parts: string[] = [];
+  if (added > 0)    parts.push(`added ${added} task${added !== 1 ? 's' : ''}`);
+  if (modified > 0) parts.push(`updated ${modified} task${modified !== 1 ? 's' : ''}`);
+  if (removed > 0)  parts.push(`removed ${removed} task${removed !== 1 ? 's' : ''}`);
+
+  if (parts.length === 0) return `Applied: "${userMessage}" — no tasks changed.`;
+  return `Applied "${userMessage}" — ${parts.join(', ')}.`;
+}
+
+export async function generateRefinedSchedule(
+  req: ScheduleRequest,
+  currentSchedule: GeneratedSchedule,
+  userMessage: string,
+  conversationHistory: ConversationTurn[],
+  memberNames: Array<{ user_id: string; full_name: string }>,
+): Promise<RefinementOutput> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('AI generation is not configured: GEMINI_API_KEY is not set on the server.');
+  }
+
+  const t0 = Date.now();
+  console.log(`[AI] generateRefinedSchedule start — "${userMessage.slice(0, 60)}"`);
+
+  // Compact plan JSON keeps IDs visible for precise diffing
+  const currentPlanJson = JSON.stringify(
+    {
+      tasks: currentSchedule.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        estimated_days: t.estimated_days,
+        assigned_to: t.assigned_to,
+        assigned_tech: t.assigned_tech,
+        priority: (t as any).priority ?? 'Medium',
+        acceptance_criteria: t.acceptance_criteria,
+        definition_of_done: t.definition_of_done,
+      })),
+      dependencies: currentSchedule.dependencies,
+      technology_recommendations: currentSchedule.technology_recommendations,
+    },
+    null,
+    2,
+  );
+
+  const memberNameBlock =
+    memberNames.length > 0
+      ? '\nTEAM MEMBER NAMES (use these when reassigning tasks):\n' +
+        memberNames.map((m) => `  ${m.full_name} → user_id: "${m.user_id}"`).join('\n') + '\n'
+      : '';
+
+  const historyBlock =
+    conversationHistory.length > 0
+      ? '\nCONVERSATION HISTORY:\n' +
+        conversationHistory
+          .map((t) => `${t.role === 'user' ? 'User' : 'AI'}: ${t.content}`)
+          .join('\n') +
+        '\n'
+      : '';
+
+  const refinementPrompt =
+    buildSchedulePrompt(req) +
+    `\n\n${memberNameBlock}` +
+    `\nCURRENT PLAN (JSON — modify based on the user request, preserve IDs for unchanged tasks):\n\`\`\`json\n${currentPlanJson}\n\`\`\`` +
+    historyBlock +
+    `\n\nUSER'S REFINEMENT REQUEST:\n"${userMessage}"` +
+    `\n\nCRITICAL RULES FOR REFINEMENT:` +
+    `\n- Only change tasks directly affected by the request.` +
+    `\n- Keep the EXACT same UUID for every task you leave unchanged or modify. This is mandatory for change tracking.` +
+    `\n- For NEW tasks you add, generate a fresh UUID v4.` +
+    `\n- For tasks you REMOVE, simply omit them from the output.` +
+    `\n- Keep acceptance_criteria and definition_of_done specific and testable. Improve vague criteria when the request asks for clearer task quality.` +
+    `\n- For tasks you REMOVE, simply omit them from the output.` +
+    `\n- Return the COMPLETE plan (all tasks, including unchanged ones) — not just the diff.` +
+    `\n- If the user mentions a person by name, look up their user_id in the team member list above.`;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction:
+      'You are an expert software project planner. Modify project plans precisely based on user requests, preserving task IDs for unchanged tasks.',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: SCHEDULE_SCHEMA as Schema,
+    },
+  });
+
+  const text = await withTimeout(
+    (async () => {
+      const { stream } = await model.generateContentStream(refinementPrompt);
+      let out = '';
+      for await (const chunk of stream) out += chunk.text();
+      return out;
+    })(),
+    SCHEDULE_TIMEOUT_MS,
+  );
+
+  console.log(`[AI] generateRefinedSchedule streamed in ${Date.now() - t0}ms`);
+
+  const parsed = JSON.parse(text) as GeneratedSchedule;
+  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+    throw new Error('AI returned an empty task list. Please try again.');
+  }
+
+  const refinementSummary = summariseRefinement(currentSchedule, parsed, userMessage);
+  console.log(`[AI] generateRefinedSchedule done ${parsed.tasks.length} tasks in ${Date.now() - t0}ms — ${refinementSummary}`);
+
+  return { schedule: parsed, refinementSummary };
+}
+
 export async function generateChatResponse(message: string, projectContext?: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -206,7 +401,14 @@ export async function generateChatResponse(message: string, projectContext?: str
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: modelName,
-      systemInstruction: 'You are a helpful software project management assistant. Reply concisely in plain text, no markdown.',
+      systemInstruction: [
+        'You are the task AI assistant inside 01 Manager.',
+        'Use the provided task, project, team, dependency, comment, activity, file, schedule, acceptance criteria, and risk context.',
+        'Help the user execute the task: explain the work, break it into subtasks, suggest risks and blockers, explain why it matters, draft progress updates, and improve acceptance criteria.',
+        'Give code-level guidance when useful, but do not pretend to write the whole implementation or replace the developer’s judgment.',
+        'Ask for clarification only when the missing detail blocks a useful answer.',
+        'Avoid generic advice. Keep answers concise, practical, and specific. Plain text only, no markdown.',
+      ].join(' '),
     });
     const result = await withTimeout(model.generateContent(`${ctx}${message}`), CHAT_TIMEOUT_MS);
     console.log(`[AI] generateChatResponse done in ${Date.now() - t0}ms`);

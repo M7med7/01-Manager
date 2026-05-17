@@ -1,5 +1,6 @@
 import type { Project, ProjectMember, Task } from "./api";
 import type { ScheduleInfo } from "./schedule";
+import { scoreProjectHealth } from "./riskScoring";
 
 export type ExportFormat = "pdf" | "docx" | "csv" | "xlsx";
 
@@ -16,6 +17,8 @@ interface ExportTask {
   start: string;
   due: string;
   steps: string[];
+  acceptanceCriteria: string;
+  definitionOfDone: string;
   blockers: string;
 }
 
@@ -67,6 +70,8 @@ function getExportTasks({ tasks, members, scheduleMap }: ExportContext): ExportT
       start: formatDate(task.start_date ?? schedule?.start),
       due: formatDate(task.end_date ?? schedule?.end),
       steps: parsed.steps,
+      acceptanceCriteria: (task.acceptance_criteria ?? []).map((item) => `${item.checked ? "[x]" : "[ ]"} ${item.text}`).join(" | "),
+      definitionOfDone: (task.definition_of_done ?? []).map((item) => `${item.checked ? "[x]" : "[ ]"} ${item.text}`).join(" | "),
       blockers: (task.blocked_by ?? []).map((item) => `${item.title} (${item.status})`).join(", "),
     };
   });
@@ -76,6 +81,7 @@ function buildSummary(context: ExportContext) {
   const exportTasks = getExportTasks(context);
   const completed = context.tasks.filter((task) => task.status === "Done").length;
   const progress = context.tasks.length > 0 ? Math.round((completed / context.tasks.length) * 100) : 0;
+  const projectRisk = scoreProjectHealth(context.project, context.tasks, context.members, context.scheduleMap);
   const blocked = context.tasks.filter((task) => task.is_blocked);
   const overdue = context.tasks.filter((task) => {
     const schedule = context.scheduleMap.get(task.id);
@@ -110,10 +116,13 @@ function buildSummary(context: ExportContext) {
     workload,
     timeline: minDate && maxDate ? `${formatDate(minDate)} - ${formatDate(maxDate)}` : "Not scheduled",
     risk: [
+      `${projectRisk.level} risk (${100 - projectRisk.score}% health)`,
+      ...projectRisk.reasons,
       overdue.length ? `${overdue.length} overdue task${overdue.length === 1 ? "" : "s"}` : "No overdue tasks",
       blocked.length ? `${blocked.length} blocked task${blocked.length === 1 ? "" : "s"}` : "No blocked tasks",
       highPriorityOpen.length ? `${highPriorityOpen.length} open high-priority task${highPriorityOpen.length === 1 ? "" : "s"}` : "No open high-priority tasks",
     ],
+    riskActions: projectRisk.actions,
   };
 }
 
@@ -148,7 +157,7 @@ function makeCsv(context: ExportContext): Blob {
     ["Description", context.project.description],
     ["Progress", `${buildSummary(context).progress}%`],
     [],
-    ["Task", "Status", "Priority", "Assignee", "Estimated days", "Start date", "Due date", "Technologies", "Blocked by", "Implementation steps"],
+    ["Task", "Status", "Priority", "Assignee", "Estimated days", "Start date", "Due date", "Technologies", "Blocked by", "Acceptance criteria", "Definition of done", "Implementation steps"],
     ...getExportTasks(context).map((item) => [
       item.task.title,
       item.task.status,
@@ -159,6 +168,8 @@ function makeCsv(context: ExportContext): Blob {
       item.due,
       (item.task.assigned_tech ?? []).join(", "),
       item.blockers,
+      item.acceptanceCriteria,
+      item.definitionOfDone,
       item.steps.join(" | "),
     ]),
   ];
@@ -237,8 +248,9 @@ function makeXlsx(context: ExportContext): Blob {
     ["Timeline", summary.timeline],
     ["Progress", `${summary.progress}% (${summary.completed}/${context.tasks.length} tasks)`],
     ["Risks", summary.risk.join("; ")],
+    ["Risk actions", summary.riskActions.join("; ")],
     [],
-    ["Task", "Status", "Priority", "Assignee", "Estimated days", "Start date", "Due date", "Technologies", "Blocked by", "Implementation steps"],
+    ["Task", "Status", "Priority", "Assignee", "Estimated days", "Start date", "Due date", "Technologies", "Blocked by", "Acceptance criteria", "Definition of done", "Implementation steps"],
     ...summary.exportTasks.map((item) => [
       item.task.title,
       item.task.status,
@@ -249,6 +261,8 @@ function makeXlsx(context: ExportContext): Blob {
       item.due,
       (item.task.assigned_tech ?? []).join(", "),
       item.blockers,
+      item.acceptanceCriteria,
+      item.definitionOfDone,
       item.steps.join(" | "),
     ]),
     [],
@@ -286,12 +300,18 @@ function makeDocx(context: ExportContext): Blob {
     docParagraph(`Progress: ${summary.progress}% (${summary.completed}/${context.tasks.length} tasks)`),
     docParagraph("Risk Summary", true),
     ...summary.risk.map((item) => docParagraph(item)),
+    docParagraph("Risk Actions", true),
+    ...summary.riskActions.map((item) => docParagraph(item)),
     docParagraph("Suggested Technologies", true),
     docParagraph(summary.tech.length ? summary.tech.join(", ") : "No technologies listed."),
     docParagraph("Team Capacity Summary", true),
     docTable([["Team member", "Role", "Assigned tasks", "Done", "Estimated days"], ...summary.workload.map((item) => [item.name, item.role, String(item.tasks), String(item.done), String(item.estimated)])]),
     docParagraph("Tasks", true),
     docTable([["Task", "Status", "Priority", "Assignee", "Estimate", "Start", "Due", "Blocked by"], ...summary.exportTasks.map((item) => [item.task.title, item.task.status, item.task.priority, item.assignee, `${item.task.estimated_days}d`, item.start, item.due, item.blockers])]),
+    docParagraph("Acceptance Criteria", true),
+    ...summary.exportTasks.flatMap((item) => [docParagraph(item.task.title, true), ...(item.acceptanceCriteria ? item.acceptanceCriteria.split(" | ").map((criterion) => docParagraph(criterion)) : [docParagraph("No criteria listed.")])]),
+    docParagraph("Definition of Done", true),
+    ...summary.exportTasks.flatMap((item) => [docParagraph(item.task.title, true), ...(item.definitionOfDone ? item.definitionOfDone.split(" | ").map((criterion) => docParagraph(criterion)) : [docParagraph("No done checks listed.")])]),
     docParagraph("Implementation Steps", true),
     ...summary.exportTasks.flatMap((item) => [docParagraph(item.task.title, true), ...(item.steps.length ? item.steps.map((step) => docParagraph(`- ${step}`)) : [docParagraph("No steps listed.")])]),
   ].join("");
@@ -332,6 +352,7 @@ function makePdf(context: ExportContext): Blob {
     `Progress: ${summary.progress}% (${summary.completed}/${context.tasks.length} tasks)`,
     `Suggested technologies: ${summary.tech.length ? summary.tech.join(", ") : "No technologies listed."}`,
     `Risk summary: ${summary.risk.join("; ")}`,
+    `Risk actions: ${summary.riskActions.join("; ")}`,
     "",
     "Team Capacity",
     ...summary.workload.map((item) => `${item.name} (${item.role}) - ${item.tasks} tasks, ${item.done} done, ${item.estimated} estimated days`),
@@ -340,6 +361,8 @@ function makePdf(context: ExportContext): Blob {
     ...summary.exportTasks.flatMap((item) => [
       `${item.task.title} | ${item.task.status} | ${item.task.priority} | ${item.assignee} | ${item.task.estimated_days}d | ${item.start} - ${item.due}`,
       item.blockers ? `Blocked by: ${item.blockers}` : "Blocked by: None",
+      item.acceptanceCriteria ? `Acceptance: ${item.acceptanceCriteria}` : "Acceptance: No criteria listed.",
+      item.definitionOfDone ? `Done: ${item.definitionOfDone}` : "Done: No checks listed.",
       item.steps.length ? `Steps: ${item.steps.join("; ")}` : "Steps: No steps listed.",
       "",
     ]),

@@ -406,7 +406,7 @@ export function Profile() {
               </div>
             </div>
             <div className="mt-6 h-2 bg-black/50 rounded-full overflow-hidden border border-white/5 relative z-10">
-              <div className="h-full bg-orange-500 w-[100%]" /> {/* Always full if streak is active */}
+              <div className="h-full bg-orange-500 w-full" />
             </div>
           </motion.div>
 

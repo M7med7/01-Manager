@@ -7,10 +7,10 @@ jest.mock('../../../backend/src/lib/supabase', () => ({
 const mockSchedule = {
   project_summary: 'Mock project summary.',
   tasks: [
-    { id: 'uuid-1', title: 'Task 1', description: 'Desc\nSteps:\n1. a\n2. b', estimated_days: 3, assigned_tech: ['React'], assigned_to: 'u1' },
-    { id: 'uuid-2', title: 'Task 2', description: 'Desc\nSteps:\n1. a', estimated_days: 2, assigned_tech: ['Node'], assigned_to: 'u2' },
-    { id: 'uuid-3', title: 'Task 3', description: 'Desc', estimated_days: 1, assigned_tech: [], assigned_to: 'u1' },
-    { id: 'uuid-4', title: 'Task 4', description: 'Desc', estimated_days: 1, assigned_tech: [], assigned_to: 'u2' },
+    { id: 'uuid-1', title: 'Task 1', description: 'Desc\nSteps:\n1. a\n2. b', estimated_days: 3, assigned_tech: ['React'], assigned_to: 'u1', acceptance_criteria: ['User can complete the flow'], definition_of_done: ['Code is reviewed'] },
+    { id: 'uuid-2', title: 'Task 2', description: 'Desc\nSteps:\n1. a', estimated_days: 2, assigned_tech: ['Node'], assigned_to: 'u2', acceptance_criteria: ['API returns expected response'], definition_of_done: ['Endpoint is tested'] },
+    { id: 'uuid-3', title: 'Task 3', description: 'Desc', estimated_days: 1, assigned_tech: [], assigned_to: 'u1', acceptance_criteria: ['Task outcome is visible'], definition_of_done: ['Reviewed by teammate'] },
+    { id: 'uuid-4', title: 'Task 4', description: 'Desc', estimated_days: 1, assigned_tech: [], assigned_to: 'u2', acceptance_criteria: ['Task output is verified'], definition_of_done: ['No known regressions'] },
   ],
   dependencies: [
     { task_id: 'uuid-2', depends_on_task_id: 'uuid-1', dependency_type: 'Finish-to-Start' },

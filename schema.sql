@@ -53,6 +53,8 @@ CREATE TABLE tasks (
   completed_at TIMESTAMP WITH TIME ZONE,
   start_date DATE,
   end_date DATE,
+  acceptance_criteria JSONB DEFAULT '[]'::jsonb,
+  definition_of_done JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

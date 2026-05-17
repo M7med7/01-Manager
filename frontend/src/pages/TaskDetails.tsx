@@ -8,6 +8,7 @@ import { TaskDetailPanel } from "../components/TaskDetailPanel";
 import { AddTaskForm } from "../components/AddTaskForm";
 import { buildDependencyAwareSchedule } from "../lib/schedule";
 import { exportProject, type ExportFormat } from "../lib/projectExport";
+import { riskStyle, scoreProjectHealth } from "../lib/riskScoring";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -72,6 +73,18 @@ function blockedWarning(task: Task): string {
   return `${task.title} is blocked by: ${blockers.map((item) => item.title).join(", ")}. Continue anyway?`;
 }
 
+function incompleteQualityCount(task: Task): number {
+  return [
+    ...(task.acceptance_criteria ?? []),
+    ...(task.definition_of_done ?? []),
+  ].filter((item) => !item.checked).length;
+}
+
+function qualityWarning(task: Task): string {
+  const count = incompleteQualityCount(task);
+  return `${task.title} has ${count} unchecked acceptance/done check${count === 1 ? "" : "s"}. Continue anyway?`;
+}
+
 function statusLabel(status: string): string {
   return status === "In Review" ? "Review" : status;
 }
@@ -105,6 +118,8 @@ export function TaskDetails() {
   const [toast, setToast] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
+  const [weeklyReportLoading, setWeeklyReportLoading] = useState(false);
   const [filters, setFilters] = useState({
     assignee: "all",
     priority: "all",
@@ -131,6 +146,7 @@ export function TaskDetails() {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const blockedTasks = tasks.filter((t) => t.is_blocked);
   const todayStart = startOfToday();
+  const projectRisk = project ? scoreProjectHealth(project, tasks, members, scheduleMap) : null;
 
   const isOverdue = (task: Task) => {
     if (task.status === "Done") return false;
@@ -183,6 +199,7 @@ export function TaskDetails() {
   const handleCompleteTask = async (tid: string, completed: boolean) => {
     const target = tasks.find((t) => t.id === tid);
     if (completed && target?.is_blocked && !window.confirm(blockedWarning(target))) return;
+    if (completed && target && incompleteQualityCount(target) > 0 && !window.confirm(qualityWarning(target))) return;
     const prev = tasks;
     setTasks((p) => recomputeBlockers(p.map((t) => t.id === tid ? {
       ...t,
@@ -210,6 +227,11 @@ export function TaskDetails() {
     const task = tasks.find((t) => t.id === tid);
     if (!task || task.status === nextStatus) return;
     if ((nextStatus === "In Progress" || nextStatus === "Done") && task.is_blocked && !window.confirm(blockedWarning(task))) {
+      setDraggingTaskId(null);
+      setDragOverStatus(null);
+      return;
+    }
+    if (nextStatus === "Done" && incompleteQualityCount(task) > 0 && !window.confirm(qualityWarning(task))) {
       setDraggingTaskId(null);
       setDragOverStatus(null);
       return;
@@ -327,6 +349,31 @@ export function TaskDetails() {
     exportProject({ project, tasks, members, scheduleMap }, format);
     setShowExportMenu(false);
     showToast(`Exported ${format.toUpperCase()}`);
+  };
+
+  const generateWeeklyReport = async () => {
+    if (!project || !projectRisk || weeklyReportLoading) return;
+    setWeeklyReportLoading(true);
+    setCompletionError(null);
+    try {
+      const { response } = await api.ai.chat({
+        message: "Write a concise weekly project report with progress, risk summary, exact risk reasons, and practical corrective actions. Keep it under 180 words.",
+        context: `Project: ${project.name}
+Description: ${project.description}
+Progress: ${progress}%
+Health: ${100 - projectRisk.score}% (${projectRisk.level} risk)
+Risk reasons: ${projectRisk.reasons.join("; ")}
+Suggested actions: ${projectRisk.actions.join("; ")}
+Open tasks: ${tasks.filter((task) => task.status !== "Done").length}
+Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
+      });
+      setWeeklyReport(response);
+    } catch (err) {
+      setCompletionError(err instanceof Error ? err.message : "Failed to generate weekly report");
+      setTimeout(() => setCompletionError(null), 4000);
+    } finally {
+      setWeeklyReportLoading(false);
+    }
   };
 
   const assignedIds = new Set(members.map((m) => m.user_id));
@@ -448,6 +495,44 @@ export function TaskDetails() {
             </div>
           </motion.div>
         </div>
+
+        {projectRisk && (
+          <div className={`min-w-0 rounded-2xl border p-5 ${riskStyle(projectRisk.level)}`}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-semibold">Project Health</h3>
+                <p className="mt-1 text-sm opacity-80">{100 - projectRisk.score}% health · {projectRisk.level} risk</p>
+              </div>
+              <span className="rounded-full border border-current/30 px-3 py-1 text-xs font-semibold">{projectRisk.level}</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">Reasons</div>
+                <ul className="space-y-1 text-sm">
+                  {projectRisk.reasons.slice(0, 4).map((reason) => <li key={reason}>- {reason}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">Suggested actions</div>
+                <ul className="space-y-1 text-sm">
+                  {projectRisk.actions.slice(0, 4).map((action) => <li key={action}>- {action}</li>)}
+                </ul>
+              </div>
+            </div>
+            <button
+              onClick={generateWeeklyReport}
+              disabled={weeklyReportLoading}
+              className="mt-4 rounded-xl border border-current/25 px-3 py-2 text-xs font-semibold transition-colors hover:bg-white/10 disabled:opacity-40"
+            >
+              {weeklyReportLoading ? "Generating weekly report..." : "Generate weekly AI report"}
+            </button>
+            {weeklyReport && (
+              <div className="mt-4 rounded-xl border border-current/20 bg-black/20 p-3 text-sm leading-6">
+                {weeklyReport}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
           <h3 className="text-2xl mb-4 font-semibold">Description</h3>
@@ -819,6 +904,7 @@ export function TaskDetails() {
             task={selectedTask}
             schedule={scheduleMap.get(selectedTask.id) ?? null}
             members={members}
+            projectName={project.name}
             projectDesc={project.description}
             currentUserId={currentUserId}
             onComplete={handleCompleteTask}

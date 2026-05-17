@@ -4,6 +4,7 @@ import { Clock, Users, Trash2, AlertTriangle, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/Button";
 import { api, type Project } from "../lib/api";
+import { riskStyle } from "../lib/riskScoring";
 
 const COLORS = ["blue", "purple", "green", "red"] as const;
 type Color = typeof COLORS[number];
@@ -19,6 +20,11 @@ function formatDeadline(createdAt: string): string {
   const d = new Date(createdAt);
   d.setDate(d.getDate() + 30);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function healthText(project: Project): string {
+  if (project.health_score === undefined) return "Health pending";
+  return `${project.health_score}% health`;
 }
 
 function ConfirmDeleteModal({
@@ -170,6 +176,14 @@ export function ProjectsDashboard() {
                       <h3 className="text-lg mb-1 group-hover:text-white transition-colors duration-300">
                         {project.name}
                       </h3>
+                      {project.risk_level && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${riskStyle(project.risk_level)}`}>
+                            {project.risk_level} risk
+                          </span>
+                          <span className="text-[11px] text-gray-500">{healthText(project)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <p className="text-gray-500 text-sm mb-4 flex-1 leading-relaxed relative z-10">
@@ -200,6 +214,11 @@ export function ProjectsDashboard() {
                           className={`h-full bg-linear-to-r ${gradient} rounded-full`}
                         />
                       </div>
+                      {project.risk_reasons && project.risk_reasons.length > 0 && (
+                        <p className="mt-3 line-clamp-2 text-xs text-gray-500">
+                          Risk: {project.risk_reasons.slice(0, 2).join(", ")}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </Link>

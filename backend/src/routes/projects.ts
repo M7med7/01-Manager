@@ -6,6 +6,55 @@ import { enrichTasksWithDependencies, fetchProjectDependencies } from '../lib/ta
 
 const router = Router();
 
+function riskLevel(score: number): 'Low' | 'Medium' | 'High' | 'Critical' {
+  if (score >= 85) return 'Critical';
+  if (score >= 60) return 'High';
+  if (score >= 30) return 'Medium';
+  return 'Low';
+}
+
+function projectRiskSummary(project: any, projectTasks: any[], memberCount: number) {
+  let score = 0;
+  const reasons: string[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const openTasks = projectTasks.filter((task) => task.status !== 'Done');
+  const overdue = openTasks.filter((task) => task.end_date && new Date(task.end_date) < today);
+  const blocked = openTasks.filter((task) => task.is_blocked || Number(task.blocking_count ?? 0) > 0);
+  const missingOwner = openTasks.filter((task) => !task.assigned_to);
+  const highPriority = openTasks.filter((task) => task.priority === 'High');
+  const totalOpenDays = openTasks.reduce((sum, task) => sum + Number(task.estimated_days || 0), 0);
+  const capacity = Number(project.duration_weeks || 0) * 7 * Math.max(1, memberCount);
+
+  if (overdue.length > 0) {
+    score += Math.min(35, overdue.length * 10);
+    reasons.push(`${overdue.length} overdue task${overdue.length === 1 ? '' : 's'}`);
+  }
+  if (blocked.length > 0) {
+    score += Math.min(25, blocked.length * 8);
+    reasons.push(`${blocked.length} blocked task${blocked.length === 1 ? '' : 's'}`);
+  }
+  if (missingOwner.length > 0) {
+    score += Math.min(20, missingOwner.length * 6);
+    reasons.push(`${missingOwner.length} task${missingOwner.length === 1 ? '' : 's'} missing owner`);
+  }
+  if (capacity > 0 && totalOpenDays > capacity) {
+    score += 20;
+    reasons.push('timeline capacity is tight');
+  }
+  if (openTasks.length > 0 && highPriority.length / openTasks.length > 0.4) {
+    score += 12;
+    reasons.push('too many high-priority tasks');
+  }
+
+  const riskScore = Math.min(100, score);
+  return {
+    health_score: Math.max(0, 100 - riskScore),
+    risk_level: riskLevel(riskScore),
+    risk_reasons: reasons.length ? reasons : ['No major risk signals'],
+  };
+}
+
 async function resolveOrderedQuery(query: any, orderColumn: string, options?: Record<string, unknown>) {
   if (query && typeof query.order === 'function') {
     return query.order(orderColumn, options);
@@ -22,7 +71,7 @@ router.get('/', async (_req, res) => {
     ] = await Promise.all([
       withTimeout(resolveOrderedQuery(supabase.from('projects').select('*'), 'created_at', { ascending: false })),
       withTimeout(supabase.from('team_assignments').select('project_id')),
-      withTimeout(supabase.from('tasks').select('project_id, status')),
+      withTimeout(supabase.from('tasks').select('id, project_id, status, priority, estimated_days, assigned_to, end_date')),
     ]);
 
     if (projectsError) throw projectsError;
@@ -35,12 +84,34 @@ router.get('/', async (_req, res) => {
       return res.json({ projects: projects ?? [] });
     }
 
+    let dependencyRisk = new Map<string, { is_blocked: boolean; blocking_count: number }>();
+    try {
+      const { data: dependencies } = await withTimeout(
+        supabase.from('task_dependencies').select('task_id, depends_on_task_id'),
+      );
+      const statusByTask = new Map((tasks ?? []).map((task: any) => [task.id, task.status]));
+      for (const dep of dependencies ?? []) {
+        const unfinished = statusByTask.get(dep.depends_on_task_id) !== 'Done';
+        const current = dependencyRisk.get(dep.task_id) ?? { is_blocked: false, blocking_count: 0 };
+        if (unfinished) {
+          current.is_blocked = true;
+          current.blocking_count += 1;
+        }
+        dependencyRisk.set(dep.task_id, current);
+      }
+    } catch {
+      dependencyRisk = new Map();
+    }
+
     const enriched = (projects ?? []).map((project: any) => {
       const teamCount = (assignments ?? []).filter((a) => a.project_id === project.id).length;
-      const projectTasks = (tasks ?? []).filter((t) => t.project_id === project.id);
+      const projectTasks = (tasks ?? []).filter((t) => t.project_id === project.id).map((task: any) => ({
+        ...task,
+        ...(dependencyRisk.get(task.id) ?? {}),
+      }));
       const doneTasks = projectTasks.filter((t) => t.status === 'Done').length;
       const progress = projectTasks.length > 0 ? Math.round((doneTasks / projectTasks.length) * 100) : 0;
-      return { ...project, team_count: teamCount, progress };
+      return { ...project, team_count: teamCount, progress, ...projectRiskSummary(project, projectTasks, teamCount) };
     });
 
     res.json({ projects: enriched });
@@ -67,7 +138,7 @@ router.get('/:id', async (req, res) => {
       withTimeout(
         supabase
           .from('team_assignments')
-          .select('user_id, role, users(id, email, full_name, avatar_url)')
+          .select('user_id, role, users(id, email, full_name, avatar_url, skills, experience_summary)')
           .eq('project_id', id)
       ),
       withTimeout(supabase.from('task_activity').select('task_id, created_at').order('created_at', { ascending: false })),

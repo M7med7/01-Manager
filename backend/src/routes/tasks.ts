@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { randomUUID } from 'crypto';
 import { supabase } from '../lib/supabase';
 import { demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
@@ -37,6 +38,29 @@ async function projectMemberIdsForTask(taskId: string): Promise<string[]> {
   const ids = (members ?? []).map((m: any) => m.user_id);
   if (task?.assigned_to) ids.push(task.assigned_to);
   return ids;
+}
+
+function normalizeChecklistItems(items: unknown): Array<{ id: string; text: string; checked: boolean }> {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => {
+      if (item && typeof item === 'object') {
+        const raw = item as { id?: unknown; text?: unknown; checked?: unknown };
+        const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+        if (!text) return null;
+        return {
+          id: typeof raw.id === 'string' && raw.id ? raw.id : randomUUID(),
+          text,
+          checked: Boolean(raw.checked),
+        };
+      }
+      if (typeof item === 'string') {
+        const text = item.trim();
+        return text ? { id: randomUUID(), text, checked: false } : null;
+      }
+      return null;
+    })
+    .filter((item): item is { id: string; text: string; checked: boolean } => item !== null);
 }
 
 // List all tasks (with project name)
@@ -138,6 +162,8 @@ router.post('/', async (req, res) => {
           estimated_days: Math.max(1, Math.round(Number(estimated_days))),
           assigned_tech: techArray,
           assigned_to: assigned_to || null,
+          acceptance_criteria: [],
+          definition_of_done: [],
           status: 'To Do',
         })
         .select()
@@ -145,6 +171,30 @@ router.post('/', async (req, res) => {
     );
 
     if (error) throw error;
+    res.json({ task });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/quality', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { acceptance_criteria, definition_of_done, user_id } = req.body as {
+      acceptance_criteria?: unknown;
+      definition_of_done?: unknown;
+      user_id?: string | null;
+    };
+    const updates: Record<string, unknown> = {};
+    if (acceptance_criteria !== undefined) updates.acceptance_criteria = normalizeChecklistItems(acceptance_criteria);
+    if (definition_of_done !== undefined) updates.definition_of_done = normalizeChecklistItems(definition_of_done);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No quality fields provided' });
+
+    const { data: task, error } = await withTimeout(
+      supabase.from('tasks').update(updates).eq('id', id).select().single(),
+    );
+    if (error) throw error;
+    await createActivity(id, user_id, 'quality_updated', 'Updated acceptance criteria', updates);
     res.json({ task });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -251,7 +301,16 @@ router.patch('/:id/status', async (req, res) => {
         : { status, completed_by: null, completed_at: null };
 
     const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
-    if (error) throw error;
+    if (error) {
+      const fallbackUpdates = status === 'Done'
+        ? { status, completed_by: completed_by ?? null }
+        : { status, completed_by: null };
+      const { error: fallbackError } = await withTimeout(supabase.from('tasks').update(fallbackUpdates).eq('id', id));
+      if (fallbackError) throw fallbackError;
+      await createActivity(id, completed_by, 'status_changed', `Moved task to ${status}`, { from: before?.status, to: status });
+      await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', `A task moved to ${status}`);
+      return res.json({ success: true, ...fallbackUpdates });
+    }
     await createActivity(id, completed_by, 'status_changed', `Moved task to ${status}`, { from: before?.status, to: status });
     await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', `A task moved to ${status}`);
     res.json({ success: true, ...updates });
