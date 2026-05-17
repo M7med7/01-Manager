@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Clock, Users, Trash2, AlertTriangle, X } from "lucide-react";
+import { Clock, Users, Trash2, AlertTriangle, X, Activity, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/Button";
 import { api, type Project } from "../lib/api";
@@ -233,6 +233,34 @@ export function ProjectsDashboard() {
                   aria-label={`Delete ${project.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Health button — appears on card hover */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/project/${project.id}/health`);
+                  }}
+                  className="absolute top-3 left-14 z-20 flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-2.5 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200 text-[11px] font-medium"
+                  aria-label={`Health dashboard for ${project.name}`}
+                >
+                  <Activity className="h-3.5 w-3.5" />
+                  Health
+                </button>
+
+                {/* Report button — appears on card hover */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/project/${project.id}/report`);
+                  }}
+                  className="absolute top-3 left-26 z-20 flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-2.5 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200 text-[11px] font-medium"
+                  aria-label={`Weekly report for ${project.name}`}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Report
                 </button>
               </div>
             </motion.div>

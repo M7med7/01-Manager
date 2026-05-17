@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Sparkles, UserPlus, UserMinus, Users, CheckCircle2, Circle, Clock, Tag, LayoutGrid, List, Filter, AlertTriangle, BookmarkPlus, Download } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Sparkles, UserPlus, UserMinus, Users, CheckCircle2, Circle, Clock, Tag, LayoutGrid, List, Filter, AlertTriangle, BookmarkPlus, Download, Github, Link2, UploadCloud, CalendarPlus, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { api, type Project, type Task, type ProjectMember, type User } from "../lib/api";
+import { api, type Project, type Task, type ProjectMember, type User, type GitHubRepository, type CalendarConnection, type TaskCalendarEvent, type SlackIntegration } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { TaskDetailPanel } from "../components/TaskDetailPanel";
 import { AddTaskForm } from "../components/AddTaskForm";
@@ -120,6 +120,21 @@ export function TaskDetails() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
   const [weeklyReportLoading, setWeeklyReportLoading] = useState(false);
+  const [githubRepo, setGithubRepo] = useState<GitHubRepository | null>(null);
+  const [githubRepoInput, setGithubRepoInput] = useState("");
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [calendarConnection, setCalendarConnection] = useState<CalendarConnection | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState<TaskCalendarEvent[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [slackIntegration, setSlackIntegration] = useState<SlackIntegration | null>(null);
+  const [slackWebhookInput, setSlackWebhookInput] = useState("");
+  const [slackChannelInput, setSlackChannelInput] = useState("");
+  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackError, setSlackError] = useState<string | null>(null);
+  const [taskPanelWidth, setTaskPanelWidth] = useState(440);
+  const panelDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const [filters, setFilters] = useState({
     assignee: "all",
     priority: "all",
@@ -135,10 +150,27 @@ export function TaskDetails() {
         setTasks(pd.tasks);
         setMembers(pd.members ?? []);
         setAllUsers(ud.users);
+        api.github.getRepository(taskId)
+          .then((data) => setGithubRepo(data.repository))
+          .catch(() => setGithubError("GitHub integration is not configured yet."));
+        if (currentUserId) {
+          api.calendar.status(currentUserId)
+            .then((data) => {
+              setCalendarConnection(data.connections.find((item) => item.provider === "google") ?? null);
+              setCalendarEvents(data.events);
+            })
+            .catch(() => setCalendarError("Calendar sync is not configured yet."));
+        }
+        api.slack.getProject(taskId)
+          .then((data) => {
+            setSlackIntegration(data.integration);
+            setSlackChannelInput(data.integration?.channel_name ?? "");
+          })
+          .catch(() => setSlackError("Slack integration is not configured yet."));
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [taskId]);
+  }, [taskId, currentUserId]);
 
   const scheduleMap = buildDependencyAwareSchedule(tasks);
   const doneTasks = tasks.filter((t) => t.status === "Done").length;
@@ -166,6 +198,226 @@ export function TaskDetails() {
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2400);
+  };
+
+  const startPanelResize = (clientX: number) => {
+    panelDragRef.current = { startX: clientX, startWidth: taskPanelWidth };
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      if (!panelDragRef.current) return;
+      const x = ev instanceof MouseEvent ? ev.clientX : ev.touches[0]?.clientX;
+      if (x === undefined) return;
+      const delta = panelDragRef.current.startX - x;
+      const maxWidth = Math.min(920, Math.round(window.innerWidth * 0.68));
+      setTaskPanelWidth(Math.max(360, Math.min(maxWidth, panelDragRef.current.startWidth + delta)));
+    };
+    const onUp = () => {
+      panelDragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  };
+
+  const connectGithubRepo = async () => {
+    if (!taskId || !githubRepoInput.trim() || githubLoading) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const { repository } = await api.github.connectRepository(taskId, {
+        repo_url: githubRepoInput.trim(),
+        connected_by: currentUserId ?? null,
+      });
+      setGithubRepo(repository);
+      setGithubRepoInput("");
+      showToast("GitHub repository connected");
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not connect GitHub repository");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const disconnectGithubRepo = async () => {
+    if (!taskId || githubLoading) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      await api.github.disconnectRepository(taskId);
+      setGithubRepo(null);
+      showToast("GitHub repository disconnected");
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not disconnect repository");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const importGithubIssues = async () => {
+    if (!taskId || githubLoading) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const { tasks: imported } = await api.github.importIssues(taskId, currentUserId ?? null);
+      setTasks((current) => recomputeBlockers([...current, ...imported]));
+      showToast(`Imported ${imported.length} GitHub issue${imported.length === 1 ? "" : "s"}`);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not import GitHub issues");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const onMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== "calendar-oauth") return;
+      if (!currentUserId) return;
+      if (event.data.error) {
+        setCalendarError("Calendar connection was cancelled.");
+        return;
+      }
+      if (!event.data.code) return;
+      setCalendarLoading(true);
+      setCalendarError(null);
+      try {
+        const redirectUri = `${window.location.origin}/calendar/callback`;
+        const { connection } = await api.calendar.connectGoogle({
+          user_id: currentUserId,
+          code: event.data.code,
+          redirect_uri: redirectUri,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        setCalendarConnection(connection);
+        showToast("Google Calendar connected");
+      } catch (err) {
+        setCalendarError(err instanceof Error ? err.message : "Could not connect Google Calendar");
+      } finally {
+        setCalendarLoading(false);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [currentUserId]);
+
+  const connectGoogleCalendar = async () => {
+    if (!currentUserId || calendarLoading) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      const redirectUri = `${window.location.origin}/calendar/callback`;
+      const { auth_url } = await api.calendar.googleAuthUrl(currentUserId, redirectUri);
+      window.open(auth_url, "google-calendar-connect", "width=520,height=720");
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Could not start Google Calendar connection");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const updateCalendarSettings = async (patch: Partial<CalendarConnection>) => {
+    if (!currentUserId || !calendarConnection) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      const { connection } = await api.calendar.updateSettings(currentUserId, { provider: "google", ...patch });
+      setCalendarConnection(connection);
+      showToast("Calendar settings updated");
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Could not update calendar settings");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const disconnectCalendar = async () => {
+    if (!currentUserId || calendarLoading) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      await api.calendar.disconnect(currentUserId, "google");
+      setCalendarConnection(null);
+      setCalendarEvents([]);
+      showToast("Calendar disconnected");
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Could not disconnect calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const connectSlack = async () => {
+    if (!taskId || !slackWebhookInput.trim() || slackLoading) return;
+    setSlackLoading(true);
+    setSlackError(null);
+    try {
+      const { integration } = await api.slack.connectProject(taskId, {
+        webhook_url: slackWebhookInput.trim(),
+        channel_name: slackChannelInput.trim(),
+        connected_by: currentUserId ?? null,
+      });
+      setSlackIntegration(integration);
+      setSlackWebhookInput("");
+      setSlackChannelInput(integration.channel_name ?? "");
+      showToast("Slack connected");
+    } catch (err) {
+      setSlackError(err instanceof Error ? err.message : "Could not connect Slack");
+    } finally {
+      setSlackLoading(false);
+    }
+  };
+
+  const updateSlackSettings = async (patch: Partial<SlackIntegration>) => {
+    if (!taskId || !slackIntegration || slackLoading) return;
+    setSlackLoading(true);
+    setSlackError(null);
+    try {
+      const { integration } = await api.slack.updateProject(taskId, patch);
+      setSlackIntegration(integration);
+      setSlackChannelInput(integration.channel_name ?? "");
+    } catch (err) {
+      setSlackError(err instanceof Error ? err.message : "Could not update Slack settings");
+    } finally {
+      setSlackLoading(false);
+    }
+  };
+
+  const disconnectSlack = async () => {
+    if (!taskId || slackLoading) return;
+    setSlackLoading(true);
+    setSlackError(null);
+    try {
+      await api.slack.disconnectProject(taskId);
+      setSlackIntegration(null);
+      showToast("Slack disconnected");
+    } catch (err) {
+      setSlackError(err instanceof Error ? err.message : "Could not disconnect Slack");
+    } finally {
+      setSlackLoading(false);
+    }
+  };
+
+  const sendSlackSummary = async () => {
+    if (!taskId || slackLoading) return;
+    setSlackLoading(true);
+    setSlackError(null);
+    try {
+      const result = await api.slack.sendSummary(taskId);
+      showToast(result.sent ? "Slack summary sent" : result.reason ?? "Slack summary skipped");
+    } catch (err) {
+      setSlackError(err instanceof Error ? err.message : "Could not send Slack summary");
+    } finally {
+      setSlackLoading(false);
+    }
   };
 
   const handleAddMember = async (userId: string) => {
@@ -539,6 +791,242 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           <p className="text-gray-300 text-lg leading-relaxed">{project.description}</p>
         </div>
 
+        <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Github className="h-5 w-5 text-purple-300" />
+              <div>
+                <h3 className="text-xl font-semibold">GitHub</h3>
+                <p className="mt-1 text-sm text-gray-500">Optional code activity connection for this project</p>
+              </div>
+            </div>
+            {githubRepo && (
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Connected</span>
+            )}
+          </div>
+
+          {githubRepo ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                <div className="min-w-0">
+                  <a href={githubRepo.repo_url} target="_blank" rel="noreferrer" className="truncate text-sm font-semibold text-white hover:text-purple-200">
+                    {githubRepo.owner}/{githubRepo.repo}
+                  </a>
+                  <div className="mt-1 text-xs text-gray-500">Default branch: {githubRepo.default_branch ?? "unknown"}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={importGithubIssues}
+                    disabled={githubLoading}
+                    className="inline-flex items-center gap-2 rounded-lg border border-purple-500/35 bg-purple-900/20 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-900/35 disabled:opacity-40"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5" /> Import issues
+                  </button>
+                  <button
+                    onClick={disconnectGithubRepo}
+                    disabled={githubLoading}
+                    className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 md:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <input
+                  value={githubRepoInput}
+                  onChange={(e) => setGithubRepoInput(e.target.value)}
+                  placeholder="owner/repo or https://github.com/owner/repo"
+                  className="w-full rounded-xl border border-white/10 bg-black/35 py-3 pl-10 pr-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                />
+              </div>
+              <button
+                onClick={connectGithubRepo}
+                disabled={githubLoading || !githubRepoInput.trim()}
+                className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
+              >
+                {githubLoading ? "Connecting..." : "Connect repo"}
+              </button>
+            </div>
+          )}
+          {githubError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{githubError}</p>}
+        </div>
+
+        <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <CalendarPlus className="h-5 w-5 text-purple-300" />
+              <div>
+                <h3 className="text-xl font-semibold">Calendar Sync</h3>
+                <p className="mt-1 text-sm text-gray-500">Push approved task dates to your real calendar</p>
+              </div>
+            </div>
+            {calendarConnection && (
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Google connected</span>
+            )}
+          </div>
+
+          {calendarConnection ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                <div className="text-sm font-semibold text-white">{calendarConnection.calendar_name ?? "Google Calendar"}</div>
+                <div className="mt-1 text-xs text-gray-500">
+                  Timezone: {calendarConnection.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                  Sync enabled
+                  <input
+                    type="checkbox"
+                    checked={calendarConnection.sync_enabled}
+                    onChange={(e) => updateCalendarSettings({ sync_enabled: e.target.checked })}
+                    className="h-4 w-4 accent-purple-500"
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                  Work blocks by default
+                  <input
+                    type="checkbox"
+                    checked={calendarConnection.create_work_blocks}
+                    onChange={(e) => updateCalendarSettings({ create_work_blocks: e.target.checked })}
+                    className="h-4 w-4 accent-purple-500"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => updateCalendarSettings({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })}
+                  disabled={calendarLoading}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-purple-500/40 hover:bg-purple-900/20 disabled:opacity-40"
+                >
+                  Use my timezone
+                </button>
+                <button
+                  onClick={disconnectCalendar}
+                  disabled={calendarLoading}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={connectGoogleCalendar}
+                disabled={calendarLoading || !currentUserId}
+                className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
+              >
+                {calendarLoading ? "Connecting..." : "Connect Google Calendar"}
+              </button>
+              <p className="text-xs text-gray-500">Outlook Calendar support is planned next. Google Calendar is available now.</p>
+            </div>
+          )}
+          {calendarError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{calendarError}</p>}
+        </div>
+
+        <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-5 w-5 text-purple-300" />
+              <div>
+                <h3 className="text-xl font-semibold">Slack Updates</h3>
+                <p className="mt-1 text-sm text-gray-500">Send useful project updates to a team channel</p>
+              </div>
+            </div>
+            {slackIntegration && (
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Connected</span>
+            )}
+          </div>
+
+          {slackIntegration ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  value={slackChannelInput}
+                  onChange={(e) => setSlackChannelInput(e.target.value)}
+                  onBlur={() => updateSlackSettings({ channel_name: slackChannelInput.trim() })}
+                  placeholder="#project-channel"
+                  className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                />
+                <button
+                  onClick={sendSlackSummary}
+                  disabled={slackLoading}
+                  className="rounded-xl border border-purple-500/35 bg-purple-900/20 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-900/35 disabled:opacity-40"
+                >
+                  Send summary
+                </button>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {[
+                  ["assignment_notifications", "Assignments"],
+                  ["overdue_alerts", "Overdue alerts"],
+                  ["project_risk_alerts", "Risk alerts"],
+                  ["mention_notifications", "Mentions"],
+                  ["summary_notifications", "Summaries"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                    {label}
+                    <input
+                      type="checkbox"
+                      checked={Boolean(slackIntegration[key as keyof SlackIntegration])}
+                      onChange={(e) => updateSlackSettings({ [key]: e.target.checked } as Partial<SlackIntegration>)}
+                      className="h-4 w-4 accent-purple-500"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={slackIntegration.summary_frequency}
+                  onChange={(e) => updateSlackSettings({ summary_frequency: e.target.value as SlackIntegration["summary_frequency"] })}
+                  className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
+                >
+                  <option value="weekly">Weekly summary</option>
+                  <option value="daily">Daily summary</option>
+                  <option value="off">No scheduled summary</option>
+                </select>
+                <button
+                  onClick={disconnectSlack}
+                  disabled={slackLoading}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
+                >
+                  Disconnect
+                </button>
+              </div>
+              {slackIntegration.last_error && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{slackIntegration.last_error}</p>}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <input
+                value={slackWebhookInput}
+                onChange={(e) => setSlackWebhookInput(e.target.value)}
+                placeholder="Slack incoming webhook URL"
+                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+              />
+              <input
+                value={slackChannelInput}
+                onChange={(e) => setSlackChannelInput(e.target.value)}
+                placeholder="Channel name (optional)"
+                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+              />
+              <button
+                onClick={connectSlack}
+                disabled={slackLoading || !slackWebhookInput.trim()}
+                className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
+              >
+                {slackLoading ? "Connecting..." : "Connect Slack"}
+              </button>
+              <p className="text-xs text-gray-500">Microsoft Teams notifications can use the same webhook-style pattern later.</p>
+            </div>
+          )}
+          {slackError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{slackError}</p>}
+        </div>
+
         {/* Team Members */}
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
           <div className="flex items-center justify-between mb-6">
@@ -895,7 +1383,19 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
       </div>
 
       {/* Right Panel — Task Detail or AI Assistant */}
-      <div className="w-full h-[60vh] lg:h-auto lg:w-[400px] xl:w-[440px] shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative">
+      <div
+        className="w-full h-[60vh] lg:h-auto lg:w-[var(--task-panel-width)] shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative"
+        style={{ "--task-panel-width": `${taskPanelWidth}px` } as CSSProperties}
+      >
+        <div
+          onMouseDown={(e) => startPanelResize(e.clientX)}
+          onTouchStart={(e) => startPanelResize(e.touches[0].clientX)}
+          onDoubleClick={() => setTaskPanelWidth(440)}
+          title="Drag to resize panel"
+          className="absolute left-0 top-0 z-30 hidden h-full w-4 cursor-ew-resize items-center justify-center lg:flex group"
+        >
+          <div className="h-20 w-1 rounded-full bg-purple-500/25 transition-colors group-hover:bg-purple-400/80" />
+        </div>
         <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent pointer-events-none" />
 
         {selectedTask ? (
@@ -906,9 +1406,16 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             members={members}
             projectName={project.name}
             projectDesc={project.description}
+            githubRepository={githubRepo}
+            calendarConnection={calendarConnection}
+            calendarEvents={calendarEvents.filter((event) => event.task_id === selectedTask.id)}
             currentUserId={currentUserId}
             onComplete={handleCompleteTask}
             onTaskUpdated={handleTaskUpdated}
+            onCalendarEventsChange={(events) => setCalendarEvents((current) => [
+              ...current.filter((event) => event.task_id !== selectedTask.id),
+              ...events,
+            ])}
             allTasks={tasks}
             onAddDependency={handleAddDependency}
             onRemoveDependency={handleRemoveDependency}

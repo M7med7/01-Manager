@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal } from "lucide-react";
-import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem } from "../lib/api";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus } from "lucide-react";
+import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem, type GitHubRepository, type GitHubTaskLink, type GitHubCommit, type GitHubPullRequest, type CalendarConnection, type TaskCalendarEvent } from "../lib/api";
 import { riskStyle, scoreTaskRisk } from "../lib/riskScoring";
 
 interface ChatMessage { role: "user" | "ai"; content: string; }
@@ -62,10 +62,14 @@ interface Props {
   members: ProjectMember[];
   projectName?: string;
   projectDesc?: string;
+  githubRepository?: GitHubRepository | null;
+  calendarConnection?: CalendarConnection | null;
+  calendarEvents?: TaskCalendarEvent[];
   currentUserId?: string;
   allTasks?: Task[];
   onComplete: (taskId: string, completed: boolean) => void;
   onTaskUpdated?: (updated: Task) => void;
+  onCalendarEventsChange?: (events: TaskCalendarEvent[]) => void;
   onAddDependency?: (taskId: string, dependsOnTaskId: string) => Promise<void>;
   onRemoveDependency?: (taskId: string, dependsOnTaskId: string) => Promise<void>;
   onBack: () => void;
@@ -129,10 +133,14 @@ export function TaskDetailPanel({
   members,
   projectName,
   projectDesc,
+  githubRepository,
+  calendarConnection,
+  calendarEvents = [],
   currentUserId,
   allTasks = [],
   onComplete,
   onTaskUpdated,
+  onCalendarEventsChange,
   onAddDependency,
   onRemoveDependency,
   onBack
@@ -163,6 +171,16 @@ export function TaskDetailPanel({
   const [savingPriority, setSavingPriority] = useState(false);
   const [savingQuality, setSavingQuality] = useState(false);
   const [improvingQuality, setImprovingQuality] = useState(false);
+  const [githubLinks, setGithubLinks] = useState<GitHubTaskLink[]>([]);
+  const [githubCommits, setGithubCommits] = useState<GitHubCommit[]>([]);
+  const [githubPrs, setGithubPrs] = useState<GitHubPullRequest[]>([]);
+  const [githubIssueInput, setGithubIssueInput] = useState("");
+  const [githubBranchInput, setGithubBranchInput] = useState("");
+  const [githubPrInput, setGithubPrInput] = useState("");
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -247,12 +265,28 @@ export function TaskDetailPanel({
       .finally(() => setCollabLoading(false));
   }, [task.id]);
 
+  useEffect(() => {
+    if (!githubRepository) return;
+    api.github.getTaskLinks(task.id)
+      .then((data) => setGithubLinks(data.links))
+      .catch((err) => setGithubError(err instanceof Error ? err.message : "Could not load GitHub links"));
+  }, [task.id, githubRepository]);
+
   const buildTaskAiContext = () => {
     const dueDate = task.end_date ?? (schedule ? formatDate(schedule.end) : "Not scheduled");
     const startDate = task.start_date ?? (schedule ? formatDate(schedule.start) : "Not scheduled");
     const recentComments = comments.slice(-5).map((comment) => `${displayUser(comment.users)}: ${comment.content}`).join("\n") || "No human comments yet";
     const recentActivity = activity.slice(0, 6).map((item) => `${formatCompactDate(item.created_at)} - ${item.summary}`).join("\n") || "No activity yet";
     const fileList = attachments.slice(0, 6).map((file) => `${file.file_name}${file.is_image ? " (image)" : ""}`).join(", ") || "No attached files";
+  const githubLinkList = githubLinks.map((link) => [
+      link.issue_number ? `issue #${link.issue_number}` : "",
+      link.branch_name ? `branch ${link.branch_name}` : "",
+      link.pull_request_number ? `PR #${link.pull_request_number}` : "",
+    ].filter(Boolean).join(", ")).filter(Boolean).join("; ") || "No GitHub links";
+    const githubActivity = [
+      ...githubPrs.slice(0, 4).map((pr) => `PR #${pr.number} ${pr.merged ? "merged" : pr.state}: ${pr.title}`),
+      ...githubCommits.slice(0, 4).map((commit) => `Commit ${commit.sha.slice(0, 7)}: ${commit.message?.split("\n")[0]}`),
+    ].join("\n") || "No synced GitHub activity";
     const blockedBy = (task.blocked_by ?? []).map((item) => `${item.title} (${item.status})`).join(", ") || "None";
     const unlocks = (task.unlocks ?? []).map((item) => `${item.title} (${item.status})`).join(", ") || "None";
     const related = relatedTasks.map((item) => taskLine(item, members)).join("\n") || "No closely related tasks found";
@@ -281,6 +315,10 @@ export function TaskDetailPanel({
       `Recent human comments, if allowed: ${recentComments}`,
       `Recent activity history, if allowed: ${recentActivity}`,
       `Attached files: ${fileList}`,
+      `GitHub repository: ${githubRepository ? `${githubRepository.owner}/${githubRepository.repo}` : "Not connected"}`,
+      `GitHub links: ${githubLinkList}`,
+      `Synced GitHub activity: ${githubActivity}`,
+      `Calendar sync: ${calendarConnection ? `Connected to ${calendarConnection.calendar_name ?? "Google Calendar"} (${calendarConnection.timezone ?? "UTC"})` : "Not connected"}`,
     ].join("\n");
   };
 
@@ -505,6 +543,122 @@ export function TaskDetailPanel({
       setCollabError(err instanceof Error ? err.message : "Could not improve criteria");
     } finally {
       setImprovingQuality(false);
+    }
+  };
+
+  const addGithubLink = async () => {
+    if (!githubRepository || githubLoading) return;
+    if (!githubIssueInput.trim() && !githubBranchInput.trim() && !githubPrInput.trim()) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const { link } = await api.github.addTaskLink(task.id, {
+        issue_number: githubIssueInput.trim() || null,
+        branch_name: githubBranchInput.trim() || null,
+        pull_request_number: githubPrInput.trim() || null,
+        created_by: currentUserId ?? null,
+      });
+      setGithubLinks((current) => [link, ...current]);
+      setGithubIssueInput("");
+      setGithubBranchInput("");
+      setGithubPrInput("");
+      setActivity((current) => [{ id: `local-${Date.now()}`, task_id: task.id, user_id: currentUserId ?? null, activity_type: "github_linked", summary: "Linked GitHub work", metadata: {}, created_at: new Date().toISOString() }, ...current]);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not link GitHub work");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const removeGithubLink = async (linkId: string) => {
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      await api.github.removeTaskLink(task.id, linkId);
+      setGithubLinks((current) => current.filter((link) => link.id !== linkId));
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not remove GitHub link");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const createGithubIssue = async () => {
+    if (!githubRepository || githubLoading) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const { link } = await api.github.createIssueFromTask(task.id, currentUserId ?? null);
+      setGithubLinks((current) => [link, ...current]);
+      setActivity((current) => [{ id: `local-${Date.now()}`, task_id: task.id, user_id: currentUserId ?? null, activity_type: "github_issue_created", summary: `Created GitHub issue #${link.issue_number}`, metadata: {}, created_at: new Date().toISOString() }, ...current]);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not create GitHub issue");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const syncGithubActivity = async () => {
+    if (!githubRepository || githubLoading) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const data = await api.github.syncTask(task.id, currentUserId ?? null);
+      setGithubCommits(data.commits);
+      setGithubPrs(data.pull_requests);
+      setGithubLinks(data.links);
+      const now = new Date().toISOString();
+      if (data.pull_requests.length > 0) {
+        setActivity((current) => [{ id: `local-${Date.now()}`, task_id: task.id, user_id: currentUserId ?? null, activity_type: "github_synced", summary: "Synced GitHub activity", metadata: {}, created_at: now }, ...current]);
+      }
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Could not sync GitHub activity");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const syncCalendar = async (eventType: "due_date" | "work_block") => {
+    if (!currentUserId || !calendarConnection || calendarLoading) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      if (schedule && (!task.start_date || !task.end_date)) {
+        const start = toDateInput(schedule.start);
+        const end = toDateInput(schedule.end);
+        await api.tasks.updateSchedule(task.id, {
+          start_date: task.start_date ?? start,
+          end_date: task.end_date ?? end,
+          estimated_days: task.estimated_days,
+          user_id: currentUserId,
+        });
+        onTaskUpdated?.({ ...task, start_date: task.start_date ?? start, end_date: task.end_date ?? end, latest_activity_at: new Date().toISOString() });
+      }
+      const { events } = await api.calendar.syncTask(task.id, {
+        user_id: currentUserId,
+        event_type: eventType,
+        create_work_block: eventType === "due_date" && calendarConnection.create_work_blocks,
+      });
+      onCalendarEventsChange?.(events);
+      setActivity((current) => [{ id: `local-${Date.now()}`, task_id: task.id, user_id: currentUserId, activity_type: "calendar_synced", summary: "Synced task to calendar", metadata: {}, created_at: new Date().toISOString() }, ...current]);
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Could not sync calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const disableCalendarSync = async () => {
+    if (!currentUserId || calendarLoading) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      await api.calendar.disableTask(task.id, { user_id: currentUserId });
+      onCalendarEventsChange?.(calendarEvents.map((event) => ({ ...event, sync_enabled: false })));
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Could not disable calendar sync");
+    } finally {
+      setCalendarLoading(false);
     }
   };
 
@@ -834,6 +988,189 @@ export function TaskDetailPanel({
             ✓ Completed{task.completer_name ? ` by ${task.completer_name}` : ""} on {formatDate(new Date(task.completed_at))}
           </div>
         )}
+
+        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+              <CalendarPlus className="h-4 w-4 text-purple-400" /> Calendar
+            </div>
+            {calendarConnection ? (
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-2 py-1 text-[10px] text-green-300">
+                {calendarConnection.sync_enabled ? "Sync ready" : "Sync off"}
+              </span>
+            ) : (
+              <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-gray-500">Not connected</span>
+            )}
+          </div>
+
+          {calendarConnection ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-400">
+                {calendarConnection.calendar_name ?? "Google Calendar"} · {calendarConnection.timezone ?? "UTC"}
+              </div>
+              {calendarError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{calendarError}</p>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  onClick={() => syncCalendar("due_date")}
+                  disabled={calendarLoading || !calendarConnection.sync_enabled || !(task.end_date || schedule)}
+                  className="rounded-lg border border-purple-500/30 bg-purple-900/20 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-900/35 disabled:opacity-40"
+                >
+                  {calendarLoading ? "Syncing..." : "Sync due date"}
+                </button>
+                <button
+                  onClick={() => syncCalendar("work_block")}
+                  disabled={calendarLoading || !calendarConnection.sync_enabled || !(task.start_date || task.end_date || schedule)}
+                  className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-purple-500/40 disabled:opacity-40"
+                >
+                  Create work block
+                </button>
+              </div>
+              {calendarEvents.length > 0 && (
+                <div className="space-y-2">
+                  {calendarEvents.map((event) => (
+                    <div key={event.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{event.event_type === "due_date" ? "Due date" : "Work block"}</span>
+                        <span className={event.sync_status === "synced" ? "text-green-300" : event.sync_status === "error" ? "text-red-300" : "text-gray-500"}>
+                          {event.sync_enabled ? event.sync_status ?? "pending" : "disabled"}
+                        </span>
+                      </div>
+                      {event.last_synced_at && <div className="mt-1 text-gray-600">Synced {formatCompactDate(event.last_synced_at)}</div>}
+                      {event.last_error && <div className="mt-1 text-red-300">{event.last_error}</div>}
+                    </div>
+                  ))}
+                  <button onClick={disableCalendarSync} disabled={calendarLoading} className="text-xs text-gray-500 hover:text-red-300 disabled:opacity-40">
+                    Disable sync for this task
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">Connect Google Calendar on the project page to sync this task.</p>
+          )}
+        </div>
+
+        <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+              <Github className="h-4 w-4 text-purple-400" /> GitHub
+            </div>
+            {githubRepository ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={syncGithubActivity}
+                  disabled={githubLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-gray-300 hover:border-purple-500/40 disabled:opacity-40"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${githubLoading ? "animate-spin" : ""}`} /> Sync
+                </button>
+                <button
+                  onClick={createGithubIssue}
+                  disabled={githubLoading}
+                  className="rounded-lg border border-purple-500/30 bg-purple-900/20 px-2.5 py-1.5 text-xs text-purple-200 hover:bg-purple-900/35 disabled:opacity-40"
+                >
+                  Create issue
+                </button>
+              </div>
+            ) : (
+              <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-gray-500">Not connected</span>
+            )}
+          </div>
+
+          {githubRepository ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-400">
+                Connected to <span className="text-gray-200">{githubRepository.owner}/{githubRepository.repo}</span>
+              </div>
+              {githubError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{githubError}</p>}
+              <div className="grid gap-2">
+                <input
+                  value={githubIssueInput}
+                  onChange={(e) => setGithubIssueInput(e.target.value)}
+                  placeholder="Issue number"
+                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                />
+                <input
+                  value={githubBranchInput}
+                  onChange={(e) => setGithubBranchInput(e.target.value)}
+                  placeholder="Branch name"
+                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                />
+                <input
+                  value={githubPrInput}
+                  onChange={(e) => setGithubPrInput(e.target.value)}
+                  placeholder="Pull request number"
+                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                />
+                <button
+                  onClick={addGithubLink}
+                  disabled={githubLoading || (!githubIssueInput.trim() && !githubBranchInput.trim() && !githubPrInput.trim())}
+                  className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-500 disabled:opacity-40"
+                >
+                  Link GitHub work
+                </button>
+              </div>
+
+              {githubLinks.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-gray-400">Linked work</div>
+                  {githubLinks.map((link) => (
+                    <div key={link.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          {link.issue_number && (
+                            <a href={link.issue_url ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-purple-200">
+                              <Github className="h-3.5 w-3.5" /> Issue #{link.issue_number} <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                          {link.branch_name && <div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5" /> {link.branch_name}</div>}
+                          {link.pull_request_number && (
+                            <a href={link.pull_request_url ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-purple-200">
+                              <GitPullRequest className="h-3.5 w-3.5" /> PR #{link.pull_request_number}
+                              {link.last_pr_merged ? " merged" : link.last_pr_state ? ` ${link.last_pr_state}` : ""}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                        <button onClick={() => removeGithubLink(link.id)} disabled={githubLoading} className="rounded-md p-1 text-gray-600 hover:bg-red-900/30 hover:text-red-300">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(githubCommits.length > 0 || githubPrs.length > 0) && (
+                <div className="space-y-3 border-t border-white/10 pt-3">
+                  {githubPrs.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-gray-400">Pull requests</div>
+                      {githubPrs.slice(0, 5).map((pr) => (
+                        <a key={pr.number} href={pr.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300 hover:border-purple-500/40">
+                          <span className="font-semibold text-gray-100">#{pr.number}</span> {pr.title}
+                          <span className="ml-2 text-gray-500">{pr.merged ? "merged" : pr.state}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {githubCommits.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-gray-400">Commits</div>
+                      {githubCommits.slice(0, 5).map((commit) => (
+                        <a key={commit.sha} href={commit.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300 hover:border-purple-500/40">
+                          <span className="font-mono text-purple-300">{commit.sha.slice(0, 7)}</span> {commit.message?.split("\n")[0]}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">Connect a repository on the project page to link code activity.</p>
+          )}
+        </div>
 
         {/* Human collaboration */}
         <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">

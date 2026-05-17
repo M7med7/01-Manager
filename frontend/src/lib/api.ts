@@ -228,6 +228,89 @@ export interface AppNotification {
   projects?: { name: string } | null;
 }
 
+export interface GitHubRepository {
+  owner: string;
+  repo: string;
+  repo_url: string;
+  default_branch?: string | null;
+}
+
+export interface GitHubTaskLink {
+  id: string;
+  task_id: string;
+  issue_number: number | null;
+  issue_url: string | null;
+  branch_name: string | null;
+  pull_request_number: number | null;
+  pull_request_url: string | null;
+  last_pr_state: string | null;
+  last_pr_merged: boolean | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  message: string;
+  url: string;
+  author: string | null;
+  date: string | null;
+  branch?: string | null;
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  state: string;
+  merged: boolean;
+  url: string;
+  branch?: string | null;
+}
+
+export interface CalendarConnection {
+  id: string;
+  user_id: string;
+  provider: 'google' | 'outlook';
+  calendar_id: string | null;
+  calendar_name: string | null;
+  timezone: string | null;
+  sync_enabled: boolean;
+  create_work_blocks: boolean;
+  connected_at: string;
+  updated_at: string;
+}
+
+export interface TaskCalendarEvent {
+  id: string;
+  task_id: string;
+  user_id: string;
+  provider: 'google' | 'outlook';
+  event_type: 'due_date' | 'work_block';
+  external_event_id: string | null;
+  calendar_id: string | null;
+  sync_enabled: boolean;
+  sync_status: string | null;
+  last_error: string | null;
+  last_synced_at: string | null;
+}
+
+export interface SlackIntegration {
+  id: string;
+  project_id: string;
+  channel_name: string | null;
+  connected_by: string | null;
+  assignment_notifications: boolean;
+  overdue_alerts: boolean;
+  project_risk_alerts: boolean;
+  mention_notifications: boolean;
+  summary_notifications: boolean;
+  summary_frequency: 'daily' | 'weekly' | 'off';
+  last_summary_sent_at: string | null;
+  last_error: string | null;
+  connected_at: string;
+  updated_at: string;
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -287,6 +370,206 @@ export interface ProjectMember {
   avatar_url: string | null;
   skills?: string[];
   experience_summary?: string | null;
+}
+
+// ── Weekly Report types ────────────────────────────────────────────────────────
+
+export interface ReportCompletedTask {
+  id: string;
+  title: string;
+  priority: string;
+  completed_at: string;
+  completed_by_name: string | null;
+  assigned_name: string | null;
+  estimated_days: number;
+}
+
+export interface ReportDelayedTask {
+  id: string;
+  title: string;
+  priority: string;
+  end_date: string;
+  days_overdue: number;
+  assigned_name: string | null;
+  status: string;
+}
+
+export interface ReportBlockedTask {
+  id: string;
+  title: string;
+  priority: string;
+  blocking_count: number;
+  assigned_name: string | null;
+  status: string;
+}
+
+export interface ReportAtRiskTask {
+  task: { id: string; title: string; priority: string; status: string; assigned_name: string | null; end_date: string | null };
+  reason: string;
+}
+
+export interface ReportWorkloadMember {
+  user_id: string;
+  name: string;
+  email: string;
+  open_tasks: number;
+  completed_this_week: number;
+  estimated_days: number;
+  overdue_count: number;
+  status: 'Overloaded' | 'Healthy' | 'Available';
+}
+
+export interface ReportChanges {
+  completed_this_week: number;
+  completed_last_week: number;
+  completion_delta: number;
+  completion_delta_label: string;
+  new_tasks_added: number;
+  velocity_trend: 'improving' | 'slowing';
+}
+
+export interface ReportSections {
+  executive_summary: string;
+  completed_tasks: ReportCompletedTask[];
+  delayed_tasks: ReportDelayedTask[];
+  blocked_tasks: ReportBlockedTask[];
+  at_risk_tasks: ReportAtRiskTask[];
+  team_workload: ReportWorkloadMember[];
+  changes_from_last_week: ReportChanges;
+  next_week_priorities: string[];
+  recommendations: string[];
+}
+
+export interface WeeklyReport {
+  project: { id: string; name: string; description: string; duration_weeks: number };
+  period: string;
+  generated_at: string;
+  stats: { total: number; done: number; progress: number; overdue: number; blocked: number; at_risk: number; completed_this_week: number };
+  sections: ReportSections;
+}
+
+// ── Health Dashboard types ─────────────────────────────────────────────────────
+
+export interface HealthStats {
+  total: number;
+  done: number;
+  in_progress: number;
+  overdue: number;
+  blocked: number;
+  unassigned: number;
+  high_priority_open: number;
+}
+
+export interface HealthOverdueTask {
+  id: string;
+  title: string;
+  priority: string;
+  end_date: string;
+  days_overdue: number;
+  assigned_name: string | null;
+}
+
+export interface HealthBlockedTask {
+  id: string;
+  title: string;
+  priority: string;
+  blocking_count: number;
+  assigned_name: string | null;
+}
+
+export interface HealthDeadline {
+  id: string;
+  title: string;
+  priority: string;
+  end_date: string;
+  days_until: number;
+  assigned_name: string | null;
+}
+
+export interface HealthWorkloadMember {
+  user_id: string;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+  open_tasks: number;
+  completed_tasks: number;
+  estimated_days: number;
+  overdue_count: number;
+}
+
+export interface HealthTimeline {
+  score: number;
+  label: 'On Track' | 'At Risk' | 'Delayed';
+  remaining_days: number;
+  available_days: number;
+  weeks_remaining: number;
+}
+
+export interface HealthActivityItem {
+  task_id: string;
+  task_title: string;
+  actor_name: string;
+  activity_type: string;
+  summary: string;
+  created_at: string;
+}
+
+export interface HealthBurndownPoint {
+  label: string;
+  completed: number;
+  cumulative: number;
+}
+
+export interface HealthAttentionItem {
+  severity: 'high' | 'medium' | 'low';
+  text: string;
+  action: string;
+}
+
+export interface ProjectHealthReport {
+  project: { id: string; name: string; description: string; status: string; duration_weeks: number; created_at: string };
+  health_score: number;
+  risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
+  risk_reasons: string[];
+  progress: number;
+  stats: HealthStats;
+  overdue_tasks: HealthOverdueTask[];
+  blocked_tasks: HealthBlockedTask[];
+  upcoming_deadlines: HealthDeadline[];
+  workload: HealthWorkloadMember[];
+  timeline_confidence: HealthTimeline;
+  recent_activity: HealthActivityItem[];
+  burndown: HealthBurndownPoint[];
+  attention_items: HealthAttentionItem[];
+}
+
+export interface ImportRow {
+  external_id: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  estimated_days: number;
+  start_date: string | null;
+  end_date: string | null;
+  labels: string[];
+  assigned_tech: string[];
+  acceptance_criteria: TaskChecklistItem[];
+}
+
+export interface ImportAnalysisFinding {
+  type: 'dependency' | 'workload' | 'scope_gap' | 'priority';
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  affected_tasks: string[];
+}
+
+export interface ImportAnalysis {
+  summary: string;
+  risk_level: 'Low' | 'Medium' | 'High';
+  findings: ImportAnalysisFinding[];
+  recommendations: string[];
 }
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
@@ -603,5 +886,125 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(preferences),
       }),
+  },
+  github: {
+    getRepository: (projectId: string) =>
+      request<{ repository: GitHubRepository | null }>(`/github/projects/${projectId}/repository`),
+    connectRepository: (projectId: string, data: { repo_url: string; connected_by?: string | null }) =>
+      request<{ repository: GitHubRepository }>(`/github/projects/${projectId}/repository`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    disconnectRepository: (projectId: string) =>
+      request<{ success: boolean }>(`/github/projects/${projectId}/repository`, { method: 'DELETE' }),
+    getTaskLinks: (taskId: string) =>
+      request<{ repository: GitHubRepository | null; links: GitHubTaskLink[] }>(`/github/tasks/${taskId}`),
+    addTaskLink: (taskId: string, data: { issue_number?: number | string | null; branch_name?: string | null; pull_request_number?: number | string | null; created_by?: string | null }) =>
+      request<{ link: GitHubTaskLink }>(`/github/tasks/${taskId}/links`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    removeTaskLink: (taskId: string, linkId: string) =>
+      request<{ success: boolean }>(`/github/tasks/${taskId}/links/${linkId}`, { method: 'DELETE' }),
+    createIssueFromTask: (taskId: string, createdBy?: string | null) =>
+      request<{ issue: { number: number; html_url: string }; link: GitHubTaskLink }>(`/github/tasks/${taskId}/create-issue`, {
+        method: 'POST',
+        body: JSON.stringify({ created_by: createdBy ?? null }),
+      }),
+    importIssues: (projectId: string, createdBy?: string | null) =>
+      request<{ tasks: Task[] }>(`/github/projects/${projectId}/import-issues`, {
+        method: 'POST',
+        body: JSON.stringify({ created_by: createdBy ?? null }),
+      }),
+    syncTask: (taskId: string, userId?: string | null) =>
+      request<{ commits: GitHubCommit[]; pull_requests: GitHubPullRequest[]; links: GitHubTaskLink[] }>(`/github/tasks/${taskId}/sync`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId ?? null }),
+      }),
+  },
+  calendar: {
+    status: (userId: string) =>
+      request<{ connections: CalendarConnection[]; events: TaskCalendarEvent[] }>(`/calendar/${userId}/status`),
+    googleAuthUrl: (userId: string, redirectUri: string) =>
+      request<{ auth_url: string }>(`/calendar/google/auth-url?user_id=${encodeURIComponent(userId)}&redirect_uri=${encodeURIComponent(redirectUri)}`),
+    connectGoogle: (data: { user_id: string; code: string; redirect_uri: string; timezone?: string }) =>
+      request<{ connection: CalendarConnection }>('/calendar/google/connect', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateSettings: (userId: string, data: Partial<Pick<CalendarConnection, 'provider' | 'calendar_id' | 'calendar_name' | 'timezone' | 'sync_enabled' | 'create_work_blocks'>>) =>
+      request<{ connection: CalendarConnection }>(`/calendar/${userId}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    disconnect: (userId: string, provider: 'google' | 'outlook') =>
+      request<{ success: boolean }>(`/calendar/${userId}/${provider}`, { method: 'DELETE' }),
+    syncTask: (taskId: string, data: { user_id: string; event_type?: 'due_date' | 'work_block'; create_work_block?: boolean }) =>
+      request<{ events: TaskCalendarEvent[] }>(`/calendar/tasks/${taskId}/sync`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    disableTask: (taskId: string, data: { user_id: string; event_type?: 'due_date' | 'work_block' }) =>
+      request<{ success: boolean }>(`/calendar/tasks/${taskId}/disable`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+  slack: {
+    getProject: (projectId: string) =>
+      request<{ integration: SlackIntegration | null }>(`/slack/projects/${projectId}`),
+    connectProject: (projectId: string, data: { webhook_url: string; channel_name?: string; connected_by?: string | null }) =>
+      request<{ integration: SlackIntegration }>(`/slack/projects/${projectId}/connect`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateProject: (projectId: string, data: Partial<Pick<SlackIntegration, 'channel_name' | 'assignment_notifications' | 'overdue_alerts' | 'project_risk_alerts' | 'mention_notifications' | 'summary_notifications' | 'summary_frequency'>>) =>
+      request<{ integration: SlackIntegration }>(`/slack/projects/${projectId}/preferences`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    disconnectProject: (projectId: string) =>
+      request<{ success: boolean }>(`/slack/projects/${projectId}`, { method: 'DELETE' }),
+    sendSummary: (projectId: string) =>
+      request<{ sent: boolean; reason?: string }>(`/slack/projects/${projectId}/summary`, { method: 'POST' }),
+    testProject: (projectId: string) =>
+      request<{ success: boolean }>(`/slack/projects/${projectId}/test`, { method: 'POST' }),
+  },
+  reports: {
+    generate: (projectId: string) =>
+      request<WeeklyReport>(`/reports/projects/${projectId}/generate`, { method: 'POST' }, 90_000),
+    sendSlack: (projectId: string, report: WeeklyReport) =>
+      request<{ sent: boolean }>(`/reports/projects/${projectId}/send-slack`, {
+        method: 'POST',
+        body: JSON.stringify({ report }),
+      }),
+  },
+  health: {
+    get: (projectId: string) =>
+      request<ProjectHealthReport>(`/health/projects/${projectId}`),
+    summary: (projectId: string, health: ProjectHealthReport) =>
+      request<{ summary: string }>(`/health/projects/${projectId}/summary`, {
+        method: 'POST',
+        body: JSON.stringify({ health }),
+      }, 60_000),
+  },
+  imports: {
+    exportCsv: (projectId: string, format: 'jira' | 'linear') =>
+      `${BASE_URL}/imports/projects/${projectId}/export?format=${format}`,
+    preview: (projectId: string, data: { source: 'jira' | 'linear'; csv: string }) =>
+      request<{ source: string; tasks: ImportRow[]; total: number }>(`/imports/projects/${projectId}/preview`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    import: (projectId: string, data: { source: 'jira' | 'linear'; tasks: ImportRow[]; created_by?: string | null }) =>
+      request<{ imported: number; skipped: number; tasks: Task[] }>(`/imports/projects/${projectId}/import`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    analyze: (projectId: string, task_ids: string[]) =>
+      request<{ analysis: ImportAnalysis; task_count: number }>(`/imports/projects/${projectId}/analyze`, {
+        method: 'POST',
+        body: JSON.stringify({ task_ids }),
+      }, 60_000),
   },
 };

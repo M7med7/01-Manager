@@ -6,6 +6,8 @@ import { demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { enrichTasksWithDependencies, fetchProjectDependencies, wouldCreateCycle } from '../lib/taskDependencies';
 import { notifyUsers } from '../lib/notifications';
+import { syncExistingTaskCalendarEvents } from '../lib/calendarSync';
+import { sendSlackTaskNotification } from '../lib/slackNotifications';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -277,6 +279,7 @@ router.patch('/:id/schedule', async (req, res) => {
     const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
     if (error) throw error;
     await createActivity(id, user_id, 'due_date_changed', 'Updated task schedule', { from: before ?? null, to: updates });
+    await syncExistingTaskCalendarEvents(id);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -411,7 +414,10 @@ router.patch('/:id/assign', async (req, res) => {
     );
     if (error) throw error;
     await createActivity(id, user_id, 'assignee_changed', assigned_to ? 'Assigned task' : 'Unassigned task', { from: before?.assigned_to ?? null, to: assigned_to ?? null });
-    if (assigned_to) await createNotifications(id, user_id, [assigned_to], 'assignment', 'You were assigned to a task');
+    if (assigned_to) {
+      await createNotifications(id, user_id, [assigned_to], 'assignment', 'You were assigned to a task');
+      await sendSlackTaskNotification(id, 'assignment', 'Task assigned', [`Assignee changed in 01 Manager`]);
+    }
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -448,6 +454,9 @@ router.post('/:id/comments', async (req, res) => {
     await createActivity(id, user_id, 'comment_added', 'Added a comment');
     await createNotifications(id, user_id, await projectMemberIdsForTask(id), 'comment', 'A new comment was added');
     await createNotifications(id, user_id, mentioned_user_ids ?? [], 'mention', 'You were mentioned in a task comment');
+    if ((mentioned_user_ids ?? []).length > 0) {
+      await sendSlackTaskNotification(id, 'mention', 'Someone was mentioned in a task comment', [content.trim().slice(0, 180)]);
+    }
     res.json({ comment });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

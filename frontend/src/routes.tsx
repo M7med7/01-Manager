@@ -12,6 +12,10 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SetPasswordPage } from "./pages/SetPasswordPage";
 import { Profile } from "./pages/Profile";
+import { CalendarCallback } from "./pages/CalendarCallback";
+import { MigrationPage } from "./pages/MigrationPage";
+import { ProjectHealthDashboard } from "./pages/ProjectHealthDashboard";
+import { WeeklyReportPage } from "./pages/WeeklyReportPage";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
@@ -19,6 +23,7 @@ export const router = createBrowserRouter([
   { path: "/forgot-password", Component: ForgotPasswordPage },
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/set-password", Component: SetPasswordPage },
+  { path: "/calendar/callback", Component: CalendarCallback },
   {
     path: "/",
     Component: ProtectedRoute,
@@ -32,6 +37,9 @@ export const router = createBrowserRouter([
           { path: "team", Component: TeamCapacity },
           { path: "create", Component: CreateProject },
           { path: "profile", Component: Profile },
+          { path: "migrate", Component: MigrationPage },
+          { path: "project/:projectId/health", Component: ProjectHealthDashboard },
+          { path: "project/:projectId/report", Component: WeeklyReportPage },
         ],
       },
     ],

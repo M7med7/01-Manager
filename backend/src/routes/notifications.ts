@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../lib/supabase';
 import { withTimeout } from '../lib/timeout';
 import { ensureNotification, getNotificationPreferences } from '../lib/notifications';
+import { sendSlackProjectMessage, sendSlackTaskNotification, taskLink } from '../lib/slackNotifications';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ async function ensureActionNotifications(userId: string) {
         linkPath: `/task/${task.project_id}`,
         groupedKey: `overdue:${task.id}:${todayIso}`,
       });
+      await sendSlackTaskNotification(task.id, 'overdue', 'Overdue task alert', [`${task.title} is overdue`]);
     }
   }
 
@@ -75,6 +77,10 @@ async function ensureActionNotifications(userId: string) {
         metadata: { overdue_count: overdueCount, overloaded_count: overloadedCount },
       });
     }
+    await sendSlackProjectMessage(project.id, 'project_risk', `${project.name} may be at risk`, {
+      link: taskLink(project.id),
+      details: [`${overdueCount} overdue task${overdueCount === 1 ? '' : 's'}`, `${overloadedCount} overloaded member${overloadedCount === 1 ? '' : 's'}`],
+    }).catch((err) => console.error('[slack] project risk failed:', err.message));
   }
 }
 

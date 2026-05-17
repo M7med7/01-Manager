@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings } from "lucide-react";
+import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
@@ -479,6 +479,24 @@ export function Layout() {
             />
             <Plus className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
             <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Create Project</span>
+          </NavLink>
+
+          <NavLink
+            to="/migrate"
+            className={({ isActive }) =>
+              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
+                isActive ? "text-white border border-white/10" : "text-gray-400"
+              }`
+            }
+          >
+            <motion.div
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileHover={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+            <ArrowLeftRight className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Migration</span>
           </NavLink>
         </nav>
       </aside>

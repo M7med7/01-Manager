@@ -69,6 +69,85 @@ CREATE TABLE task_dependencies (
   UNIQUE(task_id, depends_on_task_id)
 );
 
+CREATE TABLE project_github_repositories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  repo_url TEXT NOT NULL,
+  default_branch TEXT,
+  connected_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  connected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE task_github_links (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE NOT NULL,
+  issue_number INTEGER,
+  issue_url TEXT,
+  branch_name TEXT,
+  pull_request_number INTEGER,
+  pull_request_url TEXT,
+  last_pr_state TEXT,
+  last_pr_merged BOOLEAN DEFAULT false,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE user_calendar_connections (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('google', 'outlook')),
+  access_token TEXT,
+  refresh_token TEXT,
+  token_expires_at TIMESTAMP WITH TIME ZONE,
+  calendar_id TEXT,
+  calendar_name TEXT,
+  timezone TEXT DEFAULT 'UTC',
+  sync_enabled BOOLEAN DEFAULT true,
+  create_work_blocks BOOLEAN DEFAULT false,
+  connected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(user_id, provider)
+);
+
+CREATE TABLE task_calendar_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('google', 'outlook')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('due_date', 'work_block')),
+  external_event_id TEXT,
+  calendar_id TEXT,
+  sync_enabled BOOLEAN DEFAULT true,
+  sync_status TEXT DEFAULT 'pending',
+  last_error TEXT,
+  last_synced_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(task_id, user_id, provider, event_type)
+);
+
+CREATE TABLE project_slack_integrations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  webhook_url TEXT NOT NULL,
+  channel_name TEXT,
+  connected_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  assignment_notifications BOOLEAN DEFAULT true,
+  overdue_alerts BOOLEAN DEFAULT true,
+  project_risk_alerts BOOLEAN DEFAULT true,
+  mention_notifications BOOLEAN DEFAULT true,
+  summary_notifications BOOLEAN DEFAULT true,
+  summary_frequency TEXT DEFAULT 'weekly' CHECK (summary_frequency IN ('daily', 'weekly', 'off')),
+  last_summary_sent_at TIMESTAMP WITH TIME ZONE,
+  last_error TEXT,
+  connected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Technology recommendations table
 CREATE TABLE technology_recommendations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

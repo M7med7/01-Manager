@@ -7,6 +7,12 @@ import userRoutes from './routes/users';
 import aiRoutes from './routes/ai';
 import notificationRoutes from './routes/notifications';
 import templateRoutes from './routes/templates';
+import githubRoutes from './routes/github';
+import calendarRoutes from './routes/calendar';
+import slackRoutes from './routes/slack';
+import importsRoutes from './routes/imports';
+import healthRoutes from './routes/health';
+import reportRoutes from './routes/report';
 
 dotenv.config();
 
@@ -38,6 +44,12 @@ app.use('/api/users', cvRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/github', githubRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/slack', slackRoutes);
+app.use('/api/imports', importsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
