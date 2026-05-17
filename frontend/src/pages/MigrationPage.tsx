@@ -56,18 +56,17 @@ function SectionCard({ children, className = "" }: { children: React.ReactNode; 
 }
 
 function FormatButton({
-  format, selected, onSelect, label, description,
+  format: _format, selected, onSelect, label, description,
 }: {
   format: string; selected: boolean; onSelect: () => void; label: string; description: string;
 }) {
   return (
     <button
       onClick={onSelect}
-      className={`flex flex-col gap-1 rounded-xl border px-5 py-4 text-left transition-all ${
-        selected
+      className={`flex flex-col gap-1 rounded-xl border px-5 py-4 text-left transition-all ${selected
           ? "border-purple-500/60 bg-purple-500/10 text-white"
-          : "border-white/10 bg-white/[0.02] text-gray-400 hover:border-white/20 hover:text-gray-300"
-      }`}
+          : "border-white/10 bg-white/2 text-gray-400 hover:border-white/20 hover:text-gray-300"
+        }`}
     >
       <span className="text-sm font-semibold">{label}</span>
       <span className="text-xs opacity-70">{description}</span>
@@ -282,11 +281,10 @@ export function MigrationPage() {
           <button
             key={t}
             onClick={() => handleTabChange(t)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === t
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
                 : "text-gray-400 hover:text-white"
-            }`}
+              }`}
           >
             {t === "export" ? <Download className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
             {t === "export" ? "Export" : "Import"}
@@ -342,25 +340,25 @@ export function MigrationPage() {
                   <tbody className="text-gray-400 space-y-1">
                     {(exportFormat === "jira"
                       ? [
-                          ["Title", "Summary", ""],
-                          ["Description", "Description", ""],
-                          ["Priority", "Priority", "High/Medium/Low"],
-                          ["Status", "Status", ""],
-                          ["Estimated days", "Story Points", "1 day = 1 point"],
-                          ["Due date", "Due Date", "YYYY-MM-DD"],
-                          ["Labels", "Labels", "comma-separated"],
-                          ["Acceptance criteria", "Acceptance Criteria", "checklist format"],
-                          ["Definition of done", "Implementation Steps", "checklist format"],
-                        ]
+                        ["Title", "Summary", ""],
+                        ["Description", "Description", ""],
+                        ["Priority", "Priority", "High/Medium/Low"],
+                        ["Status", "Status", ""],
+                        ["Estimated days", "Story Points", "1 day = 1 point"],
+                        ["Due date", "Due Date", "YYYY-MM-DD"],
+                        ["Labels", "Labels", "comma-separated"],
+                        ["Acceptance criteria", "Acceptance Criteria", "checklist format"],
+                        ["Definition of done", "Implementation Steps", "checklist format"],
+                      ]
                       : [
-                          ["Title", "Title", ""],
-                          ["Description", "Description", "includes AC"],
-                          ["Priority", "Priority", "High/Medium/Low"],
-                          ["Status", "Status", ""],
-                          ["Estimated days", "Estimate", ""],
-                          ["Due date", "Due Date", "YYYY-MM-DD"],
-                          ["Labels", "Labels", "comma-separated"],
-                        ]
+                        ["Title", "Title", ""],
+                        ["Description", "Description", "includes AC"],
+                        ["Priority", "Priority", "High/Medium/Low"],
+                        ["Status", "Status", ""],
+                        ["Estimated days", "Estimate", ""],
+                        ["Due date", "Due Date", "YYYY-MM-DD"],
+                        ["Labels", "Labels", "comma-separated"],
+                      ]
                     ).map(([src, dest, note]) => (
                       <tr key={src} className="border-b border-white/5">
                         <td className="py-1.5 pr-8 font-medium text-gray-300">{src}</td>
