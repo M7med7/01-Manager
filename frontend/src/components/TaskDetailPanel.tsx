@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus, Timer } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus, Timer, Target } from "lucide-react";
 import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem, type GitHubRepository, type GitHubTaskLink, type GitHubCommit, type GitHubPullRequest, type CalendarConnection, type TaskCalendarEvent, type TimeEntry } from "../lib/api";
 import { riskStyle, scoreTaskRisk } from "../lib/riskScoring";
 
@@ -276,6 +276,26 @@ export function TaskDetailPanel({
     !wouldCreateCycle(task.id, item.id, allTasks)
   ));
 
+  const suggestedNextAction = (() => {
+    if (task.is_blocked && unfinishedBlockers.length > 0)
+      return { text: `Resolve blocker: "${unfinishedBlockers[0].title}" before continuing`, type: 'blocked' as const };
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dueDate = task.end_date ? new Date(task.end_date) : (schedule?.end ?? null);
+    if (task.status !== 'Done' && dueDate && dueDate < today)
+      return { text: 'Overdue — update the schedule or reduce scope', type: 'overdue' as const };
+    if (!task.assigned_to)
+      return { text: 'No owner assigned — assign a team member to start', type: 'unassigned' as const };
+    if (incompleteQualityCount > 0 && (task.status === 'In Review' || task.status === 'Done'))
+      return { text: `${incompleteQualityCount} acceptance check${incompleteQualityCount === 1 ? '' : 's'} still open`, type: 'criteria' as const };
+    if (taskRisk.level === 'Critical' || taskRisk.level === 'High')
+      return { text: taskRisk.actions[0] ?? 'High risk — review and act', type: 'risk' as const };
+    if (task.status === 'To Do')
+      return { text: 'Ready to start — pick up this task', type: 'ready' as const };
+    if (task.status === 'In Progress')
+      return { text: 'Work in progress — check acceptance criteria as you go', type: 'progress' as const };
+    return null;
+  })();
+
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
   useEffect(() => {
     api.tasks.collaboration(task.id)
@@ -402,6 +422,11 @@ export function TaskDetailPanel({
       label: "Improve Criteria",
       icon: ListChecks,
       prompt: "Suggest improved acceptance criteria and definition of done for this task. Use concise checkbox-style items that are specific and testable.",
+    },
+    {
+      label: "Next Step",
+      icon: Target,
+      prompt: "Based on everything you know about this task — its status, blockers, risk, acceptance criteria progress, and due date — what is the single most important next action to move this task forward?",
     },
   ];
 
@@ -784,6 +809,40 @@ export function TaskDetailPanel({
 
       {/* Task detail scroll area — independent from chat */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
+        {/* Suggested next action */}
+        {suggestedNextAction && (
+          <div className={`flex items-start gap-3 rounded-xl border p-3 ${
+            suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned'
+              ? 'border-red-500/30 bg-red-900/15' :
+            suggestedNextAction.type === 'overdue'
+              ? 'border-orange-500/30 bg-orange-900/15' :
+            suggestedNextAction.type === 'risk'
+              ? 'border-yellow-500/30 bg-yellow-900/15' :
+            suggestedNextAction.type === 'criteria'
+              ? 'border-purple-500/30 bg-purple-900/15' :
+              'border-green-500/30 bg-green-900/15'
+          }`}>
+            <Target className={`mt-0.5 h-4 w-4 shrink-0 ${
+              suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned' ? 'text-red-400' :
+              suggestedNextAction.type === 'overdue'  ? 'text-orange-400' :
+              suggestedNextAction.type === 'risk'     ? 'text-yellow-400' :
+              suggestedNextAction.type === 'criteria' ? 'text-purple-400' :
+                                                       'text-green-400'
+            }`} />
+            <div className="min-w-0 flex-1">
+              <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Suggested Next Action</div>
+              <p className="text-sm text-gray-200 leading-snug">{suggestedNextAction.text}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => sendPrompt(`Give me specific guidance: ${suggestedNextAction.text}`, 'What should I do?')}
+              className="shrink-0 self-center rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:text-purple-200 transition-colors"
+            >
+              Ask AI
+            </button>
+          </div>
+        )}
+
         {/* Schedule */}
         {(schedule || task.start_date) && (
           <div className="p-3 rounded-xl bg-white/5 border border-white/10">
@@ -856,12 +915,36 @@ export function TaskDetailPanel({
           </span>
         </div>
 
+        {/* Task Objective */}
+        {(summary || steps.length > 0) && (
+          <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+              <Target className="h-4 w-4 text-purple-400" /> Objective
+            </div>
+            {summary && <p className="text-sm text-gray-300 leading-relaxed">{summary}</p>}
+            {steps.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Implementation Steps</div>
+                {steps.map((s, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5 text-sm text-gray-300">
+                    <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-purple-900/50 text-[10px] font-bold text-purple-300">{i + 1}</span>
+                    <span>{s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className={`space-y-3 rounded-xl border p-3 ${riskStyle(taskRisk.level)}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <AlertTriangle className="h-4 w-4" /> Task Risk
             </div>
-            <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] font-semibold">{taskRisk.level}</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] font-semibold">{taskRisk.level}</span>
+              <span className="text-[10px] opacity-60">{taskRisk.score}/100</span>
+            </div>
           </div>
           <div>
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">Reasons</div>
@@ -1013,6 +1096,24 @@ export function TaskDetailPanel({
           </div>
         </div>
 
+        {/* Related tasks */}
+        {relatedTasks.length > 0 && (
+          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+              <Link2 className="h-4 w-4 text-purple-400" /> Related Tasks
+            </div>
+            <div className="space-y-1.5">
+              {relatedTasks.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${item.status === 'Done' ? 'bg-green-400' : item.status === 'In Progress' ? 'bg-purple-400' : 'bg-gray-400'}`} />
+                  <span className="min-w-0 flex-1 truncate text-gray-200">{item.title}</span>
+                  <span className="shrink-0 text-[10px] text-gray-500">{item.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tech */}
         {(task.assigned_tech ?? []).length > 0 && (
           <div>
@@ -1025,23 +1126,6 @@ export function TaskDetailPanel({
           </div>
         )}
 
-        {/* Description + Steps */}
-        {(summary || steps.length > 0) && (
-          <div className="space-y-3">
-            {summary && <p className="text-sm text-gray-300 leading-relaxed">{summary}</p>}
-            {steps.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-sm font-semibold text-gray-400">Implementation Steps</span>
-                {steps.map((s, i) => (
-                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5 text-sm text-gray-300">
-                    <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-purple-900/50 text-[10px] font-bold text-purple-300">{i + 1}</span>
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Acceptance Criteria + Definition of Done */}
         <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
