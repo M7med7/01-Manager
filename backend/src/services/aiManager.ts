@@ -10,6 +10,11 @@ export interface ScheduleRequest {
   durationUnit: 'Weeks' | 'Months' | 'Years';
   teamMembers: Array<{ user_id: string; skills?: string[]; experience_summary?: string }>;
   template?: ProjectTemplate | null;
+  complexity?: 'simple' | 'standard' | 'advanced';
+  budget?: number;
+  deadlineStrictness?: 'flexible' | 'fixed';
+  preferredTech?: string[];
+  excludedTech?: string[];
 }
 
 export interface GeneratedSchedule {
@@ -129,12 +134,32 @@ function buildSchedulePrompt(req: ScheduleRequest): string {
       '\\n';
   }
 
+  const complexityLine = req.complexity
+    ? `Complexity: ${req.complexity === 'simple' ? 'Simple — keep scope minimal, avoid over-engineering, use straightforward solutions' : req.complexity === 'advanced' ? 'Advanced — enterprise-grade, ensure comprehensive coverage, consider scalability and security' : 'Standard — balanced scope and depth'}`
+    : '';
+  const budgetLine = req.budget !== undefined && req.budget > 0
+    ? `Budget: $${req.budget} — factor in cost-effective technology choices and resource allocation`
+    : '';
+  const deadlineLine = req.deadlineStrictness === 'fixed'
+    ? 'Deadline: FIXED and non-negotiable — prioritize critical path aggressively; reduce scope before extending timeline'
+    : req.deadlineStrictness === 'flexible'
+    ? 'Deadline: Flexible — quality and completeness take priority over hitting the exact date'
+    : '';
+  const preferredTechLine = req.preferredTech && req.preferredTech.length > 0
+    ? `Preferred technologies: ${req.preferredTech.join(', ')} — use these when appropriate`
+    : '';
+  const excludedTechLine = req.excludedTech && req.excludedTech.length > 0
+    ? `Excluded technologies: ${req.excludedTech.join(', ')} — DO NOT recommend or use these`
+    : '';
+  const extraConstraints = [complexityLine, budgetLine, deadlineLine, preferredTechLine, excludedTechLine]
+    .filter(Boolean).join('\n');
+
   return `Project: ${req.projectName}
 Description: ${req.description}
 Duration: ${req.durationValue} ${req.durationUnit} (${totalDays} days)
 Team IDs: ${memberList || 'none'}
 ${memberDetails}
-${formatTemplateForPrompt(req.template)}
+${extraConstraints ? `${extraConstraints}\n` : ''}${formatTemplateForPrompt(req.template)}
 Rules:
 - Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
 - You MUST ensure the project is 100% completed within exactly ${totalDays} days.

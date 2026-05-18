@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { mapLocalTeamMemberToUser, readLocalTeamMembers } from "../lib/localTeamMembers";
 import { PlanQualityReview } from "../components/PlanQualityReview";
+import { AdvancedProjectOptions } from "../components/AdvancedProjectOptions";
 
 type Step = "form" | "reviewing";
 
@@ -45,6 +46,16 @@ export function CreateProject() {
   const [formData, setFormData] = useState({ name: "", description: "", duration: "", duration_unit: "Weeks" });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
+  // ── Advanced options ─────────────────────────────────────────────────────────
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [complexity, setComplexity] = useState<'simple' | 'standard' | 'advanced'>('standard');
+  const [budget, setBudget] = useState('');
+  const [deadlineStrictness, setDeadlineStrictness] = useState<'flexible' | 'fixed'>('flexible');
+  const [preferredTech, setPreferredTech] = useState<string[]>([]);
+  const [excludedTech, setExcludedTech] = useState<string[]>([]);
+  const [preferredTechInput, setPreferredTechInput] = useState('');
+  const [excludedTechInput, setExcludedTechInput] = useState('');
 
   // ── Refinement state ─────────────────────────────────────────────────────────
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
@@ -103,6 +114,11 @@ export function CreateProject() {
         team_members: selectedMembers,
         expand_description: expandDescription,
         template_id: selectedTemplateId,
+        complexity,
+        ...(budget.trim() && !isNaN(Number(budget)) && { budget: Number(budget) }),
+        deadline_strictness: deadlineStrictness,
+        ...(preferredTech.length > 0 && { preferred_tech: preferredTech }),
+        ...(excludedTech.length > 0 && { excluded_tech: excludedTech }),
       });
       if (result.offline) { navigate("/"); return; }
       setPreview(result);
@@ -566,6 +582,26 @@ export function CreateProject() {
                   <span>AI will distribute generated tasks across the selected team members.</span>
                 </div>
               </div>
+
+              {/* Advanced options */}
+              <AdvancedProjectOptions
+                show={showAdvanced}
+                onToggle={() => setShowAdvanced((v) => !v)}
+                complexity={complexity}
+                onComplexityChange={setComplexity}
+                budget={budget}
+                onBudgetChange={setBudget}
+                deadlineStrictness={deadlineStrictness}
+                onDeadlineStrictnessChange={setDeadlineStrictness}
+                preferredTech={preferredTech}
+                onPreferredTechChange={setPreferredTech}
+                preferredTechInput={preferredTechInput}
+                onPreferredTechInputChange={setPreferredTechInput}
+                excludedTech={excludedTech}
+                onExcludedTechChange={setExcludedTech}
+                excludedTechInput={excludedTechInput}
+                onExcludedTechInputChange={setExcludedTechInput}
+              />
 
               {/* AI info card */}
               <motion.div

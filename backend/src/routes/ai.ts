@@ -229,6 +229,7 @@ router.post('/generate', async (req, res) => {
     const {
       name, description, headcount, duration, duration_unit,
       team_members, expand_description, template_id,
+      complexity, budget, deadline_strictness, preferred_tech, excluded_tech,
     } = req.body;
 
     if (!name || !description) {
@@ -260,7 +261,7 @@ router.post('/generate', async (req, res) => {
     const { durationValue, durationUnit, totalDays, durationWeeks } = parseDuration(duration, duration_unit);
 
     const historyHint = await estimateHistoryHint();
-    const schedule = await generateSchedule({
+    const scheduleReq = {
       projectId,
       projectName: name,
       description: `${description}${historyHint}`,
@@ -268,7 +269,13 @@ router.post('/generate', async (req, res) => {
       durationUnit,
       teamMembers: scheduleMembers,
       template: await resolveTemplate(template_id),
-    });
+      ...(complexity && { complexity: complexity as 'simple' | 'standard' | 'advanced' }),
+      ...(budget !== undefined && !isNaN(Number(budget)) && { budget: Number(budget) }),
+      ...(deadline_strictness && { deadlineStrictness: deadline_strictness as 'flexible' | 'fixed' }),
+      ...(Array.isArray(preferred_tech) && preferred_tech.length > 0 && { preferredTech: preferred_tech as string[] }),
+      ...(Array.isArray(excluded_tech) && excluded_tech.length > 0 && { excludedTech: excluded_tech as string[] }),
+    };
+    const schedule = await generateSchedule(scheduleReq);
 
     const savedDescription =
       expand_description === false ? description : (schedule.project_summary || description);

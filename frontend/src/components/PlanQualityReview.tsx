@@ -401,6 +401,40 @@ export function PlanQualityReview({
 
         <Divider />
 
+        {/* ── Quick refinement presets ─────────────────────────────────── */}
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-purple-400" />
+            Quick actions
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "Make it more realistic", msg: "Make the task estimates more realistic — increase time for complex tasks, add buffer time, and ensure no task is underestimated for its scope." },
+              { label: "Make it faster", msg: "Optimize the schedule to be faster — parallelize independent tasks, trim unnecessary steps, and focus only on what's essential to ship." },
+              { label: "More testing tasks", msg: "Add comprehensive unit, integration, and end-to-end testing tasks throughout the plan." },
+              { label: "Add deployment phase", msg: "Add a complete deployment and release phase including CI/CD pipeline setup, staging environment, and production rollout." },
+              { label: "Balance workload", msg: "Rebalance task assignments so work is distributed evenly across all team members." },
+            ].map(({ label, msg }) => (
+              <button
+                key={label}
+                type="button"
+                disabled={busy}
+                onClick={() => onSendRefinement(msg)}
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all ${
+                  busy
+                    ? "border-white/5 text-white/20 cursor-not-allowed"
+                    : "border-white/12 bg-white/3 text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-200"
+                }`}
+              >
+                {isRefining ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Divider />
+
         {/* ── AI Refinement chat ──────────────────────────────────────── */}
         <PlanRefinementPanel
           messages={conversationMessages}

@@ -1054,6 +1054,11 @@ export const api = {
       team_members: string[];
       expand_description?: boolean;
       template_id?: string;
+      complexity?: 'simple' | 'standard' | 'advanced';
+      budget?: number;
+      deadline_strictness?: 'flexible' | 'fixed';
+      preferred_tech?: string[];
+      excluded_tech?: string[];
     }) =>
       request<PlanPreviewResult>('/ai/generate', {
         method: 'POST',
