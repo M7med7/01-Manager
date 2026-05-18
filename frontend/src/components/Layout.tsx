@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight, Map, Search } from "lucide-react";
+import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight, Map, Search, Menu } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
@@ -24,6 +24,7 @@ export function Layout() {
   const navigate = useNavigate();
   const { session, signOut } = useAuth();
   const isAIActive = location.pathname.includes("task") || location.pathname.includes("create");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -163,6 +164,8 @@ export function Layout() {
     setPreferences(saved);
   };
 
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
   const submitGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = globalSearch.trim();
@@ -177,6 +180,15 @@ export function Layout() {
       {/* Full-viewport-width header */}
       <header className="h-14 shrink-0 border-b border-white/10 bg-black/35 backdrop-blur-sm flex items-center justify-center relative z-30 overflow-visible">
         <img src={logoUrl} alt="01 Manager" className="h-40 w-auto object-contain pointer-events-none" />
+
+        {/* Hamburger — mobile only, opens sidebar drawer */}
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="absolute left-4 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/25 text-gray-300 hover:bg-white/8 hover:text-white transition-colors md:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
 
         <form onSubmit={submitGlobalSearch} className="absolute left-4 top-1/2 hidden w-[320px] -translate-y-1/2 md:block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
@@ -214,7 +226,7 @@ export function Layout() {
                   initial={{ opacity: 0, y: -6, scale: 0.97 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                  className="absolute right-0 top-full mt-2 w-96 overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                  className="absolute right-0 top-full mt-2 w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
                 >
                   <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                     <div>
@@ -420,9 +432,30 @@ export function Layout() {
       </header>
 
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
-        <aside className="w-64 bg-black/60 border-r border-white/10 flex flex-col relative z-20">
-          <div className="px-6 py-6 border-b border-white/10">
+        {/* Mobile backdrop — closes sidebar when tapped */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar — static on desktop, slide-in drawer on mobile */}
+        <aside className={`
+          fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-black/95 backdrop-blur-xl border-r border-white/10
+          transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          md:relative md:translate-x-0 md:bg-black/60 md:backdrop-blur-none md:z-20
+        `}>
+          <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
             <Logo />
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors md:hidden"
+              aria-label="Close menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           <nav className="flex-1 p-4 space-y-1">
@@ -551,11 +584,71 @@ export function Layout() {
         </aside>
 
         <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "bg-black/45 backdrop-blur-sm" : "bg-black/10"}`}>
-          <main className="flex-1 min-h-0 overflow-y-auto">
+          <main className="flex-1 min-h-0 overflow-y-auto pb-16 md:pb-0">
             <Outlet />
           </main>
         </div>
       </div>
+
+      {/* Bottom navigation — mobile only */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-white/10 bg-black/90 backdrop-blur-xl">
+        <div className="flex items-center justify-around h-16 px-1">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors ${isActive ? "text-white" : "text-gray-500"}`
+            }
+          >
+            <FolderOpen className="h-5 w-5" />
+            <span className="text-[10px]">Projects</span>
+          </NavLink>
+
+          <NavLink
+            to="/board"
+            className={({ isActive }) =>
+              `flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors ${isActive ? "text-white" : "text-gray-500"}`
+            }
+          >
+            <Calendar className="h-5 w-5" />
+            <span className="text-[10px]">Board</span>
+          </NavLink>
+
+          {/* Centre action — Create */}
+          <NavLink
+            to="/create"
+            className={({ isActive }) =>
+              `flex items-center justify-center h-11 w-11 rounded-2xl transition-colors shadow-lg ${isActive ? "bg-purple-500 shadow-purple-500/30" : "bg-purple-600 shadow-purple-600/20 hover:bg-purple-500"}`
+            }
+            aria-label="Create project"
+          >
+            <Plus className="h-5 w-5 text-white" />
+          </NavLink>
+
+          <button
+            onClick={() => { setNotificationsOpen((v) => !v); setMenuOpen(false); refreshNotifications(); }}
+            className="relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-gray-500 transition-colors"
+            aria-label="Notifications"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-2 min-w-4 rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+            <span className="text-[10px]">Alerts</span>
+          </button>
+
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-gray-500 transition-colors"
+            aria-label="More navigation"
+          >
+            <Menu className="h-5 w-5" />
+            <span className="text-[10px]">More</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }

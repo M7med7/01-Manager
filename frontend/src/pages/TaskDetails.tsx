@@ -186,6 +186,14 @@ export function TaskDetails() {
   const [timeError, setTimeError] = useState<string | null>(null);
   const [taskPanelWidth, setTaskPanelWidth] = useState(440);
   const panelDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const [filters, setFilters] = useState({
     assignee: "all",
     priority: "all",
@@ -889,7 +897,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         )}
       </AnimatePresence>
       {/* Left Panel — Project info + scrollable task list */}
-      <div className="min-w-0 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 lg:pr-2">
+      <div className={`min-w-0 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 lg:pr-2 ${isMobile && selectedTaskId ? "hidden" : ""}`}>
         <Link to="/">
           <motion.button whileHover={{ x: -5 }} className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors text-lg">
             <ArrowLeft className="w-5 h-5" /><span>Back to Projects</span>
@@ -1812,7 +1820,9 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
 
       {/* Right Panel — Task Detail or AI Assistant */}
       <div
-        className="w-full h-[60vh] lg:h-auto lg:w-[var(--task-panel-width)] shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative"
+        className={`shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative
+          ${isMobile && !selectedTaskId ? "hidden" : ""}
+          ${isMobile ? "w-full flex-1" : "w-full h-[60vh] lg:h-auto lg:w-(--task-panel-width)"}`}
         style={{ "--task-panel-width": `${taskPanelWidth}px` } as CSSProperties}
       >
         <div

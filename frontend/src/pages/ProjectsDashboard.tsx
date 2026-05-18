@@ -119,10 +119,10 @@ export function ProjectsDashboard() {
   const confirmProject = confirmId ? projects.find((p) => p.id === confirmId) : null;
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
-          <h2 className="text-3xl mb-2 font-light">Projects</h2>
+          <h2 className="text-2xl md:text-3xl mb-1 md:mb-2 font-light">Projects</h2>
           <p className="text-gray-400 text-sm">AI-powered execution plans</p>
         </div>
         <Button onClick={() => navigate("/create")}>+ New Project</Button>

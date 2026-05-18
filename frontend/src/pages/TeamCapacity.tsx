@@ -285,15 +285,15 @@ export function TeamCapacity() {
   const confirmMember = confirmId ? members.find((m) => m.id === confirmId) : null;
 
   return (
-    <div className="p-12">
-      <div className="mb-12 flex items-start justify-between gap-6">
+    <div className="p-4 md:p-12">
+      <div className="mb-8 md:mb-12 flex flex-col sm:flex-row sm:items-start justify-between gap-4 md:gap-6">
         <div>
-          <h2 className="text-5xl mb-3 bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">
+          <h2 className="text-3xl md:text-5xl mb-2 md:mb-3 bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">
             Team & Capacity
           </h2>
-          <p className="text-gray-500 text-lg">Real-time workload monitoring and task distribution</p>
+          <p className="text-gray-500 text-sm md:text-lg">Real-time workload monitoring and task distribution</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
             <span className="text-sm font-semibold text-gray-400">Max SP:</span>
             <input
@@ -343,13 +343,13 @@ export function TeamCapacity() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 bg-linear-to-r from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-3xl p-8 shadow-2xl shadow-red-500/20"
+          className="mb-8 md:mb-10 bg-linear-to-r from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-2xl md:rounded-3xl p-4 md:p-8 shadow-2xl shadow-red-500/20"
         >
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-red-600 rounded-2xl">
               <AlertCircle className="w-7 h-7 text-white" />
             </div>
-            <h3 className="text-2xl text-red-300 font-semibold">Capacity Alert</h3>
+            <h3 className="text-xl md:text-2xl text-red-300 font-semibold">Capacity Alert</h3>
           </div>
           <p className="text-gray-200 text-lg mb-5">
             {overloaded.length} team member{overloaded.length > 1 ? "s are" : " is"} over 90% capacity. Consider
@@ -390,7 +390,7 @@ export function TeamCapacity() {
                   e.stopPropagation();
                   setConfirmId(member.id);
                 }}
-                className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
+                className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
                 aria-label={`Remove ${member.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />

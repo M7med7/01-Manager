@@ -254,7 +254,7 @@ export function ProjectHealthDashboard() {
   const maxWorkloadDays = Math.max(...workload.map((m) => m.estimated_days), 1);
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto space-y-6">
+    <div className="px-4 py-6 md:px-6 md:py-8 max-w-6xl mx-auto space-y-4 md:space-y-6">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
