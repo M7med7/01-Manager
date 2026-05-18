@@ -16,6 +16,9 @@ import { CalendarCallback } from "./pages/CalendarCallback";
 import { MigrationPage } from "./pages/MigrationPage";
 import { ProjectHealthDashboard } from "./pages/ProjectHealthDashboard";
 import { WeeklyReportPage } from "./pages/WeeklyReportPage";
+import { PortfolioRoadmap } from "./pages/PortfolioRoadmap";
+import { ClientProjectView } from "./pages/ClientProjectView";
+import { AdvancedSearch } from "./pages/AdvancedSearch";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
@@ -24,6 +27,7 @@ export const router = createBrowserRouter([
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/set-password", Component: SetPasswordPage },
   { path: "/calendar/callback", Component: CalendarCallback },
+  { path: "/client/:token", Component: ClientProjectView },
   {
     path: "/",
     Component: ProtectedRoute,
@@ -32,6 +36,8 @@ export const router = createBrowserRouter([
         Component: Layout,
         children: [
           { index: true, Component: ProjectsDashboard },
+          { path: "search", Component: AdvancedSearch },
+          { path: "roadmap", Component: PortfolioRoadmap },
           { path: "board", Component: BoardCalendar },
           { path: "task/:taskId", Component: TaskDetails },
           { path: "team", Component: TeamCapacity },

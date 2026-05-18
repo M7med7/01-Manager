@@ -6,10 +6,11 @@ import { api, type Task, type ProjectMember } from "../lib/api";
 interface Props {
   projectId: string;
   members: ProjectMember[];
+  currentUserId?: string | null;
   onCreated: (task: Task) => void;
 }
 
-export function AddTaskForm({ projectId, members, onCreated }: Props) {
+export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Props) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export function AddTaskForm({ projectId, members, onCreated }: Props) {
         assigned_to: form.assigned_to || null,
         estimated_days: Math.max(1, Math.round(Number(form.estimated_days))),
         assigned_tech: techArray,
+        user_id: currentUserId ?? null,
       });
       onCreated(task);
       setForm({ title: "", description: "", priority: "Medium", assigned_to: "", estimated_days: "", tech: "" });

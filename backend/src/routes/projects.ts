@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { demoProjects, demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { enrichTasksWithDependencies, fetchProjectDependencies } from '../lib/taskDependencies';
+import { getProjectPermissions, normalizeRole, requireProjectPermission } from '../lib/permissions';
 
 const router = Router();
 
@@ -126,12 +127,14 @@ router.get('/', async (_req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = typeof req.query.user_id === 'string' ? req.query.user_id : null;
 
     const [
       { data: project, error: projectError },
       { data: tasks, error: tasksError },
       { data: assignments },
       { data: activity },
+      { data: invitations },
     ] = await Promise.all([
       withTimeout(supabase.from('projects').select('*').eq('id', id).single()),
       withTimeout(supabase.from('tasks').select('*').eq('project_id', id).order('created_at')),
@@ -142,6 +145,7 @@ router.get('/:id', async (req, res) => {
           .eq('project_id', id)
       ),
       withTimeout(supabase.from('task_activity').select('task_id, created_at').order('created_at', { ascending: false })),
+      withTimeout(supabase.from('project_invitations').select('*').eq('project_id', id).eq('status', 'pending')),
     ]);
 
     if (projectError) throw projectError;
@@ -161,16 +165,30 @@ router.get('/:id', async (req, res) => {
     const doneTasks = taskList.filter((t) => t.status === 'Done').length;
     const progress = taskList.length > 0 ? Math.round((doneTasks / taskList.length) * 100) : 0;
 
+    const permissions = await getProjectPermissions(id, userId);
+    if (userId && !permissions.can_view_project) {
+      return res.status(403).json({ error: 'You do not have access to this project.' });
+    }
+
     const members = (assignments ?? []).map((a: any) => ({
       user_id: a.user_id,
-      role: a.role,
+      role: normalizeRole(a.role),
       ...(a.users ?? {}),
     }));
 
     res.json({
       project: { ...project, team_count: members.length, progress },
       tasks: enrichedTasks,
-      members,
+      members: permissions.can_view_capacity ? members : members.map((member: any) => ({
+        user_id: member.user_id,
+        role: member.role,
+        id: member.id,
+        email: member.email,
+        full_name: member.full_name,
+        avatar_url: member.avatar_url,
+      })),
+      invitations: permissions.can_manage_members ? invitations ?? [] : [],
+      permissions,
     });
   } catch (error: any) {
     if (isConnectivityError(error)) {
@@ -196,41 +214,53 @@ router.post('/', async (req, res) => {
 
     if (projectError) throw projectError;
 
+    if (created_by) {
+      await withTimeout(
+        supabase.from('team_assignments').upsert(
+          { project_id: project.id, user_id: created_by, role: 'Owner' },
+          { onConflict: 'project_id,user_id' },
+        ),
+      );
+    }
+
     if (team_members && team_members.length > 0) {
-      const assignments = team_members.map((user_id: string) => ({
+      const assignments = team_members.filter((user_id: string) => user_id !== created_by).map((user_id: string) => ({
         project_id: project.id,
         user_id,
         role: 'Member',
       }));
-      await withTimeout(supabase.from('team_assignments').insert(assignments));
+      if (assignments.length > 0) await withTimeout(supabase.from('team_assignments').insert(assignments));
     }
 
     res.json({ project });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const actorId = typeof req.query.actor_id === 'string' ? req.query.actor_id : req.body?.actor_id;
+    await requireProjectPermission(id, actorId, 'can_delete_project');
     const { error } = await withTimeout(supabase.from('projects').delete().eq('id', id));
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.post('/:id/members', async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, role = 'Member' } = req.body;
+    const { user_id, role = 'Member', actor_id } = req.body;
 
     if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    await requireProjectPermission(id, actor_id, 'can_manage_members');
 
     const { error } = await withTimeout(
-      supabase.from('team_assignments').insert({ project_id: id, user_id, role })
+      supabase.from('team_assignments').upsert({ project_id: id, user_id, role: normalizeRole(role) }, { onConflict: 'project_id,user_id' })
     );
     if (error) throw error;
     res.json({ success: true });
@@ -239,16 +269,79 @@ router.post('/:id/members', async (req, res) => {
   }
 });
 
+router.post('/:id/invitations', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, role = 'Member', actor_id } = req.body as { email?: string; role?: string; actor_id?: string | null };
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) return res.status(400).json({ error: 'Email is required.' });
+    await requireProjectPermission(id, actor_id, 'can_manage_members');
+
+    const inviteRole = normalizeRole(role);
+    const { data: existingUser, error: userError } = await withTimeout(
+      supabase.from('users').select('id, email, full_name, avatar_url').eq('email', normalizedEmail).maybeSingle(),
+    );
+    if (userError) throw userError;
+
+    if (existingUser?.id) {
+      const { error } = await withTimeout(
+        supabase.from('team_assignments').upsert({ project_id: id, user_id: existingUser.id, role: inviteRole }, { onConflict: 'project_id,user_id' }),
+      );
+      if (error) throw error;
+      return res.json({ assigned: true, user: existingUser, role: inviteRole });
+    }
+
+    const { data: invitation, error } = await withTimeout(
+      supabase
+        .from('project_invitations')
+        .upsert({ project_id: id, email: normalizedEmail, role: inviteRole, invited_by: actor_id ?? null, status: 'pending', updated_at: new Date().toISOString() }, { onConflict: 'project_id,email' })
+        .select()
+        .single(),
+    );
+    if (error) throw error;
+    res.json({ assigned: false, invitation });
+  } catch (error: any) {
+    res.status(error.status ?? 500).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/members/:userId', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { role, actor_id } = req.body as { role?: string; actor_id?: string | null };
+    if (!role) return res.status(400).json({ error: 'Role is required.' });
+    await requireProjectPermission(id, actor_id, 'can_manage_members');
+    const { data: ownerRows } = await withTimeout(supabase.from('team_assignments').select('user_id, role').eq('project_id', id).eq('role', 'Owner'));
+    if (normalizeRole(role) !== 'Owner' && (ownerRows ?? []).length === 1 && ownerRows?.[0]?.user_id === userId) {
+      return res.status(400).json({ error: 'A project needs at least one owner.' });
+    }
+    const { data, error } = await withTimeout(
+      supabase.from('team_assignments').update({ role: normalizeRole(role) }).eq('project_id', id).eq('user_id', userId).select().single(),
+    );
+    if (error) throw error;
+    res.json({ assignment: data });
+  } catch (error: any) {
+    res.status(error.status ?? 500).json({ error: error.message });
+  }
+});
+
 router.delete('/:id/members/:userId', async (req, res) => {
   try {
     const { id, userId } = req.params;
+    const actorId = typeof req.query.actor_id === 'string' ? req.query.actor_id : req.body?.actor_id;
+    await requireProjectPermission(id, actorId, 'can_manage_members');
+    const { data: target } = await withTimeout(supabase.from('team_assignments').select('role').eq('project_id', id).eq('user_id', userId).maybeSingle());
+    if (normalizeRole(target?.role) === 'Owner') {
+      const { data: ownerRows } = await withTimeout(supabase.from('team_assignments').select('user_id').eq('project_id', id).eq('role', 'Owner'));
+      if ((ownerRows ?? []).length <= 1) return res.status(400).json({ error: 'A project needs at least one owner.' });
+    }
     const { error } = await withTimeout(
       supabase.from('team_assignments').delete().eq('project_id', id).eq('user_id', userId)
     );
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 

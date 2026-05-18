@@ -311,6 +311,71 @@ export interface SlackIntegration {
   updated_at: string;
 }
 
+export interface TimeEntry {
+  id: string;
+  task_id: string;
+  project_id: string;
+  user_id: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  minutes: number;
+  note: string | null;
+  source: 'timer' | 'manual';
+  created_at: string;
+  users?: CollaborationUser | null;
+}
+
+export interface TaskTimeSummary {
+  id: string;
+  title: string;
+  estimated_days: number;
+  assigned_to: string | null;
+  status: string;
+  actual_minutes: number;
+  estimated_minutes: number;
+  estimate_accuracy: number | null;
+}
+
+export interface PortfolioMilestone {
+  id: string;
+  title: string;
+  due_date: string;
+  status: string;
+  priority: string;
+  blocked: boolean;
+}
+
+export interface PortfolioProject {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  owner_id: string | null;
+  owner_name: string | null;
+  created_at: string;
+  start_date: string | null;
+  end_date: string | null;
+  progress: number;
+  task_count: number;
+  overdue_count: number;
+  blocked_count: number;
+  high_priority_count: number;
+  health_score: number;
+  risk_level: RiskLevel;
+  milestones: PortfolioMilestone[];
+}
+
+export interface PortfolioWorkload {
+  user_id: string;
+  name: string;
+  email: string;
+  open_tasks: number;
+  estimated_days: number;
+  project_count: number;
+  projects: string[];
+  overloaded: boolean;
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -370,6 +435,121 @@ export interface ProjectMember {
   avatar_url: string | null;
   skills?: string[];
   experience_summary?: string | null;
+}
+
+export interface ProjectInvitation {
+  id: string;
+  project_id: string;
+  email: string;
+  role: ProjectRole;
+  invited_by: string | null;
+  status: 'pending' | 'accepted' | 'revoked';
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectRole = 'Owner' | 'Admin' | 'Member' | 'Guest';
+
+export interface ProjectPermissions {
+  role: ProjectRole | null;
+  can_view_project: boolean;
+  can_manage_project: boolean;
+  can_delete_project: boolean;
+  can_manage_members: boolean;
+  can_manage_integrations: boolean;
+  can_edit_tasks: boolean;
+  can_comment: boolean;
+  can_upload_files: boolean;
+  can_export: boolean;
+  can_view_capacity: boolean;
+}
+
+export interface ClientShareSettings {
+  show_tasks: boolean;
+  show_milestones: boolean;
+  show_completed_tasks: boolean;
+  show_current_tasks: boolean;
+  show_upcoming_tasks: boolean;
+  show_internal_risks: boolean;
+  allow_client_comments: boolean;
+  brand_label: string;
+}
+
+export interface ProjectClientShare {
+  id: string;
+  project_id: string;
+  token: string;
+  settings: ClientShareSettings;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  revoked_at: string | null;
+}
+
+export interface ClientPortalTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface ClientPortalComment {
+  id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ClientPortalPayload {
+  share: { id: string; token: string; settings: ClientShareSettings };
+  project: {
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+    duration_weeks: number | null;
+    created_at: string;
+    progress: number;
+    task_count: number;
+    completed_count: number;
+  };
+  tasks: ClientPortalTask[];
+  milestones: ClientPortalTask[];
+  risk_summary: { overdue_count: number; blocked_count: number; summary: string } | null;
+  comments: ClientPortalComment[];
+}
+
+export interface SearchFilters {
+  q?: string;
+  user_id?: string | null;
+  status?: string;
+  priority?: string;
+  assignee?: string;
+  project_id?: string;
+  risk?: string;
+  tech?: string;
+  due?: string;
+  blocked?: boolean;
+  my_tasks?: boolean;
+  overdue?: boolean;
+  high_priority?: boolean;
+  due_this_week?: boolean;
+}
+
+export interface SearchResult {
+  type: 'project' | 'task' | 'comment' | 'file';
+  id: string;
+  title: string;
+  subtitle: string | null;
+  project_id: string;
+  project_name: string;
+  url: string;
+  matched: string;
+  meta: Record<string, unknown>;
+  created_at: string;
 }
 
 // ── Weekly Report types ────────────────────────────────────────────────────────
@@ -632,17 +812,27 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_00
 export const api = {
   projects: {
     list: () => request<{ projects: Project[] }>('/projects'),
-    get: (id: string) =>
-      request<{ project: Project; tasks: Task[]; members: ProjectMember[] }>(`/projects/${id}`),
-    delete: (id: string) =>
-      request<{ success: boolean }>(`/projects/${id}`, { method: 'DELETE' }),
-    addMember: (projectId: string, userId: string) =>
+    get: (id: string, userId?: string | null) =>
+      request<{ project: Project; tasks: Task[]; members: ProjectMember[]; invitations?: ProjectInvitation[]; permissions?: ProjectPermissions }>(`/projects/${id}${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`),
+    delete: (id: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/projects/${id}${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`, { method: 'DELETE' }),
+    addMember: (projectId: string, userId: string, role: ProjectRole = 'Member', actorId?: string | null) =>
       request<{ success: boolean }>(`/projects/${projectId}/members`, {
         method: 'POST',
-        body: JSON.stringify({ user_id: userId }),
+        body: JSON.stringify({ user_id: userId, role, actor_id: actorId ?? null }),
       }),
-    removeMember: (projectId: string, userId: string) =>
-      request<{ success: boolean }>(`/projects/${projectId}/members/${userId}`, {
+    inviteMember: (projectId: string, data: { email: string; role: ProjectRole; actor_id?: string | null }) =>
+      request<{ assigned: boolean; user?: User; role?: ProjectRole; invitation?: ProjectInvitation }>(`/projects/${projectId}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateMemberRole: (projectId: string, userId: string, role: ProjectRole, actorId?: string | null) =>
+      request<{ assignment: { user_id: string; role: ProjectRole } }>(`/projects/${projectId}/members/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role, actor_id: actorId ?? null }),
+      }),
+    removeMember: (projectId: string, userId: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/projects/${projectId}/members/${userId}${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`, {
         method: 'DELETE',
       }),
   },
@@ -657,6 +847,7 @@ export const api = {
       assigned_to?: string | null;
       estimated_days: number;
       assigned_tech?: string[];
+      user_id?: string | null;
     }) =>
       request<{ task: Task }>('/tasks', {
         method: 'POST',
@@ -692,13 +883,13 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
-    addDependency: (taskId: string, dependsOnTaskId: string) =>
+    addDependency: (taskId: string, dependsOnTaskId: string, userId?: string | null) =>
       request<{ success: boolean; already_exists?: boolean }>(`/tasks/${taskId}/dependencies`, {
         method: 'POST',
-        body: JSON.stringify({ depends_on_task_id: dependsOnTaskId }),
+        body: JSON.stringify({ depends_on_task_id: dependsOnTaskId, user_id: userId ?? null }),
       }),
-    removeDependency: (taskId: string, dependsOnTaskId: string) =>
-      request<{ success: boolean }>(`/tasks/${taskId}/dependencies/${dependsOnTaskId}`, {
+    removeDependency: (taskId: string, dependsOnTaskId: string, userId?: string | null) =>
+      request<{ success: boolean }>(`/tasks/${taskId}/dependencies/${dependsOnTaskId}${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`, {
         method: 'DELETE',
       }),
     collaboration: (taskId: string) =>
@@ -738,6 +929,62 @@ export const api = {
         throw new Error(message);
       }
       return res.json() as Promise<{ attachment: TaskAttachment }>;
+    },
+  },
+  time: {
+    project: (projectId: string) =>
+      request<{ entries: TimeEntry[]; tasks: TaskTimeSummary[]; totals: { actual_minutes: number; estimated_minutes: number; estimate_accuracy: number | null } }>(`/time/projects/${projectId}`),
+    task: (taskId: string, userId?: string | null) =>
+      request<{ entries: TimeEntry[]; active_timer: TimeEntry | null; total_minutes: number; estimate_accuracy: number | null }>(`/time/tasks/${taskId}${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`),
+    startTimer: (taskId: string, data: { user_id?: string | null; note?: string }) =>
+      request<{ entry: TimeEntry; already_running?: boolean }>(`/time/tasks/${taskId}/start`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    stopTimer: (taskId: string, userId?: string | null) =>
+      request<{ entry: TimeEntry }>(`/time/tasks/${taskId}/stop`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId ?? null }),
+      }),
+    addManual: (taskId: string, data: { user_id?: string | null; minutes: number; note?: string; work_date?: string }) =>
+      request<{ entry: TimeEntry }>(`/time/tasks/${taskId}/manual`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+  portfolio: {
+    roadmap: () =>
+      request<{ projects: PortfolioProject[]; workload: PortfolioWorkload[] }>('/portfolio/roadmap'),
+  },
+  clientShares: {
+    list: (projectId: string, actorId?: string | null) =>
+      request<{ shares: ProjectClientShare[] }>(`/client/projects/${projectId}/shares${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`),
+    create: (projectId: string, data: { actor_id?: string | null; settings: ClientShareSettings }) =>
+      request<{ share: ProjectClientShare }>(`/client/projects/${projectId}/shares`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (shareId: string, data: { actor_id?: string | null; settings?: ClientShareSettings; is_active?: boolean }) =>
+      request<{ share: ProjectClientShare }>(`/client/shares/${shareId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    getPublic: (token: string) =>
+      request<ClientPortalPayload>(`/client/share/${token}`),
+    addComment: (token: string, data: { author_name: string; content: string }) =>
+      request<{ comment: ClientPortalComment }>(`/client/share/${token}/comments`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+  search: {
+    run: (filters: SearchFilters) => {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '' || value === false) return;
+        params.set(key, String(value));
+      });
+      return request<{ results: SearchResult[]; total: number }>(`/search?${params.toString()}`);
     },
   },
   users: {
@@ -895,8 +1142,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    disconnectRepository: (projectId: string) =>
-      request<{ success: boolean }>(`/github/projects/${projectId}/repository`, { method: 'DELETE' }),
+    disconnectRepository: (projectId: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/github/projects/${projectId}/repository${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`, { method: 'DELETE' }),
     getTaskLinks: (taskId: string) =>
       request<{ repository: GitHubRepository | null; links: GitHubTaskLink[] }>(`/github/tasks/${taskId}`),
     addTaskLink: (taskId: string, data: { issue_number?: number | string | null; branch_name?: string | null; pull_request_number?: number | string | null; created_by?: string | null }) =>
@@ -904,8 +1151,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    removeTaskLink: (taskId: string, linkId: string) =>
-      request<{ success: boolean }>(`/github/tasks/${taskId}/links/${linkId}`, { method: 'DELETE' }),
+    removeTaskLink: (taskId: string, linkId: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/github/tasks/${taskId}/links/${linkId}${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`, { method: 'DELETE' }),
     createIssueFromTask: (taskId: string, createdBy?: string | null) =>
       request<{ issue: { number: number; html_url: string }; link: GitHubTaskLink }>(`/github/tasks/${taskId}/create-issue`, {
         method: 'POST',
@@ -958,17 +1205,23 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    updateProject: (projectId: string, data: Partial<Pick<SlackIntegration, 'channel_name' | 'assignment_notifications' | 'overdue_alerts' | 'project_risk_alerts' | 'mention_notifications' | 'summary_notifications' | 'summary_frequency'>>) =>
+    updateProject: (projectId: string, data: Partial<Pick<SlackIntegration, 'channel_name' | 'assignment_notifications' | 'overdue_alerts' | 'project_risk_alerts' | 'mention_notifications' | 'summary_notifications' | 'summary_frequency'>> & { actor_id?: string | null }) =>
       request<{ integration: SlackIntegration }>(`/slack/projects/${projectId}/preferences`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
-    disconnectProject: (projectId: string) =>
-      request<{ success: boolean }>(`/slack/projects/${projectId}`, { method: 'DELETE' }),
-    sendSummary: (projectId: string) =>
-      request<{ sent: boolean; reason?: string }>(`/slack/projects/${projectId}/summary`, { method: 'POST' }),
-    testProject: (projectId: string) =>
-      request<{ success: boolean }>(`/slack/projects/${projectId}/test`, { method: 'POST' }),
+    disconnectProject: (projectId: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/slack/projects/${projectId}${actorId ? `?actor_id=${encodeURIComponent(actorId)}` : ''}`, { method: 'DELETE' }),
+    sendSummary: (projectId: string, actorId?: string | null) =>
+      request<{ sent: boolean; reason?: string }>(`/slack/projects/${projectId}/summary`, {
+        method: 'POST',
+        body: JSON.stringify({ actor_id: actorId ?? null }),
+      }),
+    testProject: (projectId: string, actorId?: string | null) =>
+      request<{ success: boolean }>(`/slack/projects/${projectId}/test`, {
+        method: 'POST',
+        body: JSON.stringify({ actor_id: actorId ?? null }),
+      }),
   },
   reports: {
     generate: (projectId: string) =>

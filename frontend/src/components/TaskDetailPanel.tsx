@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus } from "lucide-react";
-import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem, type GitHubRepository, type GitHubTaskLink, type GitHubCommit, type GitHubPullRequest, type CalendarConnection, type TaskCalendarEvent } from "../lib/api";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus, Timer } from "lucide-react";
+import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem, type GitHubRepository, type GitHubTaskLink, type GitHubCommit, type GitHubPullRequest, type CalendarConnection, type TaskCalendarEvent, type TimeEntry } from "../lib/api";
 import { riskStyle, scoreTaskRisk } from "../lib/riskScoring";
 
 interface ChatMessage { role: "user" | "ai"; content: string; }
@@ -66,10 +66,13 @@ interface Props {
   calendarConnection?: CalendarConnection | null;
   calendarEvents?: TaskCalendarEvent[];
   currentUserId?: string;
+  canEditTasks?: boolean;
+  canUploadFiles?: boolean;
   allTasks?: Task[];
   onComplete: (taskId: string, completed: boolean) => void;
   onTaskUpdated?: (updated: Task) => void;
   onCalendarEventsChange?: (events: TaskCalendarEvent[]) => void;
+  onTimeChanged?: () => void;
   onAddDependency?: (taskId: string, dependsOnTaskId: string) => Promise<void>;
   onRemoveDependency?: (taskId: string, dependsOnTaskId: string) => Promise<void>;
   onBack: () => void;
@@ -127,6 +130,14 @@ function taskLine(item: Pick<Task, "title" | "status" | "priority" | "assigned_t
   return `${item.title} (${item.status}, ${item.priority}, owner: ${owner?.full_name ?? owner?.email ?? "Unassigned"})`;
 }
 
+function formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 export function TaskDetailPanel({
   task,
   schedule,
@@ -137,10 +148,13 @@ export function TaskDetailPanel({
   calendarConnection,
   calendarEvents = [],
   currentUserId,
+  canEditTasks = true,
+  canUploadFiles = true,
   allTasks = [],
   onComplete,
   onTaskUpdated,
   onCalendarEventsChange,
+  onTimeChanged,
   onAddDependency,
   onRemoveDependency,
   onBack
@@ -181,10 +195,19 @@ export function TaskDetailPanel({
   const [githubError, setGithubError] = useState<string | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
+  const [totalMinutes, setTotalMinutes] = useState(0);
+  const [timeAccuracy, setTimeAccuracy] = useState<number | null>(null);
+  const [manualMinutes, setManualMinutes] = useState("");
+  const [manualNote, setManualNote] = useState("");
+  const [timeLoading, setTimeLoading] = useState(false);
+  const [timeError, setTimeError] = useState<string | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   const openScheduleEdit = () => {
+    if (!canEditTasks) return;
     setSchedStart(task.start_date ?? (schedule ? toDateInput(schedule.start) : ""));
     setSchedEnd(task.end_date ?? (schedule ? toDateInput(schedule.end) : ""));
     setEditingSchedule(true);
@@ -266,6 +289,17 @@ export function TaskDetailPanel({
   }, [task.id]);
 
   useEffect(() => {
+    api.time.task(task.id, currentUserId ?? null)
+      .then((data) => {
+        setTimeEntries(data.entries);
+        setActiveTimer(data.active_timer);
+        setTotalMinutes(data.total_minutes);
+        setTimeAccuracy(data.estimate_accuracy);
+      })
+      .catch((err) => setTimeError(err instanceof Error ? err.message : "Could not load time tracking"));
+  }, [task.id, currentUserId]);
+
+  useEffect(() => {
     if (!githubRepository) return;
     api.github.getTaskLinks(task.id)
       .then((data) => setGithubLinks(data.links))
@@ -319,6 +353,7 @@ export function TaskDetailPanel({
       `GitHub links: ${githubLinkList}`,
       `Synced GitHub activity: ${githubActivity}`,
       `Calendar sync: ${calendarConnection ? `Connected to ${calendarConnection.calendar_name ?? "Google Calendar"} (${calendarConnection.timezone ?? "UTC"})` : "Not connected"}`,
+      `Time tracking: ${formatMinutes(totalMinutes)} actual vs ${task.estimated_days} estimated day(s). Estimate accuracy: ${timeAccuracy ?? "not enough data"}%.`,
     ].join("\n");
   };
 
@@ -662,6 +697,47 @@ export function TaskDetailPanel({
     }
   };
 
+  const refreshTime = async () => {
+    const data = await api.time.task(task.id, currentUserId ?? null);
+    setTimeEntries(data.entries);
+    setActiveTimer(data.active_timer);
+    setTotalMinutes(data.total_minutes);
+    setTimeAccuracy(data.estimate_accuracy);
+    onTimeChanged?.();
+  };
+
+  const toggleTimer = async () => {
+    if (timeLoading) return;
+    setTimeLoading(true);
+    setTimeError(null);
+    try {
+      if (activeTimer) await api.time.stopTimer(task.id, currentUserId ?? null);
+      else await api.time.startTimer(task.id, { user_id: currentUserId ?? null });
+      await refreshTime();
+    } catch (err) {
+      setTimeError(err instanceof Error ? err.message : "Could not update timer");
+    } finally {
+      setTimeLoading(false);
+    }
+  };
+
+  const addManualTime = async () => {
+    const minutes = Math.round(Number(manualMinutes));
+    if (!minutes || minutes < 1 || timeLoading) return;
+    setTimeLoading(true);
+    setTimeError(null);
+    try {
+      await api.time.addManual(task.id, { user_id: currentUserId ?? null, minutes, note: manualNote.trim() || undefined });
+      setManualMinutes("");
+      setManualNote("");
+      await refreshTime();
+    } catch (err) {
+      setTimeError(err instanceof Error ? err.message : "Could not add time");
+    } finally {
+      setTimeLoading(false);
+    }
+  };
+
   const handleCompleteClick = () => {
     if (!isDone && incompleteQualityCount > 0) {
       const ok = window.confirm(`${incompleteQualityCount} acceptance/done check${incompleteQualityCount === 1 ? " is" : "s are"} still unchecked. Mark this task Done anyway?`);
@@ -745,7 +821,7 @@ export function TaskDetailPanel({
                       {schedule ? `${formatDate(schedule.start)} → ${formatDate(schedule.end)}` : `${task.start_date} → ${task.end_date}`}
                     </span>
                   </div>
-                  <button onClick={openScheduleEdit} className="shrink-0 p-1 rounded-md text-gray-500 hover:text-purple-300 hover:bg-purple-900/30 transition-colors" title="Edit schedule">
+                  <button onClick={openScheduleEdit} disabled={!canEditTasks} className="shrink-0 p-1 rounded-md text-gray-500 hover:text-purple-300 hover:bg-purple-900/30 transition-colors disabled:opacity-30" title="Edit schedule">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -768,7 +844,7 @@ export function TaskDetailPanel({
           <select
             value={task.priority}
             onChange={(e) => updatePriority(e.target.value)}
-            disabled={savingPriority}
+            disabled={savingPriority || !canEditTasks}
             className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-xs text-gray-300 outline-none focus:border-purple-500/60 disabled:opacity-40"
           >
             <option value="High">High</option>
@@ -801,6 +877,66 @@ export function TaskDetailPanel({
           </div>
         </div>
 
+        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+              <Timer className="h-4 w-4 text-purple-400" /> Time Tracking
+            </div>
+            <span className="rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-gray-400">Optional</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="text-[10px] text-gray-500">Actual</div>
+              <div className="text-sm font-semibold text-white">{formatMinutes(totalMinutes)}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="text-[10px] text-gray-500">Estimate</div>
+              <div className="text-sm font-semibold text-white">{formatMinutes(Math.round(task.estimated_days * 8 * 60))}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="text-[10px] text-gray-500">Accuracy</div>
+              <div className="text-sm font-semibold text-white">{timeAccuracy === null ? "-" : `${timeAccuracy}%`}</div>
+            </div>
+          </div>
+          {timeError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{timeError}</p>}
+          <button
+            onClick={toggleTimer}
+            disabled={timeLoading}
+            className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-40 ${activeTimer ? "border border-red-500/30 bg-red-900/20 text-red-200 hover:bg-red-900/35" : "border border-purple-500/30 bg-purple-900/20 text-purple-100 hover:bg-purple-900/35"}`}
+          >
+            {timeLoading ? "Saving..." : activeTimer ? "Stop timer" : "Start timer"}
+          </button>
+          <div className="grid gap-2 sm:grid-cols-[90px_1fr_auto]">
+            <input
+              value={manualMinutes}
+              onChange={(e) => setManualMinutes(e.target.value)}
+              type="number"
+              min="1"
+              placeholder="Min"
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+            />
+            <input
+              value={manualNote}
+              onChange={(e) => setManualNote(e.target.value)}
+              placeholder="Note for planning or billing"
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+            />
+            <button onClick={addManualTime} disabled={timeLoading || !manualMinutes} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-300 hover:border-purple-500/40 disabled:opacity-40">
+              Add
+            </button>
+          </div>
+          {timeEntries.length > 0 && (
+            <div className="space-y-1 border-t border-white/10 pt-2">
+              {timeEntries.slice(0, 3).map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                  <span>{entry.source === "timer" ? "Timer" : "Manual"} {entry.note ? `- ${entry.note}` : ""}</span>
+                  <span>{formatMinutes(entry.minutes)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Assignee */}
         <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
           <UserIcon className="w-4 h-4 text-purple-400 shrink-0" />
@@ -825,7 +961,7 @@ export function TaskDetailPanel({
                   <span className="text-[10px] text-gray-500">{blocker.status}</span>
                   <button
                     onClick={() => removeBlocker(blocker.id)}
-                    disabled={savingDependency === blocker.id}
+                    disabled={savingDependency === blocker.id || !canEditTasks}
                     className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-40"
                     aria-label={`Remove blocker ${blocker.title}`}
                   >
@@ -840,6 +976,7 @@ export function TaskDetailPanel({
             <select
               value={selectedBlockerId}
               onChange={(e) => setSelectedBlockerId(e.target.value)}
+              disabled={!canEditTasks}
               className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/60"
             >
               <option value="">Add blocker...</option>
@@ -849,7 +986,7 @@ export function TaskDetailPanel({
             </select>
             <button
               onClick={addBlocker}
-              disabled={!selectedBlockerId || savingDependency === selectedBlockerId}
+              disabled={!selectedBlockerId || savingDependency === selectedBlockerId || !canEditTasks}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white transition-colors hover:bg-purple-500 disabled:opacity-40"
               aria-label="Add blocker"
             >
@@ -915,7 +1052,7 @@ export function TaskDetailPanel({
             </div>
             <button
               onClick={improveQuality}
-              disabled={improvingQuality || savingQuality}
+              disabled={improvingQuality || savingQuality || !canEditTasks}
               className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-900/20 px-2.5 py-1.5 text-xs text-purple-200 hover:bg-purple-900/35 disabled:opacity-40"
             >
               {improvingQuality ? <div className="h-3 w-3 animate-spin rounded-full border border-purple-300 border-t-transparent" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -932,20 +1069,22 @@ export function TaskDetailPanel({
                   type="checkbox"
                   checked={item.checked}
                   onChange={(e) => updateQualityItem("acceptance", item.id, { checked: e.target.checked })}
+                  disabled={!canEditTasks}
                   className="h-4 w-4 accent-purple-500"
                 />
                 <input
                   value={item.text}
                   onChange={(e) => onTaskUpdated?.({ ...task, acceptance_criteria: acceptanceCriteria.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
                   onBlur={(e) => updateQualityItem("acceptance", item.id, { text: e.target.value })}
+                  disabled={!canEditTasks}
                   className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
                 />
-                <button onClick={() => removeQualityItem("acceptance", item.id)} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300">
+                <button onClick={() => removeQualityItem("acceptance", item.id)} disabled={!canEditTasks} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-30">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
-            <button onClick={() => addQualityItem("acceptance")} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100">
+            <button onClick={() => addQualityItem("acceptance")} disabled={!canEditTasks} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100 disabled:opacity-30">
               <Plus className="h-3.5 w-3.5" /> Add criterion
             </button>
           </div>
@@ -961,20 +1100,22 @@ export function TaskDetailPanel({
                     type="checkbox"
                     checked={item.checked}
                     onChange={(e) => updateQualityItem("done", item.id, { checked: e.target.checked })}
+                    disabled={!canEditTasks}
                     className="h-4 w-4 accent-purple-500"
                   />
                   <input
                     value={item.text}
                     onChange={(e) => onTaskUpdated?.({ ...task, definition_of_done: definitionOfDone.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
                     onBlur={(e) => updateQualityItem("done", item.id, { text: e.target.value })}
+                    disabled={!canEditTasks}
                     className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
                   />
-                  <button onClick={() => removeQualityItem("done", item.id)} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300">
+                  <button onClick={() => removeQualityItem("done", item.id)} disabled={!canEditTasks} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-30">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
-              <button onClick={() => addQualityItem("done")} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100">
+              <button onClick={() => addQualityItem("done")} disabled={!canEditTasks} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-100 disabled:opacity-30">
                 <Plus className="h-3.5 w-3.5" /> Add done check
               </button>
             </div>
@@ -1178,11 +1319,12 @@ export function TaskDetailPanel({
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
               <MessageSquare className="h-4 w-4 text-purple-400" /> Comments
             </div>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-gray-300 hover:border-purple-500/40">
+            <label className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-gray-300 hover:border-purple-500/40 ${canUploadFiles ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}>
               {uploadingAttachment ? <div className="h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" /> : <Upload className="h-3.5 w-3.5" />}
               Attach
               <input
                 type="file"
+                disabled={!canUploadFiles}
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

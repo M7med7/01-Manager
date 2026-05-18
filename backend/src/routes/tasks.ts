@@ -8,6 +8,7 @@ import { enrichTasksWithDependencies, fetchProjectDependencies, wouldCreateCycle
 import { notifyUsers } from '../lib/notifications';
 import { syncExistingTaskCalendarEvents } from '../lib/calendarSync';
 import { sendSlackTaskNotification } from '../lib/slackNotifications';
+import { requireProjectPermission, requireTaskPermission } from '../lib/permissions';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -141,11 +142,12 @@ router.get('/:id', async (req, res) => {
 // Create a new task
 router.post('/', async (req, res) => {
   try {
-    const { project_id, title, description, priority, assigned_to, estimated_days, assigned_tech } = req.body;
+    const { project_id, title, description, priority, assigned_to, estimated_days, assigned_tech, user_id } = req.body;
 
     if (!project_id || !title || !estimated_days) {
       return res.status(400).json({ error: 'project_id, title, and estimated_days are required' });
     }
+    await requireProjectPermission(project_id, user_id, 'can_edit_tasks');
 
     const techArray = Array.isArray(assigned_tech)
       ? assigned_tech
@@ -175,7 +177,7 @@ router.post('/', async (req, res) => {
     if (error) throw error;
     res.json({ task });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -191,6 +193,7 @@ router.patch('/:id/quality', async (req, res) => {
     if (acceptance_criteria !== undefined) updates.acceptance_criteria = normalizeChecklistItems(acceptance_criteria);
     if (definition_of_done !== undefined) updates.definition_of_done = normalizeChecklistItems(definition_of_done);
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No quality fields provided' });
+    await requireTaskPermission(id, user_id, 'can_edit_tasks');
 
     const { data: task, error } = await withTimeout(
       supabase.from('tasks').update(updates).eq('id', id).select().single(),
@@ -199,7 +202,7 @@ router.patch('/:id/quality', async (req, res) => {
     await createActivity(id, user_id, 'quality_updated', 'Updated acceptance criteria', updates);
     res.json({ task });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -208,6 +211,7 @@ router.patch('/:id/complete', async (req, res) => {
   try {
     const { id } = req.params;
     const { completed, completed_by } = req.body as { completed: boolean; completed_by?: string };
+    await requireTaskPermission(id, completed_by, 'can_edit_tasks');
 
     // Authorization: only the currently assigned user can toggle completion
     const { data: taskData, error: fetchError } = await withTimeout(
@@ -255,7 +259,7 @@ router.patch('/:id/complete', async (req, res) => {
     await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', completed ? 'A task was marked Done' : 'A task was reopened');
     res.json({ success: true, status: baseUpdates.status });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -275,6 +279,7 @@ router.patch('/:id/schedule', async (req, res) => {
     if (start_date !== undefined) updates.start_date = start_date || null;
     if (end_date !== undefined) updates.end_date = end_date || null;
     if (estimated_days !== undefined) updates.estimated_days = Math.max(1, Math.round(Number(estimated_days)));
+    await requireTaskPermission(id, user_id, 'can_edit_tasks');
 
     const { error } = await withTimeout(supabase.from('tasks').update(updates).eq('id', id));
     if (error) throw error;
@@ -282,7 +287,7 @@ router.patch('/:id/schedule', async (req, res) => {
     await syncExistingTaskCalendarEvents(id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -296,6 +301,7 @@ router.patch('/:id/status', async (req, res) => {
     if (!status || !allowed.has(status)) {
       return res.status(400).json({ error: 'Invalid task status' });
     }
+    await requireTaskPermission(id, completed_by, 'can_edit_tasks');
 
     const { data: before } = await withTimeout(supabase.from('tasks').select('status').eq('id', id).single());
     const updates =
@@ -318,7 +324,7 @@ router.patch('/:id/status', async (req, res) => {
     await createNotifications(id, completed_by, await projectMemberIdsForTask(id), 'status_changed', `A task moved to ${status}`);
     res.json({ success: true, ...updates });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -329,6 +335,7 @@ router.patch('/:id/priority', async (req, res) => {
     if (!priority || !['High', 'Medium', 'Low'].includes(priority)) {
       return res.status(400).json({ error: 'Invalid priority' });
     }
+    await requireTaskPermission(id, user_id, 'can_edit_tasks');
 
     const { data: before } = await withTimeout(supabase.from('tasks').select('priority').eq('id', id).single());
     const { error } = await withTimeout(supabase.from('tasks').update({ priority }).eq('id', id));
@@ -336,14 +343,14 @@ router.patch('/:id/priority', async (req, res) => {
     await createActivity(id, user_id, 'priority_changed', `Changed priority to ${priority}`, { from: before?.priority, to: priority });
     res.json({ success: true, priority });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.post('/:id/dependencies', async (req, res) => {
   try {
     const { id } = req.params;
-    const { depends_on_task_id } = req.body as { depends_on_task_id?: string };
+    const { depends_on_task_id, user_id } = req.body as { depends_on_task_id?: string; user_id?: string | null };
 
     if (!depends_on_task_id) {
       return res.status(400).json({ error: 'depends_on_task_id is required' });
@@ -351,6 +358,7 @@ router.post('/:id/dependencies', async (req, res) => {
     if (depends_on_task_id === id) {
       return res.status(400).json({ error: 'A task cannot block itself.' });
     }
+    await requireTaskPermission(id, user_id, 'can_edit_tasks');
 
     const { data: taskRows, error: taskError } = await withTimeout(
       supabase.from('tasks').select('id, project_id').in('id', [id, depends_on_task_id]),
@@ -382,13 +390,15 @@ router.post('/:id/dependencies', async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.delete('/:id/dependencies/:dependsOnTaskId', async (req, res) => {
   try {
     const { id, dependsOnTaskId } = req.params;
+    const userId = typeof req.query.user_id === 'string' ? req.query.user_id : req.body?.user_id;
+    await requireTaskPermission(id, userId, 'can_edit_tasks');
     const { error } = await withTimeout(
       supabase
         .from('task_dependencies')
@@ -399,7 +409,7 @@ router.delete('/:id/dependencies/:dependsOnTaskId', async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -408,6 +418,7 @@ router.patch('/:id/assign', async (req, res) => {
   try {
     const { id } = req.params;
     const { assigned_to, user_id } = req.body as { assigned_to: string | null; user_id?: string | null };
+    await requireTaskPermission(id, user_id, 'can_edit_tasks');
     const { data: before } = await withTimeout(supabase.from('tasks').select('assigned_to').eq('id', id).single());
     const { error } = await withTimeout(
       supabase.from('tasks').update({ assigned_to: assigned_to ?? null }).eq('id', id)
@@ -420,7 +431,7 @@ router.patch('/:id/assign', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -446,6 +457,7 @@ router.post('/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { user_id, content, mentioned_user_ids } = req.body as { user_id?: string; content?: string; mentioned_user_ids?: string[] };
     if (!content?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+    await requireTaskPermission(id, user_id, 'can_comment');
 
     const { data: comment, error } = await withTimeout(
       supabase.from('task_comments').insert({ task_id: id, user_id: user_id ?? null, content: content.trim() }).select('*, users(id, full_name, email, avatar_url)').single(),
@@ -459,15 +471,17 @@ router.post('/:id/comments', async (req, res) => {
     }
     res.json({ comment });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.patch('/:id/comments/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
+    const { id } = req.params;
     const { user_id, content } = req.body as { user_id?: string; content?: string };
     if (!content?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+    await requireTaskPermission(id, user_id, 'can_comment');
 
     const { data: existing, error: fetchError } = await withTimeout(supabase.from('task_comments').select('user_id').eq('id', commentId).single());
     if (fetchError) throw fetchError;
@@ -479,14 +493,16 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
     if (error) throw error;
     res.json({ comment });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.delete('/:id/comments/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
+    const { id } = req.params;
     const { user_id } = req.body as { user_id?: string };
+    await requireTaskPermission(id, user_id, 'can_comment');
     const { data: existing, error: fetchError } = await withTimeout(supabase.from('task_comments').select('user_id').eq('id', commentId).single());
     if (fetchError) throw fetchError;
     if (existing.user_id && user_id && existing.user_id !== user_id) return res.status(403).json({ error: 'You can only delete your own comments.' });
@@ -495,7 +511,7 @@ router.delete('/:id/comments/:commentId', async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -505,6 +521,7 @@ router.post('/:id/attachments', upload.single('file'), async (req, res) => {
     const { user_id } = req.body as { user_id?: string };
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file provided' });
+    await requireTaskPermission(id, user_id, 'can_upload_files');
 
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `${id}/${Date.now()}-${safeName}`;
@@ -532,7 +549,7 @@ router.post('/:id/attachments', upload.single('file'), async (req, res) => {
     await createNotifications(id, user_id, await projectMemberIdsForTask(id), 'file_uploaded', 'A file was uploaded to a task');
     res.json({ attachment });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 

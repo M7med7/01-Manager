@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/Button";
 import { api, type Project } from "../lib/api";
 import { riskStyle } from "../lib/riskScoring";
+import { useAuth } from "../contexts/AuthContext";
 
 const COLORS = ["blue", "purple", "green", "red"] as const;
 type Color = typeof COLORS[number];
@@ -86,6 +87,7 @@ function ConfirmDeleteModal({
 
 export function ProjectsDashboard() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export function ProjectsDashboard() {
     if (!confirmId) return;
     setDeletingId(confirmId);
     try {
-      await api.projects.delete(confirmId);
+      await api.projects.delete(confirmId, session?.user.id);
       setProjects((prev) => prev.filter((p) => p.id !== confirmId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete project");
@@ -168,8 +170,47 @@ export function ProjectsDashboard() {
                   <div className="bg-white/3 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-purple-900/50 hover:shadow-lg hover:shadow-purple-900/10 transition-all duration-300 cursor-pointer h-full flex flex-col relative overflow-hidden">
                     <div className="absolute inset-0 bg-linear-to-br from-purple-900/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                    <div className="absolute top-4 right-4 text-sm font-medium text-white/40">
-                      {String(index + 1).padStart(2, "0")}
+                    <div className="relative z-10 mb-4 flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-wrap gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setConfirmId(project.id);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/45 text-gray-500 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
+                          aria-label={`Delete ${project.name}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/project/${project.id}/health`);
+                          }}
+                          className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/45 px-2.5 text-[11px] font-medium text-gray-500 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200"
+                          aria-label={`Health dashboard for ${project.name}`}
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          Health
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/project/${project.id}/report`);
+                          }}
+                          className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/45 px-2.5 text-[11px] font-medium text-gray-500 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200"
+                          aria-label={`Weekly report for ${project.name}`}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Report
+                        </button>
+                      </div>
+                      <div className="shrink-0 text-sm font-medium text-white/40">
+                        {String(index + 1).padStart(2, "0")}
+                      </div>
                     </div>
 
                     <div className="mb-3 relative z-10">
@@ -222,46 +263,6 @@ export function ProjectsDashboard() {
                     </div>
                   </div>
                 </Link>
-
-                {/* Delete button — appears on card hover */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmId(project.id);
-                  }}
-                  className="absolute top-3 left-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
-                  aria-label={`Delete ${project.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-
-                {/* Health button — appears on card hover */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/project/${project.id}/health`);
-                  }}
-                  className="absolute top-3 left-14 z-20 flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-2.5 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200 text-[11px] font-medium"
-                  aria-label={`Health dashboard for ${project.name}`}
-                >
-                  <Activity className="h-3.5 w-3.5" />
-                  Health
-                </button>
-
-                {/* Report button — appears on card hover */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/project/${project.id}/report`);
-                  }}
-                  className="absolute top-3 left-26 z-20 flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-2.5 text-gray-500 opacity-0 group-hover:opacity-100 hover:border-purple-500/50 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200 text-[11px] font-medium"
-                  aria-label={`Weekly report for ${project.name}`}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Report
-                </button>
               </div>
             </motion.div>
           );

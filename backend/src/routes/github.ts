@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
 import { withTimeout } from '../lib/timeout';
+import { requireProjectPermission, requireTaskPermission } from '../lib/permissions';
 
 const router = Router();
 
@@ -78,6 +79,7 @@ router.post('/projects/:projectId/repository', async (req, res) => {
   try {
     const { repo_url, connected_by } = req.body as { repo_url?: string; connected_by?: string | null };
     if (!repo_url) return res.status(400).json({ error: 'Repository URL or owner/repo is required.' });
+    await requireProjectPermission(req.params.projectId, connected_by, 'can_manage_integrations');
     const parsed = parseRepo(repo_url);
     if (!parsed) return res.status(400).json({ error: 'Use a GitHub repository like owner/repo or https://github.com/owner/repo.' });
 
@@ -101,19 +103,21 @@ router.post('/projects/:projectId/repository', async (req, res) => {
     if (error) throw error;
     res.json({ repository: data });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.delete('/projects/:projectId/repository', async (req, res) => {
   try {
+    const actorId = typeof req.query.actor_id === 'string' ? req.query.actor_id : req.body?.actor_id;
+    await requireProjectPermission(req.params.projectId, actorId, 'can_manage_integrations');
     const { error } = await withTimeout(
       supabase.from('project_github_repositories').delete().eq('project_id', req.params.projectId),
     );
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
@@ -142,6 +146,7 @@ router.post('/tasks/:taskId/links', async (req, res) => {
     if (!issue_number && !branch_name && !pull_request_number) {
       return res.status(400).json({ error: 'Add an issue, branch, or pull request link.' });
     }
+    await requireTaskPermission(req.params.taskId, created_by, 'can_edit_tasks');
     const projectId = await taskProjectId(req.params.taskId);
     const repository = await projectRepo(projectId);
     if (!repository) return res.status(400).json({ error: 'Connect a GitHub repository first.' });
@@ -176,25 +181,28 @@ router.post('/tasks/:taskId/links', async (req, res) => {
     });
     res.json({ link: data });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.delete('/tasks/:taskId/links/:linkId', async (req, res) => {
   try {
+    const actorId = typeof req.query.actor_id === 'string' ? req.query.actor_id : req.body?.actor_id;
+    await requireTaskPermission(req.params.taskId, actorId, 'can_edit_tasks');
     const { error } = await withTimeout(
       supabase.from('task_github_links').delete().eq('id', req.params.linkId).eq('task_id', req.params.taskId),
     );
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.post('/tasks/:taskId/create-issue', async (req, res) => {
   try {
     const { created_by } = req.body as { created_by?: string | null };
+    await requireTaskPermission(req.params.taskId, created_by, 'can_edit_tasks');
     const { data: task, error: taskError } = await withTimeout(supabase.from('tasks').select('*').eq('id', req.params.taskId).single());
     if (taskError) throw taskError;
     const repository = await projectRepo(task.project_id);
@@ -230,13 +238,14 @@ router.post('/tasks/:taskId/create-issue', async (req, res) => {
     await createActivity(req.params.taskId, created_by, 'github_issue_created', `Created GitHub issue #${issue.number}`, { issue_url: issue.html_url });
     res.json({ issue, link });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 
 router.post('/projects/:projectId/import-issues', async (req, res) => {
   try {
     const { created_by, state = 'open' } = req.body as { created_by?: string | null; state?: string };
+    await requireProjectPermission(req.params.projectId, created_by, 'can_edit_tasks');
     const repository = await projectRepo(req.params.projectId);
     if (!repository) return res.status(400).json({ error: 'Connect a GitHub repository first.' });
     const issues = await githubJson<Array<{ number: number; title: string; body: string | null; html_url: string; pull_request?: unknown }>>(
@@ -275,7 +284,7 @@ router.post('/projects/:projectId/import-issues', async (req, res) => {
     }
     res.json({ tasks: createdTasks });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status ?? 500).json({ error: error.message });
   }
 });
 

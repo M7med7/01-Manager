@@ -49,7 +49,7 @@ function Badge({ text, colorClass }: { text: string; colorClass: string }) {
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/[0.03] p-6 ${className}`}>
+    <div className={`rounded-2xl border border-white/10 bg-white/3 p-6 ${className}`}>
       {children}
     </div>
   );
@@ -64,8 +64,8 @@ function FormatButton({
     <button
       onClick={onSelect}
       className={`flex flex-col gap-1 rounded-xl border px-5 py-4 text-left transition-all ${selected
-          ? "border-purple-500/60 bg-purple-500/10 text-white"
-          : "border-white/10 bg-white/2 text-gray-400 hover:border-white/20 hover:text-gray-300"
+        ? "border-purple-500/60 bg-purple-500/10 text-white"
+        : "border-white/10 bg-white/2 text-gray-400 hover:border-white/20 hover:text-gray-300"
         }`}
     >
       <span className="text-sm font-semibold">{label}</span>
@@ -282,8 +282,8 @@ export function MigrationPage() {
             key={t}
             onClick={() => handleTabChange(t)}
             className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === t
-                ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
-                : "text-gray-400 hover:text-white"
+              ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
+              : "text-gray-400 hover:text-white"
               }`}
           >
             {t === "export" ? <Download className="h-4 w-4" /> : <Upload className="h-4 w-4" />}

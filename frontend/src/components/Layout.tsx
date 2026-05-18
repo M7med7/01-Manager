@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight } from "lucide-react";
+import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight, Map, Search } from "lucide-react";
 import { Logo } from "./Logo";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
@@ -35,6 +35,7 @@ export function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [showPreferences, setShowPreferences] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +48,7 @@ export function Layout() {
   useEffect(() => {
     const userId = session?.user.id;
     if (!userId) return;
-    api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => {});
+    api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => { });
   }, [session?.user.id]);
 
   const refreshNotifications = useCallback(() => {
@@ -59,7 +60,7 @@ export function Layout() {
         setUnreadCount(data.unread_count);
         setPreferences(data.preferences);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export function Layout() {
     const refresh = () => {
       const userId = session?.user.id;
       if (!userId) return;
-      api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => {});
+      api.users.getProfile(userId).then(({ profile }) => setAvatarUrl(profile.avatar_url)).catch(() => { });
     };
     window.addEventListener('userProfileUpdated', refresh);
     return () => window.removeEventListener('userProfileUpdated', refresh);
@@ -133,7 +134,7 @@ export function Layout() {
 
   const openNotification = async (item: AppNotification) => {
     if (!item.read_at) {
-      await api.notifications.markRead(item.id, true).catch(() => {});
+      await api.notifications.markRead(item.id, true).catch(() => { });
       setNotifications((current) => current.map((n) => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n));
       setUnreadCount((count) => Math.max(0, count - 1));
     }
@@ -162,6 +163,13 @@ export function Layout() {
     setPreferences(saved);
   };
 
+  const submitGlobalSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = globalSearch.trim();
+    navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
+    setGlobalSearch("");
+  };
+
   return (
     <div className="w-full h-dvh flex flex-col bg-black text-white relative overflow-hidden">
       <GridBackground isAIActive={isAIActive} />
@@ -169,6 +177,16 @@ export function Layout() {
       {/* Full-viewport-width header */}
       <header className="h-14 shrink-0 border-b border-white/10 bg-black/35 backdrop-blur-sm flex items-center justify-center relative z-30 overflow-visible">
         <img src={logoUrl} alt="01 Manager" className="h-40 w-auto object-contain pointer-events-none" />
+
+        <form onSubmit={submitGlobalSearch} className="absolute left-4 top-1/2 hidden w-[320px] -translate-y-1/2 md:block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <input
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            placeholder="Search projects, tasks, files..."
+            className="w-full rounded-xl border border-white/10 bg-black/35 py-2 pl-9 pr-3 text-sm text-white outline-none placeholder-gray-600 transition-colors focus:border-purple-500/50"
+          />
+        </form>
 
         {/* Profile — absolute right so logo stays centered */}
         <div className="absolute right-4 top-0 h-full flex items-center gap-2">
@@ -238,7 +256,7 @@ export function Layout() {
                         <button
                           key={item.id}
                           onClick={() => openNotification(item)}
-                          className={`mb-1 w-full rounded-xl border px-3 py-3 text-left transition-colors ${item.read_at ? "border-white/5 bg-white/[0.02] text-gray-400" : "border-purple-500/30 bg-purple-900/20 text-white"}`}
+                          className={`mb-1 w-full rounded-xl border px-3 py-3 text-left transition-colors ${item.read_at ? "border-white/5 bg-white/2 text-gray-400" : "border-purple-500/30 bg-purple-900/20 text-white"}`}
                         >
                           <div className="flex items-start gap-2">
                             {!item.read_at && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-purple-400" />}
@@ -268,149 +286,166 @@ export function Layout() {
             </AnimatePresence>
           </div>
 
-        <div className="h-full flex items-center" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-white/8 transition-colors duration-200"
-          >
-            <div className="h-8 w-8 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shadow-md shadow-purple-500/30 shrink-0 overflow-hidden">
-              {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
-            </div>
-            <span className="hidden sm:block max-w-[120px] truncate text-sm font-medium text-gray-300">
-              {displayName}
-            </span>
-          </button>
+          <div className="h-full flex items-center" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-white/8 transition-colors duration-200"
+            >
+              <div className="h-8 w-8 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shadow-md shadow-purple-500/30 shrink-0 overflow-hidden">
+                {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
+              </div>
+              <span className="hidden sm:block max-w-[120px] truncate text-sm font-medium text-gray-300">
+                {displayName}
+              </span>
+            </button>
 
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
-              >
-                {/* User info */}
-                <div className="px-4 py-3 border-b border-white/8">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
-                      {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                      <p className="truncate text-xs text-gray-500">{email}</p>
-                    </div>
-                    {!editingProfile && (
-                      <button
-                        onClick={openEdit}
-                        className="shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
-                        title="Edit profile"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Inline profile edit form */}
-                <AnimatePresence>
-                  {editingProfile && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="overflow-hidden border-b border-white/8"
-                    >
-                      <div className="px-4 py-3 space-y-2.5">
-                        <div>
-                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Name</label>
-                          <input
-                            value={nameInput}
-                            onChange={(e) => setNameInput(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
-                            placeholder="Your full name"
-                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Phone</label>
-                          <input
-                            value={phoneInput}
-                            onChange={(e) => setPhoneInput(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
-                            placeholder="+966 5x xxx xxxx"
-                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Email</label>
-                          <p className="px-3 py-2 bg-white/3 border border-white/5 rounded-lg text-sm text-gray-500 truncate">{email}</p>
-                        </div>
-                        {saveError && <p className="text-xs text-red-400">{saveError}</p>}
-                        <div className="flex gap-2 pt-0.5">
-                          <button
-                            onClick={() => setEditingProfile(false)}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
-                          >
-                            <X className="h-3 w-3" /> Cancel
-                          </button>
-                          <button
-                            onClick={handleSaveProfile}
-                            disabled={saving}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs text-white font-semibold transition-colors disabled:opacity-50"
-                          >
-                            {saving ? (
-                              <div className="h-3 w-3 border border-white/50 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              <Check className="h-3 w-3" />
-                            )}
-                            Save
-                          </button>
-                        </div>
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+                >
+                  {/* User info */}
+                  <div className="px-4 py-3 border-b border-white/8">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-linear-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                        {avatarUrl ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" /> : initials}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                        <p className="truncate text-xs text-gray-500">{email}</p>
+                      </div>
+                      {!editingProfile && (
+                        <button
+                          onClick={openEdit}
+                          className="shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                          title="Edit profile"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Actions */}
-                <div className="p-1.5 flex flex-col">
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate("/profile");
-                    }}
-                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors duration-150"
-                  >
-                    <Users className="h-4 w-4 shrink-0" />
-                    View profile
-                  </button>
-                  <div className="h-px w-full bg-white/10 my-1"></div>
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors duration-150"
-                  >
-                    <LogOut className="h-4 w-4 shrink-0" />
-                    Sign out
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                  {/* Inline profile edit form */}
+                  <AnimatePresence>
+                    {editingProfile && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden border-b border-white/8"
+                      >
+                        <div className="px-4 py-3 space-y-2.5">
+                          <div>
+                            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Name</label>
+                            <input
+                              value={nameInput}
+                              onChange={(e) => setNameInput(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+                              placeholder="Your full name"
+                              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Phone</label>
+                            <input
+                              value={phoneInput}
+                              onChange={(e) => setPhoneInput(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+                              placeholder="+966 5x xxx xxxx"
+                              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Email</label>
+                            <p className="px-3 py-2 bg-white/3 border border-white/5 rounded-lg text-sm text-gray-500 truncate">{email}</p>
+                          </div>
+                          {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+                          <div className="flex gap-2 pt-0.5">
+                            <button
+                              onClick={() => setEditingProfile(false)}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+                            >
+                              <X className="h-3 w-3" /> Cancel
+                            </button>
+                            <button
+                              onClick={handleSaveProfile}
+                              disabled={saving}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs text-white font-semibold transition-colors disabled:opacity-50"
+                            >
+                              {saving ? (
+                                <div className="h-3 w-3 border border-white/50 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <Check className="h-3 w-3" />
+                              )}
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Actions */}
+                  <div className="p-1.5 flex flex-col">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/profile");
+                      }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors duration-150"
+                    >
+                      <Users className="h-4 w-4 shrink-0" />
+                      View profile
+                    </button>
+                    <div className="h-px w-full bg-white/10 my-1"></div>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors duration-150"
+                    >
+                      <LogOut className="h-4 w-4 shrink-0" />
+                      Sign out
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </header>
 
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
-      <aside className="w-64 bg-black/60 border-r border-white/10 flex flex-col relative z-20">
-        <div className="px-6 py-6 border-b border-white/10">
-          <Logo />
-        </div>
+        <aside className="w-64 bg-black/60 border-r border-white/10 flex flex-col relative z-20">
+          <div className="px-6 py-6 border-b border-white/10">
+            <Logo />
+          </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${isActive ? "text-white border border-white/10" : "text-gray-400"
+                }`
+              }
+            >
+              <motion.div
+                className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+              <FolderOpen className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Projects</span>
+          </NavLink>
+
           <NavLink
-            to="/"
-            end
+            to="/search"
             className={({ isActive }) =>
               `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
                 isActive ? "text-white border border-white/10" : "text-gray-400"
@@ -423,89 +458,103 @@ export function Layout() {
               whileHover={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             />
-            <FolderOpen className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
-            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Projects</span>
+            <Search className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Search</span>
+          </NavLink>
+
+          <NavLink
+            to="/roadmap"
+            className={({ isActive }) =>
+              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
+                isActive ? "text-white border border-white/10" : "text-gray-400"
+              }`
+            }
+          >
+            <motion.div
+              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileHover={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+            <Map className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Roadmap</span>
           </NavLink>
 
           <NavLink
             to="/board"
             className={({ isActive }) =>
-              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
-                isActive ? "text-white border border-white/10" : "text-gray-400"
-              }`
-            }
-          >
-            <motion.div
-              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
-            <Calendar className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
-            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Board</span>
-          </NavLink>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${isActive ? "text-white border border-white/10" : "text-gray-400"
+                }`
+              }
+            >
+              <motion.div
+                className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+              <Calendar className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Board</span>
+            </NavLink>
 
-          <NavLink
-            to="/team"
-            className={({ isActive }) =>
-              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
-                isActive ? "text-white border border-white/10" : "text-gray-400"
-              }`
-            }
-          >
-            <motion.div
-              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
-            <Users className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
-            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Team</span>
-          </NavLink>
+            <NavLink
+              to="/team"
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${isActive ? "text-white border border-white/10" : "text-gray-400"
+                }`
+              }
+            >
+              <motion.div
+                className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+              <Users className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Team</span>
+            </NavLink>
 
-          <NavLink
-            to="/create"
-            className={({ isActive }) =>
-              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
-                isActive ? "text-white border border-white/10" : "text-gray-400"
-              }`
-            }
-          >
-            <motion.div
-              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
-            <Plus className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
-            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Create Project</span>
-          </NavLink>
+            <NavLink
+              to="/create"
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${isActive ? "text-white border border-white/10" : "text-gray-400"
+                }`
+              }
+            >
+              <motion.div
+                className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+              <Plus className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Create Project</span>
+            </NavLink>
 
-          <NavLink
-            to="/migrate"
-            className={({ isActive }) =>
-              `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${
-                isActive ? "text-white border border-white/10" : "text-gray-400"
-              }`
-            }
-          >
-            <motion.div
-              className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
-            <ArrowLeftRight className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
-            <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Migration</span>
-          </NavLink>
-        </nav>
-      </aside>
+            <NavLink
+              to="/migrate"
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group ${isActive ? "text-white border border-white/10" : "text-gray-400"
+                }`
+              }
+            >
+              <motion.div
+                className="absolute inset-0 bg-linear-to-r from-purple-900 to-black rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+              <ArrowLeftRight className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">Migration</span>
+            </NavLink>
+          </nav>
+        </aside>
 
-      <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "bg-black/45 backdrop-blur-sm" : "bg-black/10"}`}>
-        <main className="flex-1 min-h-0 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
+        <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "bg-black/45 backdrop-blur-sm" : "bg-black/10"}`}>
+          <main className="flex-1 min-h-0 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );

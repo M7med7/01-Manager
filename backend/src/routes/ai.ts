@@ -87,6 +87,31 @@ async function fetchMemberData(databaseMembers: string[]): Promise<Record<string
   return memberDataMap;
 }
 
+async function estimateHistoryHint(): Promise<string> {
+  try {
+    const { data } = await withTimeout(
+      supabase
+        .from('tasks')
+        .select('estimated_days, title, assigned_tech, time_entries(minutes)')
+        .eq('status', 'Done')
+        .limit(80),
+      4_000,
+    );
+    const ratios: number[] = [];
+    for (const task of data ?? []) {
+      const actualMinutes = ((task as any).time_entries ?? []).reduce((sum: number, entry: any) => sum + Number(entry.minutes || 0), 0);
+      const estimatedMinutes = Number(task.estimated_days || 0) * 8 * 60;
+      if (actualMinutes > 0 && estimatedMinutes > 0) ratios.push(actualMinutes / estimatedMinutes);
+    }
+    if (ratios.length < 3) return '';
+    const avg = ratios.reduce((sum, value) => sum + value, 0) / ratios.length;
+    const percent = Math.round(avg * 100);
+    return `\n\nHistorical planning data: completed tasks with time tracking averaged ${percent}% of the original estimated effort. Use this as a calibration signal when choosing estimated_days; do not overfit a single task.`;
+  } catch {
+    return '';
+  }
+}
+
 function buildMemberProfiles(databaseMembers: string[], memberDataMap: Record<string, MemberData>): MemberProfile[] {
   return databaseMembers
     .map((userId) => {
@@ -234,10 +259,11 @@ router.post('/generate', async (req, res) => {
 
     const { durationValue, durationUnit, totalDays, durationWeeks } = parseDuration(duration, duration_unit);
 
+    const historyHint = await estimateHistoryHint();
     const schedule = await generateSchedule({
       projectId,
       projectName: name,
-      description,
+      description: `${description}${historyHint}`,
       durationValue,
       durationUnit,
       teamMembers: scheduleMembers,

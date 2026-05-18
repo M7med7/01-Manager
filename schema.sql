@@ -33,9 +33,51 @@ CREATE TABLE team_assignments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT DEFAULT 'Member' CHECK (role IN ('Owner', 'Admin', 'Member', 'Viewer')),
+  role TEXT DEFAULT 'Member' CHECK (role IN ('Owner', 'Admin', 'Member', 'Guest')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(project_id, user_id)
+);
+
+CREATE TABLE project_invitations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT DEFAULT 'Member' CHECK (role IN ('Owner', 'Admin', 'Member', 'Guest')),
+  invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(project_id, email)
+);
+
+CREATE TABLE project_client_shares (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  settings JSONB DEFAULT '{
+    "show_tasks": true,
+    "show_milestones": true,
+    "show_completed_tasks": true,
+    "show_current_tasks": true,
+    "show_upcoming_tasks": true,
+    "show_internal_risks": false,
+    "allow_client_comments": false,
+    "brand_label": ""
+  }'::jsonb,
+  is_active BOOLEAN DEFAULT true,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  revoked_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE project_client_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  share_id UUID REFERENCES project_client_shares(id) ON DELETE CASCADE NOT NULL,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  author_name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Tasks table
@@ -145,6 +187,20 @@ CREATE TABLE project_slack_integrations (
   last_summary_sent_at TIMESTAMP WITH TIME ZONE,
   last_error TEXT,
   connected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE time_entries (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE NOT NULL,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  start_time TIMESTAMP WITH TIME ZONE,
+  end_time TIMESTAMP WITH TIME ZONE,
+  minutes INTEGER DEFAULT 0 NOT NULL,
+  note TEXT,
+  source TEXT DEFAULT 'manual' CHECK (source IN ('timer', 'manual')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -274,6 +330,9 @@ CREATE TABLE audit_logs (
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_client_shares ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_client_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_dependencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE technology_recommendations ENABLE ROW LEVEL SECURITY;
@@ -283,6 +342,9 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow authenticated users full access to users" ON users FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to projects" ON projects FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to team_assignments" ON team_assignments FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated users full access to project_invitations" ON project_invitations FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated users full access to project_client_shares" ON project_client_shares FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated users full access to project_client_comments" ON project_client_comments FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to tasks" ON tasks FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to task_dependencies" ON task_dependencies FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated users full access to technology_recommendations" ON technology_recommendations FOR ALL USING (auth.role() = 'authenticated');

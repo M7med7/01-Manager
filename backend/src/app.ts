@@ -13,6 +13,10 @@ import slackRoutes from './routes/slack';
 import importsRoutes from './routes/imports';
 import healthRoutes from './routes/health';
 import reportRoutes from './routes/report';
+import timeRoutes from './routes/time';
+import portfolioRoutes from './routes/portfolio';
+import clientRoutes from './routes/client';
+import searchRoutes from './routes/search';
 
 dotenv.config();
 
@@ -50,6 +54,10 @@ app.use('/api/slack', slackRoutes);
 app.use('/api/imports', importsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/time', timeRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/client', clientRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });

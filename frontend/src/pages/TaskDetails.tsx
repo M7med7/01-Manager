@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, type CSSProperties } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Sparkles, UserPlus, UserMinus, Users, CheckCircle2, Circle, Clock, Tag, LayoutGrid, List, Filter, AlertTriangle, BookmarkPlus, Download, Github, Link2, UploadCloud, CalendarPlus, MessageCircle } from "lucide-react";
+import { useParams, Link, useLocation } from "react-router-dom";
+import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Sparkles, UserPlus, UserMinus, Users, CheckCircle2, Circle, Clock, Tag, LayoutGrid, List, Filter, AlertTriangle, BookmarkPlus, Download, Github, Link2, UploadCloud, CalendarPlus, MessageCircle, Timer, Share2, Copy, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { api, type Project, type Task, type ProjectMember, type User, type GitHubRepository, type CalendarConnection, type TaskCalendarEvent, type SlackIntegration } from "../lib/api";
+import { api, type Project, type Task, type ProjectMember, type User, type GitHubRepository, type CalendarConnection, type TaskCalendarEvent, type SlackIntegration, type TimeEntry, type TaskTimeSummary, type ProjectPermissions, type ProjectInvitation, type ProjectRole, type ProjectClientShare, type ClientShareSettings } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { TaskDetailPanel } from "../components/TaskDetailPanel";
 import { AddTaskForm } from "../components/AddTaskForm";
@@ -42,6 +42,17 @@ const KANBAN_COLUMNS = [
 ] as const;
 
 type ProjectView = "list" | "kanban";
+
+const DEFAULT_CLIENT_SETTINGS: ClientShareSettings = {
+  show_tasks: true,
+  show_milestones: true,
+  show_completed_tasks: true,
+  show_current_tasks: true,
+  show_upcoming_tasks: true,
+  show_internal_risks: false,
+  allow_client_comments: false,
+  brand_label: "",
+};
 
 function recomputeBlockers(tasks: Task[]): Task[] {
   const statusById = new Map(tasks.map((task) => [task.id, task.status]));
@@ -89,6 +100,32 @@ function statusLabel(status: string): string {
   return status === "In Review" ? "Review" : status;
 }
 
+function formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function downloadText(filename: string, text: string, type: string) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function weekLabel(iso: string | null): string {
+  const date = iso ? new Date(iso) : new Date();
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date);
+  monday.setDate(diff);
+  return monday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function startOfToday(): Date {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -96,12 +133,19 @@ function startOfToday(): Date {
 
 export function TaskDetails() {
   const { taskId } = useParams<{ taskId: string }>();
+  const location = useLocation();
   const { session } = useAuth();
   const currentUserId = session?.user.id;
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [permissions, setPermissions] = useState<ProjectPermissions | null>(null);
+  const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [clientShares, setClientShares] = useState<ProjectClientShare[]>([]);
+  const [clientShareSettings, setClientShareSettings] = useState<ClientShareSettings>(DEFAULT_CLIENT_SETTINGS);
+  const [clientShareLoading, setClientShareLoading] = useState(false);
+  const [clientShareError, setClientShareError] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +153,9 @@ export function TaskDetails() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<ProjectRole>("Member");
+  const [memberError, setMemberError] = useState<string | null>(null);
   const [assignDropdownId, setAssignDropdownId] = useState<string | null>(null);
   const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -133,6 +180,10 @@ export function TaskDetails() {
   const [slackChannelInput, setSlackChannelInput] = useState("");
   const [slackLoading, setSlackLoading] = useState(false);
   const [slackError, setSlackError] = useState<string | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeTasks, setTimeTasks] = useState<TaskTimeSummary[]>([]);
+  const [timeTotals, setTimeTotals] = useState<{ actual_minutes: number; estimated_minutes: number; estimate_accuracy: number | null } | null>(null);
+  const [timeError, setTimeError] = useState<string | null>(null);
   const [taskPanelWidth, setTaskPanelWidth] = useState(440);
   const panelDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const [filters, setFilters] = useState({
@@ -144,11 +195,15 @@ export function TaskDetails() {
 
   useEffect(() => {
     if (!taskId) return;
-    Promise.all([api.projects.get(taskId), api.users.list()])
+    Promise.all([api.projects.get(taskId, currentUserId), api.users.list()])
       .then(([pd, ud]) => {
         setProject(pd.project);
         setTasks(pd.tasks);
+        const focusedTaskId = new URLSearchParams(location.search).get("task");
+        if (focusedTaskId && pd.tasks.some((task) => task.id === focusedTaskId)) setSelectedTaskId(focusedTaskId);
         setMembers(pd.members ?? []);
+        setPermissions(pd.permissions ?? null);
+        setInvitations(pd.invitations ?? []);
         setAllUsers(ud.users);
         api.github.getRepository(taskId)
           .then((data) => setGithubRepo(data.repository))
@@ -167,10 +222,26 @@ export function TaskDetails() {
             setSlackChannelInput(data.integration?.channel_name ?? "");
           })
           .catch(() => setSlackError("Slack integration is not configured yet."));
+        api.time.project(taskId)
+          .then((data) => {
+            setTimeEntries(data.entries);
+            setTimeTasks(data.tasks);
+            setTimeTotals(data.totals);
+          })
+          .catch(() => setTimeError("Time tracking is not available yet."));
+        if (pd.permissions?.can_manage_project) {
+          api.clientShares.list(taskId, currentUserId)
+            .then((data) => {
+              setClientShares(data.shares);
+              const active = data.shares.find((share) => share.is_active);
+              if (active) setClientShareSettings({ ...DEFAULT_CLIENT_SETTINGS, ...active.settings });
+            })
+            .catch(() => setClientShareError("Client sharing is not configured yet."));
+        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [taskId, currentUserId]);
+  }, [taskId, currentUserId, location.search]);
 
   const scheduleMap = buildDependencyAwareSchedule(tasks);
   const doneTasks = tasks.filter((t) => t.status === "Done").length;
@@ -179,6 +250,20 @@ export function TaskDetails() {
   const blockedTasks = tasks.filter((t) => t.is_blocked);
   const todayStart = startOfToday();
   const projectRisk = project ? scoreProjectHealth(project, tasks, members, scheduleMap) : null;
+  const weeklyTimesheet = Array.from(timeEntries.reduce((map, entry) => {
+    const key = weekLabel(entry.start_time);
+    map.set(key, (map.get(key) ?? 0) + Number(entry.minutes || 0));
+    return map;
+  }, new Map<string, number>()).entries()).slice(0, 6);
+  const canManageMembers = Boolean(permissions?.can_manage_members);
+  const canManageIntegrations = Boolean(permissions?.can_manage_integrations);
+  const canManageProject = Boolean(permissions?.can_manage_project);
+  const canEditTasks = Boolean(permissions?.can_edit_tasks);
+  const canExportProject = Boolean(permissions?.can_export);
+  const canViewCapacity = permissions?.can_view_capacity !== false;
+  const roleLabel = permissions?.role ?? "No project role";
+  const activeClientShare = clientShares.find((share) => share.is_active) ?? null;
+  const clientShareUrl = activeClientShare ? `${window.location.origin}/client/${activeClientShare.token}` : "";
 
   const isOverdue = (task: Task) => {
     if (task.status === "Done") return false;
@@ -230,7 +315,7 @@ export function TaskDetails() {
   };
 
   const connectGithubRepo = async () => {
-    if (!taskId || !githubRepoInput.trim() || githubLoading) return;
+    if (!taskId || !githubRepoInput.trim() || githubLoading || !canManageIntegrations) return;
     setGithubLoading(true);
     setGithubError(null);
     try {
@@ -249,11 +334,11 @@ export function TaskDetails() {
   };
 
   const disconnectGithubRepo = async () => {
-    if (!taskId || githubLoading) return;
+    if (!taskId || githubLoading || !canManageIntegrations) return;
     setGithubLoading(true);
     setGithubError(null);
     try {
-      await api.github.disconnectRepository(taskId);
+      await api.github.disconnectRepository(taskId, currentUserId);
       setGithubRepo(null);
       showToast("GitHub repository disconnected");
     } catch (err) {
@@ -264,7 +349,7 @@ export function TaskDetails() {
   };
 
   const importGithubIssues = async () => {
-    if (!taskId || githubLoading) return;
+    if (!taskId || githubLoading || !canEditTasks) return;
     setGithubLoading(true);
     setGithubError(null);
     try {
@@ -325,7 +410,7 @@ export function TaskDetails() {
   };
 
   const updateCalendarSettings = async (patch: Partial<CalendarConnection>) => {
-    if (!currentUserId || !calendarConnection) return;
+    if (!currentUserId || !calendarConnection || !canManageIntegrations) return;
     setCalendarLoading(true);
     setCalendarError(null);
     try {
@@ -340,7 +425,7 @@ export function TaskDetails() {
   };
 
   const disconnectCalendar = async () => {
-    if (!currentUserId || calendarLoading) return;
+    if (!currentUserId || calendarLoading || !canManageIntegrations) return;
     setCalendarLoading(true);
     setCalendarError(null);
     try {
@@ -356,7 +441,7 @@ export function TaskDetails() {
   };
 
   const connectSlack = async () => {
-    if (!taskId || !slackWebhookInput.trim() || slackLoading) return;
+    if (!taskId || !slackWebhookInput.trim() || slackLoading || !canManageIntegrations) return;
     setSlackLoading(true);
     setSlackError(null);
     try {
@@ -377,11 +462,11 @@ export function TaskDetails() {
   };
 
   const updateSlackSettings = async (patch: Partial<SlackIntegration>) => {
-    if (!taskId || !slackIntegration || slackLoading) return;
+    if (!taskId || !slackIntegration || slackLoading || !canManageIntegrations) return;
     setSlackLoading(true);
     setSlackError(null);
     try {
-      const { integration } = await api.slack.updateProject(taskId, patch);
+      const { integration } = await api.slack.updateProject(taskId, { ...patch, actor_id: currentUserId ?? null });
       setSlackIntegration(integration);
       setSlackChannelInput(integration.channel_name ?? "");
     } catch (err) {
@@ -392,11 +477,11 @@ export function TaskDetails() {
   };
 
   const disconnectSlack = async () => {
-    if (!taskId || slackLoading) return;
+    if (!taskId || slackLoading || !canManageIntegrations) return;
     setSlackLoading(true);
     setSlackError(null);
     try {
-      await api.slack.disconnectProject(taskId);
+      await api.slack.disconnectProject(taskId, currentUserId);
       setSlackIntegration(null);
       showToast("Slack disconnected");
     } catch (err) {
@@ -407,11 +492,11 @@ export function TaskDetails() {
   };
 
   const sendSlackSummary = async () => {
-    if (!taskId || slackLoading) return;
+    if (!taskId || slackLoading || !canManageIntegrations) return;
     setSlackLoading(true);
     setSlackError(null);
     try {
-      const result = await api.slack.sendSummary(taskId);
+      const result = await api.slack.sendSummary(taskId, currentUserId);
       showToast(result.sent ? "Slack summary sent" : result.reason ?? "Slack summary skipped");
     } catch (err) {
       setSlackError(err instanceof Error ? err.message : "Could not send Slack summary");
@@ -420,27 +505,107 @@ export function TaskDetails() {
     }
   };
 
+  const refreshProjectTime = async () => {
+    if (!taskId) return;
+    try {
+      const data = await api.time.project(taskId);
+      setTimeEntries(data.entries);
+      setTimeTasks(data.tasks);
+      setTimeTotals(data.totals);
+    } catch (err) {
+      setTimeError(err instanceof Error ? err.message : "Could not refresh time tracking");
+    }
+  };
+
+  const exportTimesheet = (format: "csv" | "xlsx") => {
+    if (!project) return;
+    const rows = [
+      ["Task", "Status", "Estimated hours", "Actual hours", "Accuracy"],
+      ...timeTasks.map((task) => [
+        task.title,
+        task.status,
+        (task.estimated_minutes / 60).toFixed(2),
+        (task.actual_minutes / 60).toFixed(2),
+        task.estimate_accuracy === null ? "" : `${task.estimate_accuracy}%`,
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    downloadText(`${project.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-timesheet.${format === "csv" ? "csv" : "xls"}`, csv, format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.ms-excel");
+  };
+
   const handleAddMember = async (userId: string) => {
     if (!taskId) return;
+    setMemberError(null);
     setMemberActionId(userId);
     try {
-      await api.projects.addMember(taskId, userId);
+      await api.projects.addMember(taskId, userId, inviteRole, currentUserId);
       const u = allUsers.find((x) => x.id === userId);
-      if (u) setMembers((p) => [...p, { user_id: userId, role: "Member", id: u.id, email: u.email, full_name: u.full_name, avatar_url: u.avatar_url }]);
+      if (u) setMembers((p) => [...p.filter((member) => member.user_id !== userId), { user_id: userId, role: inviteRole, id: u.id, email: u.email, full_name: u.full_name, avatar_url: u.avatar_url }]);
       setShowAddMember(false);
-    } catch { /* silent */ } finally { setMemberActionId(null); }
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : "Could not add member");
+    } finally { setMemberActionId(null); }
+  };
+
+  const handleInviteMember = async () => {
+    if (!taskId || !inviteEmail.trim()) return;
+    setMemberActionId("invite");
+    setMemberError(null);
+    try {
+      const result = await api.projects.inviteMember(taskId, {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        actor_id: currentUserId ?? null,
+      });
+      if (result.assigned && result.user) {
+        const invitedUser = result.user;
+        setMembers((current) => [
+          ...current.filter((member) => member.user_id !== invitedUser.id),
+          { user_id: invitedUser.id, role: result.role ?? inviteRole, id: invitedUser.id, email: invitedUser.email, full_name: invitedUser.full_name, avatar_url: invitedUser.avatar_url },
+        ]);
+        showToast("Member added");
+      } else if (result.invitation) {
+        setInvitations((current) => [...current.filter((item) => item.id !== result.invitation!.id), result.invitation!]);
+        showToast("Invitation saved");
+      }
+      setInviteEmail("");
+      setShowAddMember(false);
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : "Could not invite member");
+    } finally {
+      setMemberActionId(null);
+    }
+  };
+
+  const handleChangeMemberRole = async (userId: string, role: ProjectRole) => {
+    if (!taskId) return;
+    setMemberActionId(userId);
+    setMemberError(null);
+    try {
+      await api.projects.updateMemberRole(taskId, userId, role, currentUserId);
+      setMembers((current) => current.map((member) => member.user_id === userId ? { ...member, role } : member));
+      showToast("Role updated");
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : "Could not update role");
+    } finally {
+      setMemberActionId(null);
+    }
   };
 
   const handleRemoveMember = async (userId: string) => {
     if (!taskId) return;
+    setMemberError(null);
     setMemberActionId(userId);
     try {
-      await api.projects.removeMember(taskId, userId);
+      await api.projects.removeMember(taskId, userId, currentUserId);
       setMembers((p) => p.filter((m) => m.user_id !== userId));
-    } catch { /* silent */ } finally { setMemberActionId(null); }
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : "Could not remove member");
+    } finally { setMemberActionId(null); }
   };
 
   const handleAssignTask = async (tid: string, userId: string | null) => {
+    if (!canEditTasks) return;
     setAssigningTaskId(tid);
     try {
       await api.tasks.assign(tid, userId, currentUserId);
@@ -449,6 +614,7 @@ export function TaskDetails() {
   };
 
   const handleCompleteTask = async (tid: string, completed: boolean) => {
+    if (!canEditTasks) return;
     const target = tasks.find((t) => t.id === tid);
     if (completed && target?.is_blocked && !window.confirm(blockedWarning(target))) return;
     if (completed && target && incompleteQualityCount(target) > 0 && !window.confirm(qualityWarning(target))) return;
@@ -477,7 +643,7 @@ export function TaskDetails() {
 
   const handleStatusChange = async (tid: string, nextStatus: string) => {
     const task = tasks.find((t) => t.id === tid);
-    if (!task || task.status === nextStatus) return;
+    if (!task || task.status === nextStatus || !canEditTasks) return;
     if ((nextStatus === "In Progress" || nextStatus === "Done") && task.is_blocked && !window.confirm(blockedWarning(task))) {
       setDraggingTaskId(null);
       setDragOverStatus(null);
@@ -542,7 +708,8 @@ export function TaskDetails() {
   };
 
   const handleAddDependency = async (targetTaskId: string, blockerTaskId: string) => {
-    await api.tasks.addDependency(targetTaskId, blockerTaskId);
+    if (!canEditTasks) return;
+    await api.tasks.addDependency(targetTaskId, blockerTaskId, currentUserId);
     setTasks((current) => {
       const target = current.find((task) => task.id === targetTaskId);
       const blocker = current.find((task) => task.id === blockerTaskId);
@@ -563,7 +730,8 @@ export function TaskDetails() {
   };
 
   const handleRemoveDependency = async (targetTaskId: string, blockerTaskId: string) => {
-    await api.tasks.removeDependency(targetTaskId, blockerTaskId);
+    if (!canEditTasks) return;
+    await api.tasks.removeDependency(targetTaskId, blockerTaskId, currentUserId);
     setTasks((current) => recomputeBlockers(current.map((task) => {
       if (task.id === targetTaskId) {
         return { ...task, blocked_by: (task.blocked_by ?? []).filter((item) => item.id !== blockerTaskId) };
@@ -577,7 +745,7 @@ export function TaskDetails() {
   };
 
   const handleSaveTemplate = async () => {
-    if (!project || savingTemplate) return;
+    if (!project || savingTemplate || !canManageMembers) return;
     const name = window.prompt("Template name", `${project.name} Template`);
     if (name === null) return;
 
@@ -597,10 +765,65 @@ export function TaskDetails() {
   };
 
   const handleExport = (format: ExportFormat) => {
-    if (!project) return;
+    if (!project || !canExportProject) return;
     exportProject({ project, tasks, members, scheduleMap }, format);
     setShowExportMenu(false);
     showToast(`Exported ${format.toUpperCase()}`);
+  };
+
+  const createOrUpdateClientShare = async () => {
+    if (!taskId || !canManageProject) return;
+    setClientShareLoading(true);
+    setClientShareError(null);
+    try {
+      if (activeClientShare) {
+        const { share } = await api.clientShares.update(activeClientShare.id, {
+          actor_id: currentUserId ?? null,
+          settings: clientShareSettings,
+        });
+        setClientShares((current) => current.map((item) => item.id === share.id ? share : item));
+        showToast("Client view updated");
+      } else {
+        const { share } = await api.clientShares.create(taskId, {
+          actor_id: currentUserId ?? null,
+          settings: clientShareSettings,
+        });
+        setClientShares((current) => [share, ...current]);
+        showToast("Client link created");
+      }
+    } catch (err) {
+      setClientShareError(err instanceof Error ? err.message : "Could not save client link");
+    } finally {
+      setClientShareLoading(false);
+    }
+  };
+
+  const revokeClientShare = async () => {
+    if (!activeClientShare || !canManageProject) return;
+    setClientShareLoading(true);
+    setClientShareError(null);
+    try {
+      const { share } = await api.clientShares.update(activeClientShare.id, {
+        actor_id: currentUserId ?? null,
+        is_active: false,
+      });
+      setClientShares((current) => current.map((item) => item.id === share.id ? share : item));
+      showToast("Client link revoked");
+    } catch (err) {
+      setClientShareError(err instanceof Error ? err.message : "Could not revoke client link");
+    } finally {
+      setClientShareLoading(false);
+    }
+  };
+
+  const copyClientShare = async () => {
+    if (!clientShareUrl) return;
+    await navigator.clipboard.writeText(clientShareUrl).catch(() => undefined);
+    showToast("Client link copied");
+  };
+
+  const updateClientSetting = <K extends keyof ClientShareSettings>(key: K, value: ClientShareSettings[K]) => {
+    setClientShareSettings((current) => ({ ...current, [key]: value }));
   };
 
   const generateWeeklyReport = async () => {
@@ -687,7 +910,9 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setShowExportMenu((value) => !value)}
-                className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/50 hover:bg-purple-900/20"
+                disabled={!canExportProject}
+                title={!canExportProject ? "Guests cannot export this project" : undefined}
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/50 hover:bg-purple-900/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Download className="h-4 w-4" />
                 Export
@@ -718,16 +943,19 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 )}
               </AnimatePresence>
             </div>
-            <motion.button
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleSaveTemplate}
-              disabled={savingTemplate}
-              className="flex items-center justify-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/70 hover:bg-purple-800/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {savingTemplate ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-300 border-t-transparent" /> : <BookmarkPlus className="h-4 w-4" />}
-              Save as template
-            </motion.button>
+            <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-gray-300">{roleLabel}</span>
+            {canManageMembers && (
+              <motion.button
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleSaveTemplate}
+                disabled={savingTemplate}
+                className="flex items-center justify-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/70 hover:bg-purple-800/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingTemplate ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-300 border-t-transparent" /> : <BookmarkPlus className="h-4 w-4" />}
+                Save as template
+              </motion.button>
+            )}
           </div>
         </div>
 
@@ -786,10 +1014,139 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           </div>
         )}
 
+        {canViewCapacity && <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Timer className="h-5 w-5 text-purple-300" />
+              <div>
+                <h3 className="text-xl font-semibold">Planning Accuracy</h3>
+                <p className="mt-1 text-sm text-gray-500">Optional time tracking for better estimates and billing support</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => exportTimesheet("csv")} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-300 hover:border-purple-500/40">CSV</button>
+              <button onClick={() => exportTimesheet("xlsx")} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-300 hover:border-purple-500/40">Excel</button>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <div className="text-xs text-gray-500">Actual effort</div>
+              <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.actual_minutes ?? 0)}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <div className="text-xs text-gray-500">AI estimate</div>
+              <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.estimated_minutes ?? tasks.reduce((sum, task) => sum + Number(task.estimated_days || 0) * 8 * 60, 0))}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <div className="text-xs text-gray-500">Estimate accuracy</div>
+              <div className="mt-1 text-xl font-semibold text-white">{timeTotals?.estimate_accuracy === null || timeTotals?.estimate_accuracy === undefined ? "-" : `${timeTotals.estimate_accuracy}%`}</div>
+            </div>
+          </div>
+          {timeError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{timeError}</p>}
+          <div className="mt-4 max-h-52 overflow-y-auto rounded-xl border border-white/10">
+            {timeTasks.length === 0 ? (
+              <p className="p-4 text-center text-sm text-gray-600">No time tracked yet</p>
+            ) : timeTasks.slice(0, 8).map((task) => (
+              <button key={task.id} onClick={() => setSelectedTaskId(task.id)} className="grid w-full grid-cols-[1fr_auto_auto] gap-3 border-b border-white/5 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-white/5">
+                <span className="truncate text-gray-200">{task.title}</span>
+                <span className="text-gray-500">{formatMinutes(task.actual_minutes)}</span>
+                <span className="text-gray-500">{task.estimate_accuracy === null ? "-" : `${task.estimate_accuracy}%`}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Weekly timesheet</div>
+            {weeklyTimesheet.length === 0 ? (
+              <p className="text-sm text-gray-600">No weekly time entries yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {weeklyTimesheet.map(([week, minutes]) => (
+                  <div key={week} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Week of {week}</span>
+                    <span className="font-semibold text-white">{formatMinutes(minutes)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>}
+
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
           <h3 className="text-2xl mb-4 font-semibold">Description</h3>
           <p className="text-gray-300 text-lg leading-relaxed">{project.description}</p>
         </div>
+
+        {canManageProject && (
+          <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Share2 className="h-5 w-5 text-purple-300" />
+                <div>
+                  <h3 className="text-xl font-semibold">Client Portal</h3>
+                  <p className="mt-1 text-sm text-gray-500">Share clean progress without internal workload, private notes, or team capacity.</p>
+                </div>
+              </div>
+              {activeClientShare ? (
+                <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Active link</span>
+              ) : (
+                <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs text-gray-500">Not shared</span>
+              )}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                ["show_milestones", "Milestones"],
+                ["show_tasks", "Tasks"],
+                ["show_current_tasks", "Current tasks"],
+                ["show_upcoming_tasks", "Upcoming tasks"],
+                ["show_completed_tasks", "Completed tasks"],
+                ["show_internal_risks", "Shared risk note"],
+                ["allow_client_comments", "Client comments"],
+              ].map(([key, label]) => (
+                <label key={key} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                  {label}
+                  <input
+                    type="checkbox"
+                    checked={Boolean(clientShareSettings[key as keyof ClientShareSettings])}
+                    onChange={(e) => updateClientSetting(key as keyof ClientShareSettings, e.target.checked as ClientShareSettings[keyof ClientShareSettings])}
+                    className="h-4 w-4 accent-purple-500"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+              <input
+                value={clientShareSettings.brand_label}
+                onChange={(e) => updateClientSetting("brand_label", e.target.value)}
+                placeholder="Client-facing label, e.g. Weekly Project Status"
+                className="rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+              />
+              <button
+                onClick={createOrUpdateClientShare}
+                disabled={clientShareLoading}
+                className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
+              >
+                {clientShareLoading ? "Saving..." : activeClientShare ? "Update view" : "Create link"}
+              </button>
+            </div>
+
+            {activeClientShare && (
+              <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-black/25 p-3 md:flex-row md:items-center">
+                <div className="min-w-0 flex-1 truncate text-xs text-gray-400">{clientShareUrl}</div>
+                <button onClick={copyClientShare} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-200 hover:border-purple-500/40">
+                  <Copy className="h-3.5 w-3.5" /> Copy
+                </button>
+                <button onClick={revokeClientShare} disabled={clientShareLoading} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-900/20 disabled:opacity-40">
+                  <EyeOff className="h-3.5 w-3.5" /> Revoke
+                </button>
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-gray-500">Internal comments, capacity, time tracking, private AI chat, and internal risk details stay hidden by default.</p>
+            {clientShareError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{clientShareError}</p>}
+          </div>
+        )}
 
         <div className="min-w-0 rounded-2xl border border-white/20 bg-linear-to-br from-white/7 to-white/2 p-6 backdrop-blur-2xl">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -817,14 +1174,14 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={importGithubIssues}
-                    disabled={githubLoading}
+                    disabled={githubLoading || !canEditTasks}
                     className="inline-flex items-center gap-2 rounded-lg border border-purple-500/35 bg-purple-900/20 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-900/35 disabled:opacity-40"
                   >
                     <UploadCloud className="h-3.5 w-3.5" /> Import issues
                   </button>
                   <button
                     onClick={disconnectGithubRepo}
-                    disabled={githubLoading}
+                    disabled={githubLoading || !canManageIntegrations}
                     className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
                   >
                     Disconnect
@@ -839,19 +1196,21 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <input
                   value={githubRepoInput}
                   onChange={(e) => setGithubRepoInput(e.target.value)}
+                  disabled={!canManageIntegrations}
                   placeholder="owner/repo or https://github.com/owner/repo"
-                  className="w-full rounded-xl border border-white/10 bg-black/35 py-3 pl-10 pr-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  className="w-full rounded-xl border border-white/10 bg-black/35 py-3 pl-10 pr-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
                 />
               </div>
               <button
                 onClick={connectGithubRepo}
-                disabled={githubLoading || !githubRepoInput.trim()}
+                disabled={githubLoading || !githubRepoInput.trim() || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
                 {githubLoading ? "Connecting..." : "Connect repo"}
               </button>
             </div>
           )}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can manage project integrations.</p>}
           {githubError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{githubError}</p>}
         </div>
 
@@ -884,6 +1243,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     type="checkbox"
                     checked={calendarConnection.sync_enabled}
                     onChange={(e) => updateCalendarSettings({ sync_enabled: e.target.checked })}
+                    disabled={!canManageIntegrations}
                     className="h-4 w-4 accent-purple-500"
                   />
                 </label>
@@ -893,6 +1253,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     type="checkbox"
                     checked={calendarConnection.create_work_blocks}
                     onChange={(e) => updateCalendarSettings({ create_work_blocks: e.target.checked })}
+                    disabled={!canManageIntegrations}
                     className="h-4 w-4 accent-purple-500"
                   />
                 </label>
@@ -900,14 +1261,14 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => updateCalendarSettings({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })}
-                  disabled={calendarLoading}
+                  disabled={calendarLoading || !canManageIntegrations}
                   className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-purple-500/40 hover:bg-purple-900/20 disabled:opacity-40"
                 >
                   Use my timezone
                 </button>
                 <button
                   onClick={disconnectCalendar}
-                  disabled={calendarLoading}
+                  disabled={calendarLoading || !canManageIntegrations}
                   className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
                 >
                   Disconnect
@@ -918,7 +1279,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             <div className="space-y-3">
               <button
                 onClick={connectGoogleCalendar}
-                disabled={calendarLoading || !currentUserId}
+                disabled={calendarLoading || !currentUserId || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
                 {calendarLoading ? "Connecting..." : "Connect Google Calendar"}
@@ -926,6 +1287,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <p className="text-xs text-gray-500">Outlook Calendar support is planned next. Google Calendar is available now.</p>
             </div>
           )}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can change calendar sync settings.</p>}
           {calendarError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{calendarError}</p>}
         </div>
 
@@ -950,12 +1312,13 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   value={slackChannelInput}
                   onChange={(e) => setSlackChannelInput(e.target.value)}
                   onBlur={() => updateSlackSettings({ channel_name: slackChannelInput.trim() })}
+                  disabled={!canManageIntegrations}
                   placeholder="#project-channel"
-                  className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
                 />
                 <button
                   onClick={sendSlackSummary}
-                  disabled={slackLoading}
+                  disabled={slackLoading || !canManageIntegrations}
                   className="rounded-xl border border-purple-500/35 bg-purple-900/20 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-900/35 disabled:opacity-40"
                 >
                   Send summary
@@ -975,6 +1338,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                       type="checkbox"
                       checked={Boolean(slackIntegration[key as keyof SlackIntegration])}
                       onChange={(e) => updateSlackSettings({ [key]: e.target.checked } as Partial<SlackIntegration>)}
+                      disabled={!canManageIntegrations}
                       className="h-4 w-4 accent-purple-500"
                     />
                   </label>
@@ -984,6 +1348,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <select
                   value={slackIntegration.summary_frequency}
                   onChange={(e) => updateSlackSettings({ summary_frequency: e.target.value as SlackIntegration["summary_frequency"] })}
+                  disabled={!canManageIntegrations}
                   className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
                 >
                   <option value="weekly">Weekly summary</option>
@@ -992,7 +1357,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 </select>
                 <button
                   onClick={disconnectSlack}
-                  disabled={slackLoading}
+                  disabled={slackLoading || !canManageIntegrations}
                   className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-400 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-200 disabled:opacity-40"
                 >
                   Disconnect
@@ -1005,18 +1370,20 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <input
                 value={slackWebhookInput}
                 onChange={(e) => setSlackWebhookInput(e.target.value)}
+                disabled={!canManageIntegrations}
                 placeholder="Slack incoming webhook URL"
-                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
               />
               <input
                 value={slackChannelInput}
                 onChange={(e) => setSlackChannelInput(e.target.value)}
+                disabled={!canManageIntegrations}
                 placeholder="Channel name (optional)"
-                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
               />
               <button
                 onClick={connectSlack}
-                disabled={slackLoading || !slackWebhookInput.trim()}
+                disabled={slackLoading || !slackWebhookInput.trim() || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
                 {slackLoading ? "Connecting..." : "Connect Slack"}
@@ -1024,6 +1391,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <p className="text-xs text-gray-500">Microsoft Teams notifications can use the same webhook-style pattern later.</p>
             </div>
           )}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can manage Slack notifications.</p>}
           {slackError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{slackError}</p>}
         </div>
 
@@ -1031,16 +1399,40 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3"><Users className="w-5 h-5 text-purple-400" /><h3 className="text-2xl font-semibold">Team ({members.length})</h3></div>
-            <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }} onClick={() => setShowAddMember((v) => !v)} className="flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2 text-sm font-semibold text-white hover:border-purple-400/70 hover:bg-purple-800/40 transition-all">
-              <UserPlus className="h-4 w-4" /> Add member
-            </motion.button>
+            {canManageMembers && (
+              <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }} onClick={() => setShowAddMember((v) => !v)} className="flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2 text-sm font-semibold text-white hover:border-purple-400/70 hover:bg-purple-800/40 transition-all">
+                <UserPlus className="h-4 w-4" /> Invite member
+              </motion.button>
+            )}
           </div>
 
           <AnimatePresence>
-            {showAddMember && (
+            {showAddMember && canManageMembers && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mb-5 rounded-xl border border-purple-500/30 bg-black/50 p-4">
+                <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                  <input
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Invite by email"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  />
+                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as ProjectRole)} className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200 outline-none focus:border-purple-500/50">
+                    <option value="Admin">Admin</option>
+                    <option value="Member">Member</option>
+                    <option value="Guest">Guest</option>
+                    <option value="Owner">Owner</option>
+                  </select>
+                  <button
+                    onClick={handleInviteMember}
+                    disabled={memberActionId === "invite" || !inviteEmail.trim()}
+                    className="rounded-lg border border-purple-500/40 bg-purple-900/30 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
+                  >
+                    {memberActionId === "invite" ? "Inviting..." : "Invite"}
+                  </button>
+                </div>
+                {memberError && <p className="mb-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{memberError}</p>}
                 {availableToAdd.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-2">All users are already on this project.</p>
+                  <p className="text-sm text-gray-500 text-center py-2">No existing users available. Invite by email above.</p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {availableToAdd.map((user) => (
@@ -1055,9 +1447,23 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     ))}
                   </div>
                 )}
+                {invitations.length > 0 && (
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pending invitations</div>
+                    <div className="space-y-1">
+                      {invitations.map((invite) => (
+                        <div key={invite.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-xs text-gray-400">
+                          <span>{invite.email}</span>
+                          <span>{invite.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
+          {!canManageMembers && <p className="mb-4 text-xs text-gray-500">Only owners and admins can invite, remove, or change project roles.</p>}
 
           {members.length === 0 ? (
             <p className="text-sm text-gray-600 italic">No team members assigned yet.</p>
@@ -1068,11 +1474,28 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br ${GRADIENTS[i % GRADIENTS.length]} text-sm font-bold text-white`}>{getInitials(member.full_name, member.email)}</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-white">{member.full_name ?? member.email}</div>
-                    <div className="truncate text-xs text-gray-500">{member.role}</div>
+                    {canManageMembers ? (
+                      <select
+                        value={member.role}
+                        onChange={(e) => handleChangeMemberRole(member.user_id, e.target.value as ProjectRole)}
+                        disabled={memberActionId === member.user_id}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-xs text-gray-300 outline-none focus:border-purple-500/50 disabled:opacity-40"
+                      >
+                        <option value="Owner">Owner</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Member">Member</option>
+                        <option value="Guest">Guest</option>
+                      </select>
+                    ) : (
+                      <div className="truncate text-xs text-gray-500">{member.role}</div>
+                    )}
                   </div>
-                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleRemoveMember(member.user_id)} disabled={memberActionId === member.user_id} className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-gray-600 opacity-0 group-hover:opacity-100 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-400 transition-all disabled:opacity-30" aria-label={`Remove ${member.full_name ?? member.email}`}>
-                    {memberActionId === member.user_id ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" /> : <UserMinus className="h-3.5 w-3.5" />}
-                  </motion.button>
+                  {canManageMembers && (
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleRemoveMember(member.user_id)} disabled={memberActionId === member.user_id} className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-gray-600 opacity-0 group-hover:opacity-100 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-400 transition-all disabled:opacity-30" aria-label={`Remove ${member.full_name ?? member.email}`}>
+                      {memberActionId === member.user_id ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" /> : <UserMinus className="h-3.5 w-3.5" />}
+                    </motion.button>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -1125,7 +1548,11 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   <LayoutGrid className="h-3.5 w-3.5" /> Kanban
                 </button>
               </div>
-              <AddTaskForm projectId={taskId!} members={members} onCreated={handleTaskCreated} />
+              {canEditTasks ? (
+                <AddTaskForm projectId={taskId!} members={members} currentUserId={currentUserId} onCreated={handleTaskCreated} />
+              ) : (
+                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-gray-500">View-only role</span>
+              )}
             </div>
           </div>
 
@@ -1200,6 +1627,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                       onDragLeave={() => setDragOverStatus(null)}
                       onDrop={(e) => {
                         e.preventDefault();
+                        if (!canEditTasks) return;
                         const tid = e.dataTransfer.getData("text/task-id") || draggingTaskId;
                         if (tid) handleStatusChange(tid, column.status);
                       }}
@@ -1231,7 +1659,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                             return (
                               <motion.div
                                 key={task.id}
-                                draggable
+                                draggable={canEditTasks}
                                 onDragStart={(e) => {
                                   const dragEvent = e as unknown as React.DragEvent<HTMLDivElement>;
                                   setDraggingTaskId(task.id);
@@ -1337,7 +1765,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         </div>
 
                         {/* Assign button */}
-                        <button onClick={(e) => { e.stopPropagation(); setAssignDropdownId(isDropdownOpen ? null : task.id); }} disabled={assigningTaskId === task.id} className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-300 transition-all disabled:opacity-40">
+                        <button onClick={(e) => { e.stopPropagation(); if (canEditTasks) setAssignDropdownId(isDropdownOpen ? null : task.id); }} disabled={assigningTaskId === task.id || !canEditTasks} className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-300 transition-all disabled:opacity-40">
                           {assigningTaskId === task.id ? (
                             <div className="h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" />
                           ) : assignee ? (
@@ -1410,12 +1838,15 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             calendarConnection={calendarConnection}
             calendarEvents={calendarEvents.filter((event) => event.task_id === selectedTask.id)}
             currentUserId={currentUserId}
+            canEditTasks={canEditTasks}
+            canUploadFiles={Boolean(permissions?.can_upload_files)}
             onComplete={handleCompleteTask}
             onTaskUpdated={handleTaskUpdated}
             onCalendarEventsChange={(events) => setCalendarEvents((current) => [
               ...current.filter((event) => event.task_id !== selectedTask.id),
               ...events,
             ])}
+            onTimeChanged={refreshProjectTime}
             allTasks={tasks}
             onAddDependency={handleAddDependency}
             onRemoveDependency={handleRemoveDependency}
