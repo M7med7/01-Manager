@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertCircle, AlertTriangle, CheckCircle2, FolderOpen, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Plus, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { readLocalTeamMembers, saveLocalTeamMember, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
 import { useAuth } from "../contexts/AuthContext";
-import { computeCapacity, getInitials } from "../lib/teamUtils";
+import { computeCapacity, getInitials, type TeamMember } from "../lib/teamUtils";
+import { MemberCard } from "../components/MemberCard";
+import { SkillGapPanel } from "../components/SkillGapPanel";
+import { UnassignedTasksPanel } from "../components/UnassignedTasksPanel";
+import type { Task } from "../lib/api";
 
 const GRADIENTS = [
   "from-purple-600 to-purple-800",
@@ -15,45 +19,24 @@ const GRADIENTS = [
   "from-purple-500 to-purple-700",
 ];
 
-interface CompletedTaskInfo {
-  id: string;
-  title: string;
-  project_name: string | null;
-}
+const PER_MEMBER_SP_KEY = "team-member-max-sp";
 
-interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  phone?: string;
-  storyPoints: number;
-  avatar: string;
-  avatar_url?: string | null;
-  taskCount: number;
-  projectCount: number;
-  completedCount: number;
-  completedTasks: CompletedTaskInfo[];
-  gradient: string;
-  isLocal: boolean;
-  skills: string[];
-  experienceSummary: string | null;
-  cvParsedAt: string | null;
-}
-
-interface MemberFormData {
-  fullName: string;
-  email: string;
-  phone: string;
+function loadPerMemberMaxSP(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PER_MEMBER_SP_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
 }
 
 function mapUser(user: User, index: number): TeamMember {
-  const sp = user.total_estimated_days ?? 0;
   return {
     id: user.id,
     name: user.full_name ?? user.email,
     role: user.email,
     phone: user.phone ?? undefined,
-    storyPoints: sp,
+    storyPoints: user.total_estimated_days ?? 0,
     avatar: getInitials(user.full_name, user.email),
     avatar_url: user.avatar_url,
     taskCount: user.task_count,
@@ -93,11 +76,14 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
   };
 }
 
+interface MemberFormData {
+  fullName: string;
+  email: string;
+  phone: string;
+}
+
 function ConfirmDeleteModal({
-  memberName,
-  onConfirm,
-  onCancel,
-  deleting,
+  memberName, onConfirm, onCancel, deleting,
 }: {
   memberName: string;
   onConfirm: () => void;
@@ -153,52 +139,56 @@ function ConfirmDeleteModal({
 export function TeamCapacity() {
   const { session } = useAuth();
   const currentUserId = session?.user.id;
+
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [formData, setFormData] = useState<MemberFormData>({ fullName: "", email: "", phone: "" });
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [skillsVisible, setSkillsVisible] = useState(false);
   const [uploadingCVId, setUploadingCVId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [perMemberMaxSP, setPerMemberMaxSP] = useState<Record<string, number>>(loadPerMemberMaxSP);
 
   const [maxStoryPointsInput, setMaxStoryPointsInput] = useState<string>(() => {
-    const saved = localStorage.getItem('maxStoryPoints');
-    return saved ? saved : '40';
+    return localStorage.getItem("maxStoryPoints") ?? "40";
   });
-
   const maxStoryPoints = Math.max(1, parseInt(maxStoryPointsInput, 10) || 1);
 
   useEffect(() => {
-    localStorage.setItem('maxStoryPoints', maxStoryPoints.toString());
+    localStorage.setItem("maxStoryPoints", maxStoryPoints.toString());
   }, [maxStoryPoints]);
 
   useEffect(() => {
-    const fetchMembers = () => {
-      api.users
-        .list()
-        .then(({ users }) => {
-          const apiMembers = users.map((u, i) => mapUser(u, i));
-          const storedMembers = readLocalTeamMembers().map((member, index) =>
-            mapStoredMember(member, apiMembers.length + index)
-          );
-          setMembers([...apiMembers, ...storedMembers]);
-        })
-        .catch((err: Error) => setError(err.message))
-        .finally(() => setLoading(false));
-    };
+    localStorage.setItem(PER_MEMBER_SP_KEY, JSON.stringify(perMemberMaxSP));
+  }, [perMemberMaxSP]);
 
-    fetchMembers();
+  const fetchData = () => {
+    Promise.all([api.users.list(), api.tasks.list()])
+      .then(([{ users }, { tasks }]) => {
+        const apiMembers = users.map((u, i) => mapUser(u, i));
+        const storedMembers = readLocalTeamMembers().map((m, i) =>
+          mapStoredMember(m, apiMembers.length + i)
+        );
+        setMembers([...apiMembers, ...storedMembers]);
+        setAllTasks(tasks);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
 
-    const handleVisibility = () => { if (!document.hidden) fetchMembers(); };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('userProfileUpdated', fetchMembers);
+  useEffect(() => {
+    fetchData();
+    const onVisibility = () => { if (!document.hidden) fetchData(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("userProfileUpdated", fetchData);
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('userProfileUpdated', fetchMembers);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("userProfileUpdated", fetchData);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUploadCV = async (memberId: string, file: File) => {
@@ -207,8 +197,8 @@ export function TeamCapacity() {
       setUploadError(null);
       const res = await api.users.uploadCV(memberId, file);
       if (res.success) {
-        setMembers((current) =>
-          current.map((m) =>
+        setMembers((prev) =>
+          prev.map((m) =>
             m.id === memberId
               ? { ...m, skills: res.skills, experienceSummary: res.experience_summary, cvParsedAt: new Date().toISOString() }
               : m
@@ -222,13 +212,18 @@ export function TeamCapacity() {
     }
   };
 
-  const overloaded = members.filter((m) => computeCapacity(m.storyPoints, maxStoryPoints) > 90);
-  const available = members.filter((m) => computeCapacity(m.storyPoints, maxStoryPoints) <= 90);
-  const totalCompleted = members.reduce((sum, m) => sum + m.completedCount, 0);
+  const handleAssign = async (taskId: string, memberId: string) => {
+    await api.tasks.assign(taskId, memberId, currentUserId);
+    setAllTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, assigned_to: memberId } : t)));
+  };
+
+  const handleMaxSPChange = (memberId: string, value: number) => {
+    setPerMemberMaxSP((prev) => ({ ...prev, [memberId]: value }));
+  };
 
   const handleAddMember = (e: { preventDefault(): void }) => {
     e.preventDefault();
-    const storedMember: StoredTeamMember = {
+    const stored: StoredTeamMember = {
       id: `local-${Date.now()}`,
       full_name: formData.fullName.trim(),
       email: formData.email.trim(),
@@ -237,12 +232,12 @@ export function TeamCapacity() {
       task_count: 0,
     };
     const newMember: TeamMember = {
-      id: storedMember.id,
-      name: storedMember.full_name,
-      role: storedMember.email,
-      phone: storedMember.phone,
+      id: stored.id,
+      name: stored.full_name,
+      role: stored.email,
+      phone: stored.phone,
       storyPoints: 0,
-      avatar: getInitials(storedMember.full_name, storedMember.email),
+      avatar: getInitials(stored.full_name, stored.email),
       avatar_url: null,
       taskCount: 0,
       projectCount: 0,
@@ -254,9 +249,8 @@ export function TeamCapacity() {
       experienceSummary: null,
       cvParsedAt: null,
     };
-
-    saveLocalTeamMember(storedMember);
-    setMembers((current) => [...current, newMember]);
+    saveLocalTeamMember(stored);
+    setMembers((prev) => [...prev, newMember]);
     setFormData({ fullName: "", email: "", phone: "" });
     setIsAddMemberOpen(false);
   };
@@ -265,7 +259,6 @@ export function TeamCapacity() {
     if (!confirmId) return;
     const member = members.find((m) => m.id === confirmId);
     if (!member) return;
-
     setDeletingId(confirmId);
     try {
       if (member.isLocal) {
@@ -282,20 +275,29 @@ export function TeamCapacity() {
     }
   };
 
+  const overloaded = useMemo(
+    () => members.filter((m) => computeCapacity(m.storyPoints, perMemberMaxSP[m.id] ?? maxStoryPoints) > 90),
+    [members, maxStoryPoints, perMemberMaxSP]
+  );
+  const available = members.filter(
+    (m) => computeCapacity(m.storyPoints, perMemberMaxSP[m.id] ?? maxStoryPoints) <= 90
+  );
+  const totalCompleted = members.reduce((sum, m) => sum + m.completedCount, 0);
   const confirmMember = confirmId ? members.find((m) => m.id === confirmId) : null;
 
   return (
     <div className="p-4 md:p-12">
+      {/* Header */}
       <div className="mb-8 md:mb-12 flex flex-col sm:flex-row sm:items-start justify-between gap-4 md:gap-6">
         <div>
           <h2 className="text-3xl md:text-5xl mb-2 md:mb-3 bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">
             Team & Capacity
           </h2>
-          <p className="text-gray-500 text-sm md:text-lg">Real-time workload monitoring and task distribution</p>
+          <p className="text-gray-500 text-sm md:text-lg">Workload forecasting, skill matching, and smart assignment</p>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
-            <span className="text-sm font-semibold text-gray-400">Max SP:</span>
+            <span className="text-sm font-semibold text-gray-400">Team max SP:</span>
             <input
               type="number"
               min="1"
@@ -335,268 +337,91 @@ export function TeamCapacity() {
       {!loading && !error && members.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-500">
           <p className="text-xl mb-2">No team members yet</p>
-          <p className="text-sm">Team members will appear here once users are added to the system</p>
+          <p className="text-sm">Team members will appear once users are added to the system</p>
         </div>
       )}
 
+      {/* Overload alert */}
       {overloaded.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 md:mb-10 bg-linear-to-r from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-2xl md:rounded-3xl p-4 md:p-8 shadow-2xl shadow-red-500/20"
+          className="mb-6 bg-linear-to-r from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-2xl shadow-red-500/20"
         >
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-red-600 rounded-2xl">
-              <AlertCircle className="w-7 h-7 text-white" />
+          <div className="flex items-center gap-4 mb-3">
+            <div className="p-3 bg-red-600 rounded-2xl shrink-0">
+              <AlertCircle className="w-6 h-6 text-white" />
             </div>
-            <h3 className="text-xl md:text-2xl text-red-300 font-semibold">Capacity Alert</h3>
+            <div>
+              <h3 className="text-xl text-red-300 font-semibold">Capacity Alert</h3>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {overloaded.length} member{overloaded.length > 1 ? "s are" : " is"} over 90% capacity —
+                see overload reasons on each card below.
+              </p>
+            </div>
           </div>
-          <p className="text-gray-200 text-lg mb-5">
-            {overloaded.length} team member{overloaded.length > 1 ? "s are" : " is"} over 90% capacity. Consider
-            redistributing tasks or adjusting deadlines.
-          </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {overloaded.map((m) => (
               <span
                 key={m.id}
-                className="px-5 py-2 bg-linear-to-r from-red-600 to-orange-600 rounded-full text-base text-white font-semibold shadow-lg"
+                className="px-4 py-1.5 bg-linear-to-r from-red-600 to-orange-600 rounded-full text-sm text-white font-semibold shadow"
               >
-                {m.name} ({computeCapacity(m.storyPoints, maxStoryPoints)}%)
+                {m.name} ({computeCapacity(m.storyPoints, perMemberMaxSP[m.id] ?? maxStoryPoints)}%)
               </span>
             ))}
           </div>
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-10">
+      {/* Skill gap + unassigned panels */}
+      {!loading && (
+        <>
+          <SkillGapPanel members={members} tasks={allTasks} />
+          <UnassignedTasksPanel
+            tasks={allTasks}
+            members={members}
+            maxSP={maxStoryPoints}
+            perMemberMaxSP={perMemberMaxSP}
+            onAssign={handleAssign}
+          />
+        </>
+      )}
+
+      {/* Member cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
         {members.map((member, index) => (
-          <motion.div
+          <MemberCard
             key={member.id}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1, type: "spring", stiffness: 100 }}
-            onClick={() => setSkillsVisible((v) => !v)}
-            className={`relative member-card cursor-pointer bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 rounded-3xl p-8 transition-all duration-500 group ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-              ? "border-red-500/50 shadow-xl shadow-red-500/20"
-              : skillsVisible
-                ? "border-purple-500/50 shadow-xl shadow-purple-500/20"
-                : "border-white/20 hover:border-white/30 shadow-xl"
-              }`}
-          >
-            {/* Delete button — hidden for the signed-in user (match by ID or email) */}
-            {member.id !== currentUserId && member.role !== session?.user.email && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmId(member.id);
-                }}
-                className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all duration-200"
-                aria-label={`Remove ${member.name}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            <div className="flex items-center gap-5 mb-8">
-              <div
-                className={`w-20 h-20 rounded-2xl bg-linear-to-br ${member.gradient} flex items-center justify-center shadow-2xl overflow-hidden shrink-0`}
-              >
-                {member.avatar_url ? (
-                  <img
-                    src={member.avatar_url}
-                    alt={member.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-2xl text-white font-bold">{member.avatar}</span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-xl mb-2 font-semibold truncate">{member.name}</h3>
-                <p className="text-sm text-gray-400 truncate">{member.role}</p>
-                {member.phone && <p className="text-sm text-gray-500 truncate">{member.phone}</p>}
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-base text-gray-400 font-semibold">Capacity</span>
-                <div className="text-right">
-                  <span
-                    className={`text-lg font-bold ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-                      ? "text-red-400"
-                      : computeCapacity(member.storyPoints, maxStoryPoints) > 75
-                        ? "text-yellow-400"
-                        : "text-green-400"
-                      }`}
-                  >
-                    {computeCapacity(member.storyPoints, maxStoryPoints)}%
-                  </span>
-                  <span className="ml-2 text-xs text-gray-500">{member.storyPoints} / {maxStoryPoints} SP</span>
-                </div>
-              </div>
-              <div className="h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${computeCapacity(member.storyPoints, maxStoryPoints)}%` }}
-                  transition={{ delay: index * 0.1 + 0.3, duration: 1, ease: "easeOut" }}
-                  className={`h-full rounded-full ${computeCapacity(member.storyPoints, maxStoryPoints) > 90
-                    ? "bg-linear-to-r from-red-600 to-orange-600 shadow-lg shadow-red-500/50"
-                    : computeCapacity(member.storyPoints, maxStoryPoints) > 75
-                      ? "bg-linear-to-r from-yellow-600 to-orange-600 shadow-lg shadow-yellow-500/50"
-                      : "bg-linear-to-r from-green-600 to-emerald-600 shadow-lg shadow-green-500/50"
-                    }`}
-                />
-              </div>
-            </div>
-
-            {/* Stats row — always visible */}
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <FolderOpen className="w-5 h-5 text-gray-400" />
-                  <span className="text-base text-gray-400 font-semibold">
-                    Projects ({member.projectCount})
-                  </span>
-                </div>
-                {member.projectCount === 0 ? (
-                  <p className="text-sm text-gray-600 italic">Not assigned to any project</p>
-                ) : (
-                  <div className="px-4 py-3 bg-purple-900/20 rounded-xl text-base text-purple-300 border border-purple-500/20">
-                    {member.projectCount} project{member.projectCount !== 1 ? "s" : ""} assigned
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
-                  <span className="text-base text-gray-400 font-semibold">
-                    Completed ({member.completedCount})
-                  </span>
-                </div>
-                {member.completedCount === 0 ? (
-                  <p className="text-sm text-gray-600 italic">No tasks completed yet</p>
-                ) : (
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {member.completedTasks.map((ct) => (
-                      <div key={ct.id} className="flex items-start gap-2 px-3 py-2 bg-green-900/15 rounded-lg border border-green-500/15">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-sm text-gray-200 truncate">{ct.title}</div>
-                          {ct.project_name && <div className="text-[10px] text-gray-500 truncate">{ct.project_name}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <FolderOpen className="w-5 h-5 text-gray-400" />
-                  <span className="text-base text-gray-400 font-semibold">
-                    Assigned Tasks ({member.taskCount})
-                  </span>
-                </div>
-                {member.taskCount === 0 ? (
-                  <p className="text-sm text-gray-600 italic">No tasks assigned</p>
-                ) : (
-                  <div className="px-4 py-3 bg-white/10 rounded-xl text-base text-gray-200 border border-white/10">
-                    {member.taskCount} task{member.taskCount !== 1 ? "s" : ""} in progress
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Skills + Experience — visible when any card is clicked */}
-            <AnimatePresence>
-            {skillsVisible && (
-              <motion.div
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: "auto", marginTop: 24 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                className="overflow-hidden border-t border-white/10 pt-6"
-              >
-                {/* Skills */}
-                <div className="mb-5">
-                  <h4 className="text-sm font-semibold text-gray-300 mb-3">Skills</h4>
-                  {member.skills.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {member.skills.map((skill, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-xs text-gray-200"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">No CV uploaded yet</p>
-                  )}
-                </div>
-
-                {/* Experience Summary */}
-                <div className={!member.isLocal && member.id === currentUserId ? "mb-5" : ""}>
-                  <h4 className="text-sm font-semibold text-gray-300 mb-2">Experience Summary</h4>
-                  {member.experienceSummary ? (
-                    <p className="text-sm text-gray-400 leading-relaxed">{member.experienceSummary}</p>
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">No summary available</p>
-                  )}
-                </div>
-
-                {/* CV upload — only the signed-in user can upload their own CV */}
-                {!member.isLocal && member.id === currentUserId && (
-                  <div>
-                    {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
-                    {uploadingCVId === member.id ? (
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-400">
-                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                        Parsing CV...
-                      </div>
-                    ) : (
-                      <label className="inline-flex items-center justify-center cursor-pointer px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 rounded-xl text-sm text-purple-200 transition-colors">
-                        {member.cvParsedAt ? "Re-upload CV" : "Upload CV"}
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.txt"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadCV(member.id, file);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                )}
-              </motion.div>
-            )}
-            </AnimatePresence>
-          </motion.div>
+            member={member}
+            allTasks={allTasks}
+            effectiveMaxSP={perMemberMaxSP[member.id] ?? maxStoryPoints}
+            isCurrentUser={member.id === currentUserId}
+            canDelete={member.id !== currentUserId && member.role !== session?.user.email}
+            index={index}
+            onDelete={() => setConfirmId(member.id)}
+            onUploadCV={handleUploadCV}
+            uploadingCVId={uploadingCVId}
+            uploadError={uploadError}
+            onMaxSPChange={handleMaxSPChange}
+          />
         ))}
       </div>
 
+      {/* Summary stats */}
       {members.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 border-white/20 rounded-3xl p-8 hover:border-purple-500/50 transition-all duration-300">
             <div className="text-5xl mb-3 font-bold bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">{members.length}</div>
             <div className="text-gray-400 text-lg">Total Members</div>
           </motion.div>
-
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-green-900/30 to-emerald-900/30 border-2 border-green-500/50 rounded-3xl p-8 shadow-xl shadow-green-500/20 hover:border-green-500/70 transition-all duration-300">
             <div className="text-5xl text-green-400 mb-3 font-bold">{available.length}</div>
             <div className="text-gray-300 text-lg">Available</div>
           </motion.div>
-
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-3xl p-8 shadow-xl shadow-red-500/20 hover:border-red-500/70 transition-all duration-300">
             <div className="text-5xl text-red-400 mb-3 font-bold">{overloaded.length}</div>
             <div className="text-gray-300 text-lg">Overloaded</div>
           </motion.div>
-
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-purple-900/30 to-purple-900/10 border-2 border-purple-500/50 rounded-3xl p-8 shadow-xl shadow-purple-500/20 hover:border-purple-500/70 transition-all duration-300">
             <div className="text-5xl text-purple-400 mb-3 font-bold">{totalCompleted}</div>
             <div className="text-gray-300 text-lg">Tasks Done</div>
@@ -604,6 +429,7 @@ export function TeamCapacity() {
         </div>
       )}
 
+      {/* Add member modal */}
       {isAddMemberOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6">
           <motion.div
@@ -616,27 +442,56 @@ export function TeamCapacity() {
                 <h3 className="text-2xl font-semibold text-white">Add Team Member</h3>
                 <p className="mt-1 text-sm text-gray-500">Create a local team profile for capacity planning.</p>
               </div>
-              <button type="button" onClick={() => setIsAddMemberOpen(false)} className="rounded-lg border border-white/10 p-2 text-gray-400 hover:text-white hover:bg-white/5" aria-label="Close add member form">
+              <button
+                type="button"
+                onClick={() => setIsAddMemberOpen(false)}
+                className="rounded-lg border border-white/10 p-2 text-gray-400 hover:text-white hover:bg-white/5"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
-
             <form onSubmit={handleAddMember} className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Full Name</label>
-                <input type="text" required value={formData.fullName} onChange={(e) => setFormData((current) => ({ ...current, fullName: e.target.value }))} placeholder="e.g., Sarah Khan" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
+                <input
+                  type="text" required value={formData.fullName}
+                  onChange={(e) => setFormData((p) => ({ ...p, fullName: e.target.value }))}
+                  placeholder="e.g., Sarah Khan"
+                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
+                />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Email</label>
-                <input type="email" required value={formData.email} onChange={(e) => setFormData((current) => ({ ...current, email: e.target.value }))} placeholder="name@example.com" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
+                <input
+                  type="email" required value={formData.email}
+                  onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="name@example.com"
+                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
+                />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Phone Number</label>
-                <input type="tel" required value={formData.phone} onChange={(e) => setFormData((current) => ({ ...current, phone: e.target.value }))} placeholder="+966 5X XXX XXXX" className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70" />
+                <input
+                  type="tel" required value={formData.phone}
+                  onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="+966 5X XXX XXXX"
+                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
+                />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsAddMemberOpen(false)} className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white">Cancel</button>
-                <button type="submit" className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20">Add Member</button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddMemberOpen(false)}
+                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20"
+                >
+                  Add Member
+                </button>
               </div>
             </form>
           </motion.div>
