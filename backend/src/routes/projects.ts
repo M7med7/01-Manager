@@ -112,7 +112,40 @@ router.get('/', async (_req, res) => {
       }));
       const doneTasks = projectTasks.filter((t) => t.status === 'Done').length;
       const progress = projectTasks.length > 0 ? Math.round((doneTasks / projectTasks.length) * 100) : 0;
-      return { ...project, team_count: teamCount, progress, ...projectRiskSummary(project, projectTasks, teamCount) };
+      const risk = projectRiskSummary(project, projectTasks, teamCount);
+
+      const todayMs = new Date().setHours(0, 0, 0, 0);
+      const openTasks = projectTasks.filter((t: any) => t.status !== 'Done');
+      const overdueTasks = openTasks.filter((t: any) => t.end_date && new Date(t.end_date).getTime() < todayMs);
+      const blockedTasks = openTasks.filter((t: any) => t.is_blocked || Number(t.blocking_count ?? 0) > 0);
+
+      const nextDeadlineTask = openTasks
+        .filter((t: any) => t.end_date && new Date(t.end_date).getTime() >= todayMs)
+        .sort((a: any, b: any) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime())[0];
+
+      const tasksByUser = new Map<string, number>();
+      for (const t of openTasks as any[]) {
+        if (t.assigned_to) tasksByUser.set(t.assigned_to, (tasksByUser.get(t.assigned_to) ?? 0) + 1);
+      }
+      const overloadWarning = Array.from(tasksByUser.values()).some((n) => n >= 5);
+
+      let healthBadge: 'Healthy' | 'At Risk' | 'Delayed' | 'Blocked';
+      if (blockedTasks.length > 0) healthBadge = 'Blocked';
+      else if (overdueTasks.length > 0) healthBadge = 'Delayed';
+      else if (risk.risk_level === 'Critical' || risk.risk_level === 'High') healthBadge = 'At Risk';
+      else healthBadge = 'Healthy';
+
+      return {
+        ...project,
+        team_count: teamCount,
+        progress,
+        ...risk,
+        overdue_count: overdueTasks.length,
+        blocked_count: blockedTasks.length,
+        next_deadline: nextDeadlineTask?.end_date ?? null,
+        overload_warning: overloadWarning,
+        health_badge: healthBadge,
+      };
     });
 
     res.json({ projects: enriched });

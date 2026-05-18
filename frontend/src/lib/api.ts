@@ -110,6 +110,8 @@ export function computeTaskDiff(before: GeneratedSchedule, after: GeneratedSched
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type HealthBadge = 'Healthy' | 'At Risk' | 'Delayed' | 'Blocked';
+
 export interface Project {
   id: string;
   name: string;
@@ -124,6 +126,11 @@ export interface Project {
   health_score?: number;
   risk_level?: RiskLevel;
   risk_reasons?: string[];
+  overdue_count?: number;
+  blocked_count?: number;
+  next_deadline?: string | null;
+  overload_warning?: boolean;
+  health_badge?: HealthBadge;
 }
 
 export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
