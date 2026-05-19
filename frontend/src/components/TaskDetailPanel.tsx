@@ -332,7 +332,7 @@ export function TaskDetailPanel({
     const recentComments = comments.slice(-5).map((comment) => `${displayUser(comment.users)}: ${comment.content}`).join("\n") || "No human comments yet";
     const recentActivity = activity.slice(0, 6).map((item) => `${formatCompactDate(item.created_at)} - ${item.summary}`).join("\n") || "No activity yet";
     const fileList = attachments.slice(0, 6).map((file) => `${file.file_name}${file.is_image ? " (image)" : ""}`).join(", ") || "No attached files";
-  const githubLinkList = githubLinks.map((link) => [
+    const githubLinkList = githubLinks.map((link) => [
       link.issue_number ? `issue #${link.issue_number}` : "",
       link.branch_name ? `branch ${link.branch_name}` : "",
       link.pull_request_number ? `PR #${link.pull_request_number}` : "",
@@ -798,7 +798,7 @@ export function TaskDetailPanel({
                 : canComplete
                   ? "bg-white/5 border-white/15 text-gray-300 hover:border-purple-500/50 hover:bg-purple-900/20"
                   : "bg-white/5 border-white/10 text-gray-600 cursor-not-allowed"
-              }`}
+                }`}
             >
               {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
               {isDone ? "Completed" : "Mark Complete"}
@@ -811,24 +811,22 @@ export function TaskDetailPanel({
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
         {/* Suggested next action */}
         {suggestedNextAction && (
-          <div className={`flex items-start gap-3 rounded-xl border p-3 ${
-            suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned'
-              ? 'border-red-500/30 bg-red-900/15' :
+          <div className={`flex items-start gap-3 rounded-xl border p-3 ${suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned'
+            ? 'border-red-500/30 bg-red-900/15' :
             suggestedNextAction.type === 'overdue'
               ? 'border-orange-500/30 bg-orange-900/15' :
-            suggestedNextAction.type === 'risk'
-              ? 'border-yellow-500/30 bg-yellow-900/15' :
-            suggestedNextAction.type === 'criteria'
-              ? 'border-purple-500/30 bg-purple-900/15' :
-              'border-green-500/30 bg-green-900/15'
-          }`}>
-            <Target className={`mt-0.5 h-4 w-4 shrink-0 ${
-              suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned' ? 'text-red-400' :
-              suggestedNextAction.type === 'overdue'  ? 'text-orange-400' :
-              suggestedNextAction.type === 'risk'     ? 'text-yellow-400' :
-              suggestedNextAction.type === 'criteria' ? 'text-purple-400' :
-                                                       'text-green-400'
-            }`} />
+              suggestedNextAction.type === 'risk'
+                ? 'border-yellow-500/30 bg-yellow-900/15' :
+                suggestedNextAction.type === 'criteria'
+                  ? 'border-purple-500/30 bg-purple-900/15' :
+                  'border-green-500/30 bg-green-900/15'
+            }`}>
+            <Target className={`mt-0.5 h-4 w-4 shrink-0 ${suggestedNextAction.type === 'blocked' || suggestedNextAction.type === 'unassigned' ? 'text-red-400' :
+              suggestedNextAction.type === 'overdue' ? 'text-orange-400' :
+                suggestedNextAction.type === 'risk' ? 'text-yellow-400' :
+                  suggestedNextAction.type === 'criteria' ? 'text-purple-400' :
+                    'text-green-400'
+              }`} />
             <div className="min-w-0 flex-1">
               <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Suggested Next Action</div>
               <p className="text-sm text-gray-200 leading-snug">{suggestedNextAction.text}</p>
@@ -1561,7 +1559,7 @@ export function TaskDetailPanel({
                   type="button"
                   onClick={() => sendPrompt(action.prompt, action.label)}
                   disabled={sending}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-colors hover:border-purple-400/50 hover:bg-purple-500/15 disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-colors hover:border-purple-400/50 hover:bg-purple-500/15 disabled:opacity-50"
                 >
                   <Icon className="h-3 w-3 text-purple-300" />
                   {action.label}
@@ -1578,7 +1576,7 @@ export function TaskDetailPanel({
               <div className={`max-w-[88%] p-2.5 rounded-xl text-sm ${m.role === "user"
                 ? "bg-linear-to-br from-purple-600 to-purple-900 text-white"
                 : "bg-white/[0.07] border border-white/10 text-gray-100"
-              }`}>
+                }`}>
                 <pre className="whitespace-pre-wrap font-sans leading-relaxed">{m.content}</pre>
               </div>
             </div>
