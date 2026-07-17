@@ -781,7 +781,11 @@ async function attempt<T>(path: string, options: RequestInit | undefined, timeou
       }
       throw new Error(message);
     }
-    return res.json();
+    const data = await res.json();
+    if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') {
+      throw new Error(data.error);
+    }
+    return data as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error('__timeout__', { cause: error });
@@ -796,7 +800,7 @@ async function attempt<T>(path: string, options: RequestInit | undefined, timeou
 }
 
 async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_000): Promise<T> {
-  // AI requests already have a 120s timeout — no retry needed.
+  // Long-running AI requests do not retry, because retrying can duplicate expensive work.
   // Regular requests retry up to 2 times (3s apart) to survive Render cold starts.
   const maxRetries = timeoutMs >= 100_000 ? 0 : 2;
 
@@ -1063,7 +1067,7 @@ export const api = {
       request<PlanPreviewResult>('/ai/generate', {
         method: 'POST',
         body: JSON.stringify(data),
-      }, 120_000),
+      }, 210_000),
 
     save: (data: {
       projectId: string;

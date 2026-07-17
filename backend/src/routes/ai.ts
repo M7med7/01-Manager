@@ -225,6 +225,22 @@ async function persistPlan(
 
 router.post('/generate', async (req, res) => {
   const t0 = Date.now();
+  let streamingResponse = false;
+  const heartbeat = setInterval(() => {
+    if (res.writableEnded || res.destroyed) return;
+    if (!streamingResponse) {
+      res.status(200);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+      streamingResponse = true;
+    }
+    // JSON permits leading whitespace. Sending it periodically keeps hosting proxies
+    // from treating AI generation as an idle request while preserving a JSON response.
+    res.write(' \n');
+  }, 10_000);
+
   try {
     const {
       name, description, headcount, duration, duration_unit,
@@ -286,7 +302,7 @@ router.post('/generate', async (req, res) => {
 
     console.log(`[AI] /generate complete in ${Date.now() - t0}ms — quality score ${qualityReport.score}`);
 
-    res.json({
+    const responseBody = {
       success: true,
       projectId,
       schedule,
@@ -296,18 +312,26 @@ router.post('/generate', async (req, res) => {
       databaseMembers,
       totalDays,
       recommendations,
-    });
+    };
+    if (streamingResponse) res.end(JSON.stringify(responseBody));
+    else res.json(responseBody);
   } catch (error: any) {
     console.error(`[AI] /generate error after ${Date.now() - t0}ms:`, error.message);
     if (isConnectivityError(error)) {
-      return res.json({
+      const responseBody = {
         success: true,
         project_id: uuidv4(),
         offline: true,
         message: 'Generated in demo mode because Supabase is not reachable.',
-      });
+      };
+      if (streamingResponse) return res.end(JSON.stringify(responseBody));
+      return res.json(responseBody);
     }
-    res.status(500).json({ error: error.message });
+    const responseBody = { error: error.message };
+    if (streamingResponse) return res.end(JSON.stringify(responseBody));
+    res.status(500).json(responseBody);
+  } finally {
+    clearInterval(heartbeat);
   }
 });
 
