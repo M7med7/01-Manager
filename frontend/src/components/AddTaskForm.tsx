@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, X, Loader2 } from "lucide-react";
 import { api, type Task, type ProjectMember } from "../lib/api";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   projectId: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Props) {
+  const { t } = useTranslation("tasks");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Pr
         <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}
           onClick={() => setOpen(true)}
           className="flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2.5 text-sm font-semibold text-white hover:border-purple-400/70 hover:bg-purple-800/40 transition-all">
-          <Plus className="h-4 w-4" /> Add Task
+          <Plus className="h-4 w-4" /> {t("detail.addTask.action")}
         </motion.button>
       )}
 
@@ -65,7 +67,7 @@ export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Pr
             className="mt-3 rounded-xl border border-purple-500/30 app-input p-4 space-y-3 overflow-hidden"
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-white">New Task</span>
+              <span className="text-sm font-semibold text-white">{t("detail.addTask.title")}</span>
               <button type="button" onClick={() => setOpen(false)} className="text-gray-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
@@ -74,39 +76,37 @@ export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Pr
             {error && <div className="p-2 text-xs text-red-300 bg-red-900/30 rounded-lg border border-red-500/30">{error}</div>}
 
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="Task title *" required className={inputCls} />
+              placeholder={t("detail.addTask.titlePlaceholder")} required className={inputCls} />
 
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Description (optional)" rows={2} className={`${inputCls} resize-none`} />
+              placeholder={t("detail.addTask.descriptionPlaceholder")} rows={2} className={`${inputCls} resize-none`} />
 
             <div className="grid grid-cols-2 gap-3">
               <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
                 className={inputCls}>
-                <option value="High">🔴 High</option>
-                <option value="Medium">🟡 Medium</option>
-                <option value="Low">🟢 Low</option>
+                <option value="High">🔴 {t("priority.high")}</option><option value="Medium">🟡 {t("priority.medium")}</option><option value="Low">🟢 {t("priority.low")}</option>
               </select>
 
               <input type="number" min="1" value={form.estimated_days}
                 onChange={e => setForm(f => ({ ...f, estimated_days: e.target.value }))}
-                placeholder="Days *" required className={inputCls} />
+                placeholder={t("detail.addTask.daysPlaceholder")} required className={inputCls} />
             </div>
 
             <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
               className={inputCls}>
-              <option value="">Unassigned</option>
+              <option value="">{t("detail.unassigned")}</option>
               {members.map(m => (
                 <option key={m.user_id} value={m.user_id}>{m.full_name ?? m.email}</option>
               ))}
             </select>
 
             <input value={form.tech} onChange={e => setForm(f => ({ ...f, tech: e.target.value }))}
-              placeholder="Tech stack (comma-separated, optional)" className={inputCls} />
+              placeholder={t("detail.addTask.techPlaceholder")} className={inputCls} />
 
             <motion.button type="submit" disabled={!canSubmit || saving}
               whileHover={canSubmit ? { y: -1 } : {}} whileTap={canSubmit ? { scale: 0.97 } : {}}
               className="w-full py-2.5 rounded-lg bg-linear-to-r from-purple-600 to-purple-900 text-sm font-semibold text-white disabled:opacity-40 transition-all">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Create Task"}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("detail.addTask.create")}
             </motion.button>
           </motion.form>
         )}

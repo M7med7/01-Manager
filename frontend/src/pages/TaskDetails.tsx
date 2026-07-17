@@ -9,9 +9,11 @@ import { AddTaskForm } from "../components/AddTaskForm";
 import { buildDependencyAwareSchedule } from "../lib/schedule";
 import { exportProject, type ExportFormat } from "../lib/projectExport";
 import { riskStyle, scoreProjectHealth } from "../lib/riskScoring";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+function formatDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { month: "long", day: "numeric", year: "numeric" });
 }
 
 function getInitials(name: string | null, email: string): string {
@@ -117,13 +119,25 @@ function downloadText(filename: string, text: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function weekLabel(iso: string | null): string {
+function weekLabel(iso: string | null, locale: string): string {
   const date = iso ? new Date(iso) : new Date();
   const day = date.getDay();
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date);
   monday.setDate(diff);
-  return monday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return monday.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function translateProjectRisk(t: TFunction, text: string): string {
+  const countMatch = text.match(/^(\d+) (overdue|blocked) tasks?\.$/);
+  if (countMatch) return t(`detail.health.${countMatch[2]}`, { count: Number(countMatch[1]) });
+  const unownedMatch = text.match(/^(\d+) tasks? (?:has|have) no owner\.$/);
+  if (unownedMatch) return t("detail.health.unowned", { count: Number(unownedMatch[1]) });
+  const keys: Record<string, string> = {
+    "Open estimates exceed team timeline capacity.": "capacityReason", "More than 40% of open tasks are high priority.": "priorityReason", "Most tasks have no dependencies.": "dependenciesReason", "Project is currently healthy.": "healthyReason",
+    "Review overdue work and reset dates or owners.": "overdueAction", "Clear blockers before starting more work.": "blockedAction", "Assign owners for unowned tasks.": "unownedAction", "Reduce scope, extend timeline, or add capacity.": "capacityAction", "Separate true critical-path work from normal priority work.": "priorityAction", "Add key dependencies for setup, integration, testing, and release.": "dependenciesAction", "Keep updating task status and blockers.": "healthyAction",
+  };
+  return keys[text] ? t(`detail.health.${keys[text]}`) : text;
 }
 
 function startOfToday(): Date {
@@ -135,6 +149,8 @@ export function TaskDetails() {
   const { taskId } = useParams<{ taskId: string }>();
   const location = useLocation();
   const { session } = useAuth();
+  const { t, i18n } = useTranslation("tasks");
+  const locale = i18n.language === "ar" ? "ar-SA" : "en-US";
   const currentUserId = session?.user.id;
 
   const [project, setProject] = useState<Project | null>(null);
@@ -259,7 +275,7 @@ export function TaskDetails() {
   const todayStart = startOfToday();
   const projectRisk = project ? scoreProjectHealth(project, tasks, members, scheduleMap) : null;
   const weeklyTimesheet = Array.from(timeEntries.reduce((map, entry) => {
-    const key = weekLabel(entry.start_time);
+    const key = weekLabel(entry.start_time, locale);
     map.set(key, (map.get(key) ?? 0) + Number(entry.minutes || 0));
     return map;
   }, new Map<string, number>()).entries()).slice(0, 6);
@@ -269,7 +285,7 @@ export function TaskDetails() {
   const canEditTasks = Boolean(permissions?.can_edit_tasks);
   const canExportProject = Boolean(permissions?.can_export);
   const canViewCapacity = permissions?.can_view_capacity !== false;
-  const roleLabel = permissions?.role ?? "No project role";
+  const roleLabel = permissions?.role ? t(`detail.roles.${permissions.role}`) : t("detail.noRole");
   const activeClientShare = clientShares.find((share) => share.is_active) ?? null;
   const clientShareUrl = activeClientShare ? `${window.location.origin}/client/${activeClientShare.token}` : "";
 
@@ -867,7 +883,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
       <div className="flex-1 flex items-center justify-center p-12">
         <div className="text-center">
           <div className="w-10 h-10 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading project...</p>
+          <p className="text-gray-400">{t("detail.loading")}</p>
         </div>
       </div>
     );
@@ -876,8 +892,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
   if (error || !project) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-        <p className="text-red-400 mb-4">{error ?? "Project not found"}</p>
-        <Link to="/" className="text-purple-400 hover:text-purple-300 underline text-sm">← Back to Projects</Link>
+        <p className="text-red-400 mb-4">{error ?? t("detail.notFound")}</p>
+        <Link to="/" className="text-purple-400 hover:text-purple-300 underline text-sm">← {t("detail.back")}</Link>
       </div>
     );
   }
@@ -900,7 +916,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
       <div className={`min-w-0 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 lg:pr-2 ${isMobile && selectedTaskId ? "hidden" : ""}`}>
         <Link to="/">
           <motion.button whileHover={{ x: -5 }} className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors text-lg">
-            <ArrowLeft className="w-5 h-5" /><span>Back to Projects</span>
+            <ArrowLeft className="w-5 h-5 rtl:rotate-180" /><span>{t("detail.back")}</span>
           </motion.button>
         </Link>
 
@@ -908,8 +924,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           <div className="min-w-0">
             <h2 className="text-4xl xl:text-5xl mb-4 bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent wrap-break-word leading-tight">{project.name}</h2>
             <div className="flex flex-wrap items-center gap-4">
-              <span className={`px-5 py-2 rounded-full text-base font-semibold ${project.status === "Completed" ? "bg-linear-to-r from-green-600 to-emerald-600 text-white shadow-xl shadow-green-500/50" : "bg-linear-to-r from-purple-600 to-purple-900 text-white shadow-xl shadow-purple-500/50"}`}>{project.status}</span>
-              <span className="px-5 py-2 rounded-full text-base font-semibold bg-linear-to-r from-gray-600 to-gray-700 text-white shadow-xl shadow-gray-500/30">{progress}% complete</span>
+              <span className={`px-5 py-2 rounded-full text-base font-semibold ${project.status === "Completed" ? "bg-linear-to-r from-green-600 to-emerald-600 text-white shadow-xl shadow-green-500/50" : "bg-linear-to-r from-purple-600 to-purple-900 text-white shadow-xl shadow-purple-500/50"}`}>{t(`detail.projectStatus.${project.status}`, { defaultValue: project.status })}</span>
+              <span className="px-5 py-2 rounded-full text-base font-semibold bg-linear-to-r from-gray-600 to-gray-700 text-white shadow-xl shadow-gray-500/30">{t("detail.complete", { progress })}</span>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -919,11 +935,11 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setShowExportMenu((value) => !value)}
                 disabled={!canExportProject}
-                title={!canExportProject ? "Guests cannot export this project" : undefined}
+                title={!canExportProject ? t("detail.guestExport") : undefined}
                 className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/50 hover:bg-purple-900/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Download className="h-4 w-4" />
-                Export
+                {t("detail.export")}
               </motion.button>
               <AnimatePresence>
                 {showExportMenu && (
@@ -934,10 +950,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     className="absolute right-0 top-12 z-30 w-44 overflow-hidden rounded-xl border border-white/10 app-surface-elevated p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
                   >
                     {[
-                      { label: "PDF report", value: "pdf" },
-                      { label: "Word report", value: "docx" },
-                      { label: "CSV tasks", value: "csv" },
-                      { label: "Excel workbook", value: "xlsx" },
+                      { label: t("detail.exports.pdf"), value: "pdf" }, { label: t("detail.exports.word"), value: "docx" }, { label: t("detail.exports.csv"), value: "csv" }, { label: t("detail.exports.excel"), value: "xlsx" },
                     ].map((item) => (
                       <button
                         key={item.value}
@@ -961,7 +974,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 className="flex items-center justify-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:border-purple-400/70 hover:bg-purple-800/40 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {savingTemplate ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-300 border-t-transparent" /> : <BookmarkPlus className="h-4 w-4" />}
-                Save as template
+                {t("detail.saveTemplate")}
               </motion.button>
             )}
           </div>
@@ -970,13 +983,13 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         {/* Project info cards */}
         <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
           <motion.div whileHover={{ y: -3 }} className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-6 hover:border-purple-500/50 transition-all">
-            <div className="flex items-center gap-3 text-gray-400 mb-3"><CalendarIcon className="w-5 h-5" /><span className="text-base">Created</span></div>
-            <p className="text-2xl font-semibold">{formatDate(project.created_at)}</p>
+            <div className="flex items-center gap-3 text-gray-400 mb-3"><CalendarIcon className="w-5 h-5" /><span className="text-base">{t("detail.created")}</span></div>
+            <p className="text-2xl font-semibold">{formatDate(project.created_at, locale)}</p>
           </motion.div>
           <motion.div whileHover={{ y: -3 }} className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-6 hover:border-purple-500/50 transition-all">
-            <div className="flex items-center gap-3 text-gray-400 mb-3"><CalendarIcon className="w-5 h-5" /><span className="text-base">Progress</span></div>
+            <div className="flex items-center gap-3 text-gray-400 mb-3"><CalendarIcon className="w-5 h-5" /><span className="text-base">{t("detail.progress")}</span></div>
             <div className="flex items-center gap-4">
-              <p className="text-2xl font-semibold">{doneTasks}/{tasks.length} tasks</p>
+              <p className="text-2xl font-semibold">{t("detail.taskCountProgress", { done: doneTasks, total: tasks.length })}</p>
               <div className="flex-1 h-3 app-input rounded-full overflow-hidden border border-white/10">
                 <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1, ease: "easeOut" }} className="h-full rounded-full bg-linear-to-r from-purple-600 to-purple-400" />
               </div>
@@ -988,22 +1001,22 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           <div className={`min-w-0 rounded-2xl border p-5 ${riskStyle(projectRisk.level)}`}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-xl font-semibold">Project Health</h3>
-                <p className="mt-1 text-sm opacity-80">{100 - projectRisk.score}% health · {projectRisk.level} risk</p>
+                <h3 className="text-xl font-semibold">{t("detail.health.title")}</h3>
+                <p className="mt-1 text-sm opacity-80">{t("detail.health.summary", { health: 100 - projectRisk.score, level: t(`risk.${projectRisk.level.toLowerCase()}`) })}</p>
               </div>
-              <span className="rounded-full border border-current/30 px-3 py-1 text-xs font-semibold">{projectRisk.level}</span>
+              <span className="rounded-full border border-current/30 px-3 py-1 text-xs font-semibold">{t(`risk.${projectRisk.level.toLowerCase()}`)}</span>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">Reasons</div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">{t("detail.health.reasons")}</div>
                 <ul className="space-y-1 text-sm">
-                  {projectRisk.reasons.slice(0, 4).map((reason) => <li key={reason}>- {reason}</li>)}
+                  {projectRisk.reasons.slice(0, 4).map((reason) => <li key={reason}>- {translateProjectRisk(t, reason)}</li>)}
                 </ul>
               </div>
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">Suggested actions</div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">{t("detail.health.actions")}</div>
                 <ul className="space-y-1 text-sm">
-                  {projectRisk.actions.slice(0, 4).map((action) => <li key={action}>- {action}</li>)}
+                  {projectRisk.actions.slice(0, 4).map((action) => <li key={action}>- {translateProjectRisk(t, action)}</li>)}
                 </ul>
               </div>
             </div>
@@ -1012,7 +1025,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               disabled={weeklyReportLoading}
               className="mt-4 rounded-xl border border-current/25 px-3 py-2 text-xs font-semibold transition-colors hover:bg-white/10 disabled:opacity-40"
             >
-              {weeklyReportLoading ? "Generating weekly report..." : "Generate weekly AI report"}
+              {weeklyReportLoading ? t("detail.health.generatingReport") : t("detail.health.generateReport")}
             </button>
             {weeklyReport && (
               <div className="mt-4 rounded-xl border border-current/20 bg-black/20 p-3 text-sm leading-6">
@@ -1027,8 +1040,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             <div className="flex items-center gap-3">
               <Timer className="h-5 w-5 text-purple-300" />
               <div>
-                <h3 className="text-xl font-semibold">Planning Accuracy</h3>
-                <p className="mt-1 text-sm text-gray-500">Optional time tracking for better estimates and billing support</p>
+                <h3 className="text-xl font-semibold">{t("detail.accuracy.title")}</h3>
+                <p className="mt-1 text-sm text-gray-500">{t("detail.accuracy.subtitle")}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1038,22 +1051,22 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-white/10 app-surface-soft p-3">
-              <div className="text-xs text-gray-500">Actual effort</div>
+              <div className="text-xs text-gray-500">{t("detail.accuracy.actual")}</div>
               <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.actual_minutes ?? 0)}</div>
             </div>
             <div className="rounded-xl border border-white/10 app-surface-soft p-3">
-              <div className="text-xs text-gray-500">AI estimate</div>
+              <div className="text-xs text-gray-500">{t("detail.accuracy.estimate")}</div>
               <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.estimated_minutes ?? tasks.reduce((sum, task) => sum + Number(task.estimated_days || 0) * 8 * 60, 0))}</div>
             </div>
             <div className="rounded-xl border border-white/10 app-surface-soft p-3">
-              <div className="text-xs text-gray-500">Estimate accuracy</div>
+              <div className="text-xs text-gray-500">{t("detail.accuracy.accuracy")}</div>
               <div className="mt-1 text-xl font-semibold text-white">{timeTotals?.estimate_accuracy === null || timeTotals?.estimate_accuracy === undefined ? "-" : `${timeTotals.estimate_accuracy}%`}</div>
             </div>
           </div>
           {timeError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{timeError}</p>}
           <div className="mt-4 max-h-52 overflow-y-auto rounded-xl border border-white/10">
             {timeTasks.length === 0 ? (
-              <p className="p-4 text-center text-sm text-gray-600">No time tracked yet</p>
+              <p className="p-4 text-center text-sm text-gray-600">{t("detail.accuracy.noTime")}</p>
             ) : timeTasks.slice(0, 8).map((task) => (
               <button key={task.id} onClick={() => setSelectedTaskId(task.id)} className="grid w-full grid-cols-[1fr_auto_auto] gap-3 border-b border-white/5 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-white/5">
                 <span className="truncate text-gray-200">{task.title}</span>
@@ -1063,14 +1076,14 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             ))}
           </div>
           <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Weekly timesheet</div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("detail.accuracy.timesheet")}</div>
             {weeklyTimesheet.length === 0 ? (
-              <p className="text-sm text-gray-600">No weekly time entries yet.</p>
+              <p className="text-sm text-gray-600">{t("detail.accuracy.noEntries")}</p>
             ) : (
               <div className="space-y-2">
                 {weeklyTimesheet.map(([week, minutes]) => (
                   <div key={week} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">Week of {week}</span>
+                    <span className="text-gray-400">{t("detail.accuracy.weekOf", { date: week })}</span>
                     <span className="font-semibold text-white">{formatMinutes(minutes)}</span>
                   </div>
                 ))}
@@ -1080,7 +1093,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         </div>}
 
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
-          <h3 className="text-2xl mb-4 font-semibold">Description</h3>
+          <h3 className="text-2xl mb-4 font-semibold">{t("detail.description")}</h3>
           <p className="text-gray-300 text-lg leading-relaxed">{project.description}</p>
         </div>
 
@@ -1162,11 +1175,11 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <Github className="h-5 w-5 text-purple-300" />
               <div>
                 <h3 className="text-xl font-semibold">GitHub</h3>
-                <p className="mt-1 text-sm text-gray-500">Optional code activity connection for this project</p>
+                <p className="mt-1 text-sm text-gray-500">{t("detail.integrations.githubHelp")}</p>
               </div>
             </div>
             {githubRepo && (
-              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Connected</span>
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">{t("detail.integrations.connected")}</span>
             )}
           </div>
 
@@ -1214,11 +1227,11 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 disabled={githubLoading || !githubRepoInput.trim() || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
-                {githubLoading ? "Connecting..." : "Connect repo"}
+                {githubLoading ? t("detail.integrations.connecting") : t("detail.integrations.connectRepo")}
               </button>
             </div>
           )}
-          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can manage project integrations.</p>}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">{t("detail.integrations.adminOnly")}</p>}
           {githubError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{githubError}</p>}
         </div>
 
@@ -1227,12 +1240,12 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             <div className="flex items-center gap-3">
               <CalendarPlus className="h-5 w-5 text-purple-300" />
               <div>
-                <h3 className="text-xl font-semibold">Calendar Sync</h3>
-                <p className="mt-1 text-sm text-gray-500">Push approved task dates to your real calendar</p>
+                <h3 className="text-xl font-semibold">{t("detail.integrations.calendar")}</h3>
+                <p className="mt-1 text-sm text-gray-500">{t("detail.integrations.calendarHelp")}</p>
               </div>
             </div>
             {calendarConnection && (
-              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Google connected</span>
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">{t("detail.integrations.googleConnected")}</span>
             )}
           </div>
 
@@ -1290,12 +1303,12 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 disabled={calendarLoading || !currentUserId || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
-                {calendarLoading ? "Connecting..." : "Connect Google Calendar"}
+                {calendarLoading ? t("detail.integrations.connecting") : t("detail.integrations.connectCalendar")}
               </button>
-              <p className="text-xs text-gray-500">Outlook Calendar support is planned next. Google Calendar is available now.</p>
+              <p className="text-xs text-gray-500">{t("detail.integrations.calendarNote")}</p>
             </div>
           )}
-          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can change calendar sync settings.</p>}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">{t("detail.integrations.calendarAdminOnly")}</p>}
           {calendarError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{calendarError}</p>}
         </div>
 
@@ -1304,12 +1317,12 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             <div className="flex items-center gap-3">
               <MessageCircle className="h-5 w-5 text-purple-300" />
               <div>
-                <h3 className="text-xl font-semibold">Slack Updates</h3>
-                <p className="mt-1 text-sm text-gray-500">Send useful project updates to a team channel</p>
+                <h3 className="text-xl font-semibold">{t("detail.integrations.slack")}</h3>
+                <p className="mt-1 text-sm text-gray-500">{t("detail.integrations.slackHelp")}</p>
               </div>
             </div>
             {slackIntegration && (
-              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Connected</span>
+              <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">{t("detail.integrations.connected")}</span>
             )}
           </div>
 
@@ -1394,22 +1407,22 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 disabled={slackLoading || !slackWebhookInput.trim() || !canManageIntegrations}
                 className="rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
               >
-                {slackLoading ? "Connecting..." : "Connect Slack"}
+                {slackLoading ? t("detail.integrations.connecting") : t("detail.integrations.connectSlack")}
               </button>
-              <p className="text-xs text-gray-500">Microsoft Teams notifications can use the same webhook-style pattern later.</p>
+              <p className="text-xs text-gray-500">{t("detail.integrations.teamsNote")}</p>
             </div>
           )}
-          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">Only owners and admins can manage Slack notifications.</p>}
+          {!canManageIntegrations && <p className="mt-3 text-xs text-gray-500">{t("detail.integrations.slackAdminOnly")}</p>}
           {slackError && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{slackError}</p>}
         </div>
 
         {/* Team Members */}
         <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3"><Users className="w-5 h-5 text-purple-400" /><h3 className="text-2xl font-semibold">Team ({members.length})</h3></div>
+            <div className="flex items-center gap-3"><Users className="w-5 h-5 text-purple-400" /><h3 className="text-2xl font-semibold">{t("detail.team.title", { count: members.length })}</h3></div>
             {canManageMembers && (
               <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }} onClick={() => setShowAddMember((v) => !v)} className="flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-900/30 px-4 py-2 text-sm font-semibold text-white hover:border-purple-400/70 hover:bg-purple-800/40 transition-all">
-                <UserPlus className="h-4 w-4" /> Invite member
+                <UserPlus className="h-4 w-4" /> {t("detail.team.inviteMember")}
               </motion.button>
             )}
           </div>
@@ -1421,26 +1434,23 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   <input
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="Invite by email"
+                    placeholder={t("detail.team.invitePlaceholder")}
                     className="rounded-lg border border-white/10 app-input px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
                   />
                   <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as ProjectRole)} className="rounded-lg border border-white/10 app-input px-3 py-2 text-sm text-gray-200 outline-none focus:border-purple-500/50">
-                    <option value="Admin">Admin</option>
-                    <option value="Member">Member</option>
-                    <option value="Guest">Guest</option>
-                    <option value="Owner">Owner</option>
+                    <option value="Admin">{t("detail.roles.Admin")}</option><option value="Member">{t("detail.roles.Member")}</option><option value="Guest">{t("detail.roles.Guest")}</option><option value="Owner">{t("detail.roles.Owner")}</option>
                   </select>
                   <button
                     onClick={handleInviteMember}
                     disabled={memberActionId === "invite" || !inviteEmail.trim()}
                     className="rounded-lg border border-purple-500/40 bg-purple-900/30 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-800/40 disabled:opacity-40"
                   >
-                    {memberActionId === "invite" ? "Inviting..." : "Invite"}
+                    {memberActionId === "invite" ? t("detail.team.inviting") : t("detail.team.invite")}
                   </button>
                 </div>
                 {memberError && <p className="mb-3 rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{memberError}</p>}
                 {availableToAdd.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-2">No existing users available. Invite by email above.</p>
+                  <p className="text-sm text-gray-500 text-center py-2">{t("detail.team.noUsers")}</p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {availableToAdd.map((user) => (
@@ -1457,7 +1467,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 )}
                 {invitations.length > 0 && (
                   <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pending invitations</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{t("detail.team.pending")}</div>
                     <div className="space-y-1">
                       {invitations.map((invite) => (
                         <div key={invite.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-xs text-gray-400">
@@ -1471,10 +1481,10 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               </motion.div>
             )}
           </AnimatePresence>
-          {!canManageMembers && <p className="mb-4 text-xs text-gray-500">Only owners and admins can invite, remove, or change project roles.</p>}
+          {!canManageMembers && <p className="mb-4 text-xs text-gray-500">{t("detail.team.adminOnly")}</p>}
 
           {members.length === 0 ? (
-            <p className="text-sm text-gray-600 italic">No team members assigned yet.</p>
+            <p className="text-sm text-gray-600 italic">{t("detail.team.empty")}</p>
           ) : (
             <div className="space-y-3">
               {members.map((member, i) => (
@@ -1490,13 +1500,10 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         onClick={(e) => e.stopPropagation()}
                         className="mt-1 rounded-md border border-white/10 app-input px-2 py-1 text-xs text-gray-300 outline-none focus:border-purple-500/50 disabled:opacity-40"
                       >
-                        <option value="Owner">Owner</option>
-                        <option value="Admin">Admin</option>
-                        <option value="Member">Member</option>
-                        <option value="Guest">Guest</option>
+                        <option value="Owner">{t("detail.roles.Owner")}</option><option value="Admin">{t("detail.roles.Admin")}</option><option value="Member">{t("detail.roles.Member")}</option><option value="Guest">{t("detail.roles.Guest")}</option>
                       </select>
                     ) : (
-                      <div className="truncate text-xs text-gray-500">{member.role}</div>
+                      <div className="truncate text-xs text-gray-500">{t(`detail.roles.${member.role}`)}</div>
                     )}
                   </div>
                   {canManageMembers && (
@@ -1514,7 +1521,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           <div className="min-w-0 rounded-2xl border border-red-500/30 bg-red-950/20 p-5">
             <div className="mb-4 flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-red-300" />
-              <h3 className="text-xl font-semibold text-red-100">Blocked Work</h3>
+              <h3 className="text-xl font-semibold text-red-100">{t("detail.blockedWork")}</h3>
               <span className="rounded-full border border-red-500/30 bg-red-900/30 px-2 py-0.5 text-xs text-red-200">{blockedTasks.length}</span>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -1526,7 +1533,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 >
                   <div className="truncate text-sm font-semibold text-white">{task.title}</div>
                   <div className="mt-2 text-xs text-red-200">
-                    Blocked by {(task.blocked_by ?? []).filter((item) => item.status !== "Done").map((item) => item.title).join(", ")}
+                    {t("detail.blockedBy", { tasks: (task.blocked_by ?? []).filter((item) => item.status !== "Done").map((item) => item.title).join(", ") })}
                   </div>
                 </button>
               ))}
@@ -1539,7 +1546,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-purple-400" />
-              <h3 className="text-2xl font-semibold">Tasks ({tasks.length})</h3>
+              <h3 className="text-2xl font-semibold">{t("detail.tasks", { count: tasks.length })}</h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="inline-flex rounded-xl border border-white/10 app-surface-soft p-1">
@@ -1547,34 +1554,34 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   onClick={() => setView("list")}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "list" ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20" : "text-gray-500 hover:text-gray-300"}`}
                 >
-                  <List className="h-3.5 w-3.5" /> List
+                  <List className="h-3.5 w-3.5" /> {t("detail.list")}
                 </button>
                 <button
                   onClick={() => setView("kanban")}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "kanban" ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20" : "text-gray-500 hover:text-gray-300"}`}
                 >
-                  <LayoutGrid className="h-3.5 w-3.5" /> Kanban
+                  <LayoutGrid className="h-3.5 w-3.5" /> {t("detail.kanban")}
                 </button>
               </div>
               {canEditTasks ? (
                 <AddTaskForm projectId={taskId!} members={members} currentUserId={currentUserId} onCreated={handleTaskCreated} />
               ) : (
-                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-gray-500">View-only role</span>
+                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-gray-500">{t("detail.viewOnly")}</span>
               )}
             </div>
           </div>
 
           <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 app-surface-soft p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
-              <Filter className="h-3.5 w-3.5" /> Filters
+              <Filter className="h-3.5 w-3.5" /> {t("detail.filters")}
             </div>
             <select
               value={filters.assignee}
               onChange={(e) => setFilters((current) => ({ ...current, assignee: e.target.value }))}
               className="rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
             >
-              <option value="all">All assignees</option>
-              <option value="unassigned">Unassigned</option>
+              <option value="all">{t("detail.allAssignees")}</option>
+              <option value="unassigned">{t("detail.unassigned")}</option>
               {members.map((member) => (
                 <option key={member.user_id} value={member.user_id}>{member.full_name ?? member.email}</option>
               ))}
@@ -1584,19 +1591,17 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               onChange={(e) => setFilters((current) => ({ ...current, priority: e.target.value }))}
               className="rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
             >
-              <option value="all">All priorities</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
+              <option value="all">{t("detail.allPriorities")}</option>
+              <option value="High">{t("priority.high")}</option><option value="Medium">{t("priority.medium")}</option><option value="Low">{t("priority.low")}</option>
             </select>
             <select
               value={filters.status}
               onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value }))}
               className="rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
             >
-              <option value="all">All statuses</option>
+              <option value="all">{t("detail.allStatuses")}</option>
               {KANBAN_COLUMNS.map((column) => (
-                <option key={column.status} value={column.status}>{column.label}</option>
+                <option key={column.status} value={column.status}>{t(`status.${column.status === "Backlog" ? "backlog" : column.status === "To Do" ? "todo" : column.status === "In Progress" ? "inProgress" : column.status === "In Review" ? "inReview" : "done"}`)}</option>
               ))}
             </select>
             <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${filters.overdueOnly ? "border-red-500/40 bg-red-900/20 text-red-300" : "border-white/10 app-surface-soft text-gray-400 hover:text-gray-300"}`}>
@@ -1606,7 +1611,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 onChange={(e) => setFilters((current) => ({ ...current, overdueOnly: e.target.checked }))}
                 className="h-3.5 w-3.5 accent-purple-500"
               />
-              Overdue
+              {t("detail.overdue")}
             </label>
           </div>
 
@@ -1615,9 +1620,9 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           )}
 
           {tasks.length === 0 ? (
-            <p className="text-sm text-gray-600 italic">No tasks yet. Add a task or generate them with AI.</p>
+            <p className="text-sm text-gray-600 italic">{t("detail.noTasks")}</p>
           ) : filteredTasks.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/3 px-4 py-6 text-center text-sm text-gray-500">No tasks match these filters.</p>
+            <p className="rounded-xl border border-white/10 bg-white/3 px-4 py-6 text-center text-sm text-gray-500">{t("detail.noMatches")}</p>
           ) : view === "kanban" ? (
             <div className="overflow-x-auto pb-2">
               <div className="grid min-w-[1120px] grid-cols-5 gap-4">
@@ -1644,7 +1649,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className={`h-2.5 w-2.5 rounded-full ${column.dot}`} />
-                          <h4 className="text-sm font-semibold text-gray-200">{column.label}</h4>
+                          <h4 className="text-sm font-semibold text-gray-200">{t(`status.${column.status === "Backlog" ? "backlog" : column.status === "To Do" ? "todo" : column.status === "In Progress" ? "inProgress" : column.status === "In Review" ? "inReview" : "done"}`)}</h4>
                         </div>
                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-gray-500">{columnTasks.length}</span>
                       </div>
@@ -1662,7 +1667,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                             const overdue = isOverdue(task);
                             const isDragging = draggingTaskId === task.id;
                             const scheduleWarning = sched?.hasDependencyWarning;
-                            const latest = task.latest_activity_at ? new Date(task.latest_activity_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+                            const latest = task.latest_activity_at ? new Date(task.latest_activity_at).toLocaleDateString(locale, { month: "short", day: "numeric" }) : null;
 
                             return (
                               <motion.div
@@ -1684,19 +1689,19 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                               >
                                 <div className="mb-3 flex items-start justify-between gap-2">
                                   <h5 className={`text-sm font-medium leading-snug ${task.status === "Done" ? "text-gray-500 line-through" : "text-white"}`}>{task.title}</h5>
-                                  <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-semibold ${prio}`}>{task.priority}</span>
+                                  <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-semibold ${prio}`}>{t(`priority.${task.priority.toLowerCase()}`)}</span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-500">
-                                  {task.is_blocked && <span className="rounded-md border border-red-500/30 bg-red-900/30 px-2 py-1 text-red-200">Blocked</span>}
-                                  {scheduleWarning && <span className="rounded-md border border-yellow-500/30 bg-yellow-900/30 px-2 py-1 text-yellow-200">Schedule warning</span>}
-                                  <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1"><Clock className="h-3 w-3" />{task.estimated_days}d</span>
+                                  {task.is_blocked && <span className="rounded-md border border-red-500/30 bg-red-900/30 px-2 py-1 text-red-200">{t("blocked")}</span>}
+                                  {scheduleWarning && <span className="rounded-md border border-yellow-500/30 bg-yellow-900/30 px-2 py-1 text-yellow-200">{t("detail.scheduleWarning")}</span>}
+                                  <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1"><Clock className="h-3 w-3" />{t("detail.days", { count: task.estimated_days })}</span>
                                   {sched && (
                                     <span className={`rounded-md px-2 py-1 ${overdue ? "bg-red-900/30 text-red-300" : "bg-white/5 text-gray-500"}`}>
-                                      Due {sched.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                      {t("detail.due", { date: sched.end.toLocaleDateString(locale, { month: "short", day: "numeric" }) })}
                                     </span>
                                   )}
                                   <span className="rounded-md bg-purple-900/20 px-2 py-1 text-purple-300">{project.name}</span>
-                                  {latest && <span className="rounded-md bg-white/5 px-2 py-1 text-gray-500">Activity {latest}</span>}
+                                  {latest && <span className="rounded-md bg-white/5 px-2 py-1 text-gray-500">{t("detail.activity", { date: latest })}</span>}
                                 </div>
                                 <div className="mt-3 flex items-center justify-between gap-3">
                                   <div className="min-w-0 text-xs text-gray-400">
@@ -1706,7 +1711,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                                         <span className="truncate">{assignee.full_name ?? assignee.email}</span>
                                       </span>
                                     ) : (
-                                      <span className="text-gray-600">Unassigned</span>
+                                      <span className="text-gray-600">{t("detail.unassigned")}</span>
                                     )}
                                   </div>
                                   {task.status === "Done" && <CheckCircle2 className="h-4 w-4 shrink-0 text-green-400" />}
@@ -1731,7 +1736,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 const prio = PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.Medium;
                 const isDropdownOpen = assignDropdownId === task.id;
                 const scheduleWarning = sched?.hasDependencyWarning;
-                const latest = task.latest_activity_at ? new Date(task.latest_activity_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+                const latest = task.latest_activity_at ? new Date(task.latest_activity_at).toLocaleDateString(locale, { month: "short", day: "numeric" }) : null;
 
                 return (
                   <div key={task.id} className="relative">
@@ -1758,16 +1763,16 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         <div className="min-w-0 flex-1">
                           <div className={`text-sm font-medium mb-1 ${isDone ? "line-through text-gray-500" : "text-white"}`}>{task.title}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            {task.is_blocked && <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-red-500/40 bg-red-900/30 text-red-300">Blocked</span>}
-                            {scheduleWarning && <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-yellow-500/40 bg-yellow-900/30 text-yellow-300">Schedule warning</span>}
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${prio}`}>{task.priority}</span>
-                            <span className="flex items-center gap-1 text-[10px] text-gray-400"><Clock className="w-3 h-3" />{task.estimated_days}d</span>
+                            {task.is_blocked && <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-red-500/40 bg-red-900/30 text-red-300">{t("blocked")}</span>}
+                            {scheduleWarning && <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-yellow-500/40 bg-yellow-900/30 text-yellow-300">{t("detail.scheduleWarning")}</span>}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${prio}`}>{t(`priority.${task.priority.toLowerCase()}`)}</span>
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400"><Clock className="w-3 h-3" />{t("detail.days", { count: task.estimated_days })}</span>
                             {(task.assigned_tech ?? []).slice(0, 2).map((t) => (
                               <span key={t} className="px-2 py-0.5 rounded text-[10px] bg-purple-900/30 border border-purple-500/20 text-purple-300">{t}</span>
                             ))}
                             {(task.assigned_tech ?? []).length > 2 && <span className="text-[10px] text-gray-500">+{task.assigned_tech.length - 2}</span>}
                             {sched && <span className="text-[10px] text-gray-500">{sched.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} → {sched.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
-                            {latest && <span className="text-[10px] text-gray-500">Activity {latest}</span>}
+                            {latest && <span className="text-[10px] text-gray-500">{t("detail.activity", { date: latest })}</span>}
                           </div>
                           {isDone && task.completer_name && <div className="text-[10px] text-green-400/70 mt-1">✓ by {task.completer_name}</div>}
                         </div>
@@ -1781,7 +1786,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                           ) : (
                             <UserPlus className="h-3 w-3" />
                           )}
-                          <span>{assignee ? (assignee.full_name ?? assignee.email).split(" ")[0] : "Assign"}</span>
+                          <span>{assignee ? (assignee.full_name ?? assignee.email).split(" ")[0] : t("detail.assign")}</span>
                           <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
                         </button>
                       </div>
@@ -1791,7 +1796,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                       {isDropdownOpen && (
                         <motion.div initial={{ opacity: 0, y: -4, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }} transition={{ duration: 0.12 }} className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/10 app-surface-elevated backdrop-blur-xl shadow-2xl overflow-hidden">
                           {members.length === 0 ? (
-                            <p className="px-4 py-3 text-xs text-gray-500">No members on this project yet.</p>
+                            <p className="px-4 py-3 text-xs text-gray-500">{t("detail.team.empty")}</p>
                           ) : (
                             <div className="p-1.5 space-y-0.5">
                               {assignee && (
@@ -1870,9 +1875,9 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 shadow-lg shadow-purple-500/20">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-2xl font-semibold text-white">AI Assistant</h3>
+                <h3 className="text-2xl font-semibold text-white">{t("detail.assistant.title")}</h3>
               </div>
-              <p className="text-sm text-gray-400">Select a task to view details and chat with AI</p>
+              <p className="text-sm text-gray-400">{t("detail.assistant.subtitle")}</p>
             </div>
 
             <div className="flex-1 flex items-center justify-center p-8">
@@ -1881,8 +1886,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   <Tag className="w-8 h-8 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-gray-300 font-medium mb-1">No task selected</p>
-                  <p className="text-sm text-gray-500">Click on any task from the list to view its details, implementation steps, and chat with AI about it.</p>
+                  <p className="text-gray-300 font-medium mb-1">{t("detail.assistant.empty")}</p>
+                  <p className="text-sm text-gray-500">{t("detail.assistant.emptyHelp")}</p>
                 </div>
               </div>
             </div>
