@@ -48,7 +48,7 @@ function timeAgo(iso: string) {
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/[0.03] ${className}`}>
+    <div className={`rounded-2xl border border-white/10 app-surface-soft ${className}`}>
       {children}
     </div>
   );
@@ -110,7 +110,7 @@ function EditableText({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={Math.max(3, value.split("\n").length + 1)}
-      className="w-full bg-white/5 border border-purple-500/40 rounded-xl px-4 py-3 text-sm text-white leading-relaxed resize-y focus:outline-none focus:border-purple-500/70 transition-colors"
+      className="w-full app-surface-soft border border-purple-500/40 rounded-xl px-4 py-3 text-sm text-white leading-relaxed resize-y focus:outline-none focus:border-purple-500/70 transition-colors"
     />
   ) : (
     <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{value}</p>
@@ -144,7 +144,7 @@ function EditableList({
               next[i] = e.target.value;
               onChange(next);
             }}
-            className="flex-1 bg-white/5 border border-purple-500/40 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/70 transition-colors"
+            className="flex-1 app-surface-soft border border-purple-500/40 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/70 transition-colors"
           />
           <button
             onClick={() => onChange(items.filter((_, j) => j !== i))}
@@ -288,20 +288,9 @@ export function WeeklyReportPage() {
   const [schedule, setSchedule] = useState(() => projectId ? getSchedule(projectId) : { enabled: false, dayOfWeek: 1 });
   const [showSchedule, setShowSchedule] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [autoGenTriggered, setAutoGenTriggered] = useState(false);
+  const autoGenTriggered = useRef(false);
 
   const plainTextRef = useRef<string>("");
-
-  // Check scheduled report on mount
-  useEffect(() => {
-    if (!projectId || autoGenTriggered) return;
-    const s = getSchedule(projectId);
-    if (s.enabled && isReportDue(projectId, s.dayOfWeek)) {
-      setAutoGenTriggered(true);
-      generate();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
 
   const generate = useCallback(async () => {
     if (!projectId) return;
@@ -321,10 +310,24 @@ export function WeeklyReportPage() {
     }
   }, [projectId]);
 
+  // Check scheduled report on mount. The ref prevents StrictMode's repeated
+  // development effect from generating the same report twice.
+  useEffect(() => {
+    if (!projectId || autoGenTriggered.current) return;
+    const savedSchedule = getSchedule(projectId);
+    if (savedSchedule.enabled && isReportDue(projectId, savedSchedule.dayOfWeek)) {
+      autoGenTriggered.current = true;
+      // Scheduled generation intentionally starts from this synchronization effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void generate();
+    }
+  }, [generate, projectId]);
+
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -332,7 +335,8 @@ export function WeeklyReportPage() {
   const toggleEdit = (key: string) => {
     setEditingSections((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -461,26 +465,26 @@ export function WeeklyReportPage() {
           <button
             onClick={generate}
             disabled={generating}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 app-surface-soft hover:app-surface-soft px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Regenerate
           </button>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 app-surface-soft hover:app-surface-soft px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied!" : "Copy"}
           </button>
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 app-surface-soft hover:app-surface-soft px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
           >
             <Download className="h-3.5 w-3.5" /> Download
           </button>
           <button
             onClick={() => setShowEmailModal(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-white/10 app-surface-soft hover:app-surface-soft px-3 py-2 text-xs font-medium text-gray-300 hover:text-white transition-colors"
           >
             <Send className="h-3.5 w-3.5" /> Email
           </button>
@@ -494,7 +498,7 @@ export function WeeklyReportPage() {
           </button>
           <button
             onClick={() => setShowSchedule((v) => !v)}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${schedule.enabled ? "border-purple-500/40 bg-purple-600/15 text-purple-300" : "border-white/10 bg-white/5 text-gray-500 hover:text-white hover:bg-white/10"}`}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${schedule.enabled ? "border-purple-500/40 bg-purple-600/15 text-purple-300" : "border-white/10 app-surface-soft text-gray-500 hover:text-white hover:app-surface-soft"}`}
           >
             <Bell className="h-3.5 w-3.5" />
             {schedule.enabled ? `Weekly (${DAY_NAMES[schedule.dayOfWeek]})` : "Schedule"}
@@ -536,7 +540,7 @@ export function WeeklyReportPage() {
                   value={schedule.dayOfWeek}
                   onChange={(e) => handleScheduleChange({ ...schedule, dayOfWeek: Number(e.target.value) })}
                   disabled={!schedule.enabled}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500/60 disabled:opacity-40"
+                  className="rounded-lg border border-white/10 app-surface-soft px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500/60 disabled:opacity-40"
                 >
                   {DAY_NAMES.map((d, i) => <option key={i} value={i} className="bg-black">{d}</option>)}
                 </select>
@@ -793,7 +797,7 @@ export function WeeklyReportPage() {
                   { label: "Delta", value: changes.completion_delta >= 0 ? `+${changes.completion_delta}` : String(changes.completion_delta), sub: changes.velocity_trend, color: changes.velocity_trend === "improving" ? "text-green-400" : "text-red-400" },
                   { label: "New tasks", value: `+${changes.new_tasks_added}`, sub: "added this week", color: "text-purple-400" },
                 ].map((s) => (
-                  <div key={s.label} className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5">
+                  <div key={s.label} className="rounded-xl border border-white/8 app-surface-soft px-3 py-2.5">
                     <p className="text-[10px] text-gray-600 mb-1">{s.label}</p>
                     <p className={`text-xl font-bold tabular-nums ${s.color}`}>{s.value}</p>
                     <p className="text-[10px] text-gray-600">{s.sub}</p>
@@ -873,12 +877,12 @@ export function WeeklyReportPage() {
       {/* Email modal */}
       <AnimatePresence>
         {showEmailModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center app-surface-elevated backdrop-blur-sm px-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black/90 p-6 shadow-2xl"
+              className="w-full max-w-2xl rounded-2xl border border-white/10 app-surface-elevated p-6 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-semibold text-white">Email report</h2>
@@ -891,7 +895,7 @@ export function WeeklyReportPage() {
                 readOnly
                 value={report && sections ? buildPlainText(report, sections) : ""}
                 rows={16}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-gray-300 font-mono resize-none focus:outline-none"
+                className="w-full app-surface-soft border border-white/10 rounded-xl px-4 py-3 text-xs text-gray-300 font-mono resize-none focus:outline-none"
               />
               <div className="mt-4 flex justify-end gap-3">
                 <button onClick={() => setShowEmailModal(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Close</button>

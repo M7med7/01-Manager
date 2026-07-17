@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { api, type PortfolioProject, type PortfolioWorkload, type RiskLevel } from "../lib/api";
+import { useTranslation } from "react-i18next";
 
 type RoadmapFilters = {
   projectId: string;
@@ -107,6 +108,7 @@ function findDeadlineConflicts(projects: PortfolioProject[]): DeadlineConflict[]
 }
 
 export function PortfolioRoadmap() {
+  const { t } = useTranslation("reports");
   const [projects, setProjects] = useState<PortfolioProject[]>([]);
   const [workload, setWorkload] = useState<PortfolioWorkload[]>([]);
   const [filters, setFilters] = useState<RoadmapFilters>({
@@ -233,11 +235,11 @@ export function PortfolioRoadmap() {
           <div>
             <div className="flex items-center gap-3 text-sm text-purple-300">
               <CalendarDays className="h-4 w-4" />
-              Multi-project roadmap
+              {t("roadmap.eyebrow")}
             </div>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Portfolio Roadmap</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-white">{t("roadmap.title")}</h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-400">
-              See deadlines, project health, blocked work, and cross-project workload in one manager view.
+              {t("roadmap.description")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -246,14 +248,14 @@ export function PortfolioRoadmap() {
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-purple-500/40 hover:text-white"
             >
               <Share2 className="h-4 w-4" />
-              Share
+              {t("roadmap.share")}
             </button>
             <button
               onClick={exportRoadmap}
               className="inline-flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-600/20 px-4 py-2 text-sm font-medium text-purple-100 transition-colors hover:bg-purple-600/30"
             >
               <Download className="h-4 w-4" />
-              Export CSV
+              {t("roadmap.export")}
             </button>
           </div>
         </div>
@@ -271,70 +273,70 @@ export function PortfolioRoadmap() {
         )}
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Needs attention</div>
+          <div className="rounded-2xl border border-white/10 app-input p-4">
+            <div className="text-xs uppercase tracking-wide text-gray-500">{t("roadmap.needsAttention")}</div>
             <div className="mt-2 text-3xl font-semibold text-white">{riskyProjects.length}</div>
-            <div className="mt-1 text-sm text-gray-400">High or critical risk projects</div>
+            <div className="mt-1 text-sm text-gray-400">{t("roadmap.needsAttentionHelp")}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Blocked / overdue</div>
+          <div className="rounded-2xl border border-white/10 app-input p-4">
+            <div className="text-xs uppercase tracking-wide text-gray-500">{t("roadmap.blockedOverdue")}</div>
             <div className="mt-2 text-3xl font-semibold text-white">{blockedTotal + overdueTotal}</div>
             <div className="mt-1 text-sm text-gray-400">{blockedTotal} blocked, {overdueTotal} overdue</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Deadline conflicts</div>
+          <div className="rounded-2xl border border-white/10 app-input p-4">
+            <div className="text-xs uppercase tracking-wide text-gray-500">{t("roadmap.deadlineConflicts")}</div>
             <div className="mt-2 text-3xl font-semibold text-white">{conflicts.length}</div>
-            <div className="mt-1 text-sm text-gray-400">Projects ending within 3 days</div>
+            <div className="mt-1 text-sm text-gray-400">{t("roadmap.deadlineHelp")}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Cross-project overload</div>
+          <div className="rounded-2xl border border-white/10 app-input p-4">
+            <div className="text-xs uppercase tracking-wide text-gray-500">{t("roadmap.overload")}</div>
             <div className="mt-2 text-3xl font-semibold text-white">{overloadedMembers.length}</div>
-            <div className="mt-1 text-sm text-gray-400">Members carrying too much work</div>
+            <div className="mt-1 text-sm text-gray-400">{t("roadmap.overloadHelp")}</div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/45 p-4">
+        <div className="rounded-2xl border border-white/10 app-panel p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-300">
             <Filter className="h-4 w-4 text-purple-300" />
-            Filters
+            {t("roadmap.filters")}
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <select value={filters.projectId} onChange={(e) => updateFilter("projectId", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200">
-              <option value="">All projects</option>
+            <select value={filters.projectId} onChange={(e) => updateFilter("projectId", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200">
+              <option value="">{t("roadmap.allProjects")}</option>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
             </select>
-            <select value={filters.owner} onChange={(e) => updateFilter("owner", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200">
-              <option value="">All owners</option>
+            <select value={filters.owner} onChange={(e) => updateFilter("owner", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200">
+              <option value="">{t("roadmap.allOwners")}</option>
               {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
             </select>
-            <select value={filters.status} onChange={(e) => updateFilter("status", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200">
-              <option value="">All statuses</option>
-              <option value="Planning">Planning</option>
-              <option value="Active">Active</option>
-              <option value="Completed">Completed</option>
-              <option value="Done">Done</option>
+            <select value={filters.status} onChange={(e) => updateFilter("status", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200">
+              <option value="">{t("roadmap.allStatuses")}</option>
+              <option value="Planning">{t("roadmap.status.Planning")}</option>
+              <option value="Active">{t("roadmap.status.Active")}</option>
+              <option value="Completed">{t("roadmap.status.Completed")}</option>
+              <option value="Done">{t("roadmap.status.Done")}</option>
             </select>
-            <select value={filters.risk} onChange={(e) => updateFilter("risk", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200">
-              <option value="">All risk</option>
+            <select value={filters.risk} onChange={(e) => updateFilter("risk", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200">
+              <option value="">{t("roadmap.allRisk")}</option>
               <option value="Critical">Critical</option>
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
             </select>
-            <input type="date" value={filters.from} onChange={(e) => updateFilter("from", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200" />
-            <input type="date" value={filters.to} onChange={(e) => updateFilter("to", e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200" />
+            <input type="date" value={filters.from} onChange={(e) => updateFilter("from", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200" />
+            <input type="date" value={filters.to} onChange={(e) => updateFilter("to", e.target.value)} className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-gray-200" />
           </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="rounded-2xl border border-white/10 bg-black/45">
+          <div className="rounded-2xl border border-white/10 app-panel">
             <div className="border-b border-white/10 px-5 py-4">
-              <h2 className="text-lg font-semibold text-white">Active Timelines</h2>
+              <h2 className="text-lg font-semibold text-white">{t("roadmap.activeTimelines")}</h2>
               <p className="mt-1 text-sm text-gray-500">{formatDate(timelineBounds.start.toISOString())} to {formatDate(timelineBounds.end.toISOString())}</p>
             </div>
 
             {sortedProjects.length === 0 ? (
-              <div className="p-10 text-center text-sm text-gray-500">No projects match these filters.</div>
+              <div className="p-10 text-center text-sm text-gray-500">{t("roadmap.noMatches")}</div>
             ) : (
               <div className="divide-y divide-white/10">
                 {sortedProjects.map((project) => {
@@ -352,7 +354,7 @@ export function PortfolioRoadmap() {
                             </span>
                           </div>
                           <div className="mt-1 truncate text-xs text-gray-500">
-                            {project.owner_name ?? "No owner"} • {project.progress}% complete • {project.task_count} tasks
+                            {project.owner_name ?? t("roadmap.noOwner")} • {t("roadmap.complete", { count: project.progress })} • {t("roadmap.tasks", { count: project.task_count })}
                           </div>
                         </div>
 
@@ -383,22 +385,22 @@ export function PortfolioRoadmap() {
                             <span className="text-gray-500">{formatDate(project.start_date)} → {formatDate(project.end_date)}</span>
                             {project.overdue_count > 0 && <span className="text-red-300">{project.overdue_count} overdue</span>}
                             {project.blocked_count > 0 && <span className="text-amber-300">{project.blocked_count} blocked</span>}
-                            {projectConflicts.length > 0 && <span className="text-purple-300">deadline conflict</span>}
+                            {projectConflicts.length > 0 && <span className="text-purple-300">{t("roadmap.deadlineConflict")}</span>}
                           </div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-center lg:w-48">
                           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2">
                             <div className="text-sm font-semibold text-white">{project.health_score}%</div>
-                            <div className="text-[10px] uppercase text-gray-500">Health</div>
+                            <div className="text-[10px] uppercase text-gray-500">{t("roadmap.health")}</div>
                           </div>
                           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2">
                             <div className="text-sm font-semibold text-white">{project.blocked_count}</div>
-                            <div className="text-[10px] uppercase text-gray-500">Blocked</div>
+                            <div className="text-[10px] uppercase text-gray-500">{t("roadmap.blocked")}</div>
                           </div>
                           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2">
                             <div className="text-sm font-semibold text-white">{project.overdue_count}</div>
-                            <div className="text-[10px] uppercase text-gray-500">Late</div>
+                            <div className="text-[10px] uppercase text-gray-500">{t("roadmap.late")}</div>
                           </div>
                         </div>
                       </div>
@@ -422,10 +424,10 @@ export function PortfolioRoadmap() {
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-black/45 p-5">
+            <div className="rounded-2xl border border-white/10 app-panel p-5">
               <div className="mb-4 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-300" />
-                <h2 className="font-semibold text-white">What Needs Attention</h2>
+                <h2 className="font-semibold text-white">{t("roadmap.whatNeedsAttention")}</h2>
               </div>
               <div className="space-y-3">
                 {riskyProjects.slice(0, 4).map((project) => (
@@ -439,16 +441,16 @@ export function PortfolioRoadmap() {
                 ))}
                 {riskyProjects.length === 0 && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-200">
-                    No high-risk projects in this view.
+                    {t("roadmap.noHighRisk")}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/45 p-5">
+            <div className="rounded-2xl border border-white/10 app-panel p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Link2 className="h-4 w-4 text-purple-300" />
-                <h2 className="font-semibold text-white">Deadline Conflicts</h2>
+                <h2 className="font-semibold text-white">{t("roadmap.deadlineConflicts")}</h2>
               </div>
               <div className="space-y-3">
                 {conflicts.map((conflict) => (
@@ -458,18 +460,18 @@ export function PortfolioRoadmap() {
                     <div className="mt-1 text-xs text-gray-500">Deadlines are {conflict.daysApart === 0 ? "same day" : `${conflict.daysApart} days apart`}</div>
                   </div>
                 ))}
-                {conflicts.length === 0 && <div className="text-sm text-gray-500">No close deadline conflicts in this view.</div>}
+                {conflicts.length === 0 && <div className="text-sm text-gray-500">{t("roadmap.noConflicts")}</div>}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/45 p-5">
+            <div className="rounded-2xl border border-white/10 app-panel p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Users className="h-4 w-4 text-purple-300" />
-                <h2 className="font-semibold text-white">Cross-project Workload</h2>
+                <h2 className="font-semibold text-white">{t("roadmap.workload")}</h2>
               </div>
               <div className="space-y-3">
                 {workload.length === 0 ? (
-                  <div className="text-sm text-gray-500">No assigned active work yet.</div>
+                  <div className="text-sm text-gray-500">{t("roadmap.noWork")}</div>
                 ) : (
                   workload
                     .slice()
@@ -483,7 +485,7 @@ export function PortfolioRoadmap() {
                             <div className="text-xs text-gray-500">{member.project_count} projects • {member.open_tasks} open tasks</div>
                           </div>
                           {member.overloaded ? (
-                            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-300">Overloaded</span>
+                            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-300">{t("roadmap.overloaded")}</span>
                           ) : (
                             <CheckCircle2 className="h-4 w-4 text-emerald-300" />
                           )}

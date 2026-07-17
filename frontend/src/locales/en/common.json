@@ -1,0 +1,62 @@
+{
+  "brand": {
+    "name": "01 Manager"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "arabic": "Arabic",
+    "switcherAriaLabel": "Change language"
+  },
+  "theme": {
+    "light": "Light mode",
+    "dark": "Dark mode",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "edit": "Edit"
+  },
+  "search": {
+    "placeholder": "Search projects, tasks, files..."
+  },
+  "notifications": {
+    "ariaLabel": "Notifications",
+    "title": "Notifications",
+    "unreadCount_zero": "No unread notifications",
+    "unreadCount_one": "{{count}} unread",
+    "unreadCount_two": "{{count}} unread",
+    "unreadCount_few": "{{count}} unread",
+    "unreadCount_many": "{{count}} unread",
+    "unreadCount_other": "{{count}} unread",
+    "markAllRead": "Mark all read",
+    "preferences": "Preferences",
+    "preferencesAriaLabel": "Notification preferences",
+    "empty": "No notifications yet",
+    "markRead": "Read",
+    "markUnread": "Unread",
+    "preferenceLabels": {
+      "assignments": "Task assignments",
+      "mentions": "Mentions",
+      "comments": "Comments",
+      "status_changes": "Status changes",
+      "due_reminders": "Due date reminders",
+      "overdue_alerts": "Overdue alerts",
+      "project_risk": "Project risk"
+    }
+  },
+  "profile": {
+    "viewProfile": "View profile",
+    "editProfile": "Edit profile",
+    "signOut": "Sign out",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "namePlaceholder": "Your full name",
+    "phonePlaceholder": "+966 5x xxx xxxx",
+    "saveFailed": "Failed to save"
+  }
+}

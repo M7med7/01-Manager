@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/Button";
 import { api, type Project, type HealthBadge } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,14 +49,14 @@ const RISK_ORDER: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Lo
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatNextDeadline(iso: string): string {
+function formatNextDeadline(iso: string, language: string, t: TFunction): string {
   const d = new Date(iso);
   const diff = Math.ceil((d.getTime() - Date.now()) / 86_400_000);
-  if (diff < 0) return `${Math.abs(diff)}d overdue`;
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff <= 7) return `in ${diff}d`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (diff < 0) return t("deadline.overdue", { count: Math.abs(diff) });
+  if (diff === 0) return t("deadline.today");
+  if (diff === 1) return t("deadline.tomorrow");
+  if (diff <= 7) return t("deadline.inDays", { count: diff });
+  return new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(d);
 }
 
 function sortProjects(list: Project[], key: SortKey): Project[] {
@@ -81,12 +83,12 @@ function filterProjects(list: Project[], key: FilterKey): Project[] {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function HealthPill({ badge }: { badge: HealthBadge | undefined }) {
+function HealthPill({ badge, t }: { badge: HealthBadge | undefined; t: TFunction }) {
   const cfg = BADGE[badge ?? "Healthy"];
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.pill}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-      {badge ?? "Healthy"}
+      {t(`health.${badge ?? "Healthy"}`)}
     </span>
   );
 }
@@ -104,7 +106,7 @@ function Chip({ children, color }: { children: React.ReactNode; color: "red" | "
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate, t }: { onCreate: () => void; t: TFunction }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -114,15 +116,15 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-purple-500/20 bg-purple-900/15">
         <Sparkles className="h-9 w-9 text-purple-400" />
       </div>
-      <h3 className="mb-2 text-2xl font-light text-white">No projects yet</h3>
+      <h3 className="mb-2 text-2xl font-light text-white">{t("empty.title")}</h3>
       <p className="mb-10 max-w-sm text-sm text-gray-500 leading-relaxed">
-        Create your first project and let AI generate a full execution plan — tasks, deadlines, and risk signals included.
+        {t("empty.description")}
       </p>
       <div className="mb-10 flex flex-col sm:flex-row gap-4 text-left max-w-lg w-full">
         {[
-          { icon: "①", label: "Describe your project", sub: "Name, goal, and rough timeline" },
-          { icon: "②", label: "AI builds the plan", sub: "Tasks, priorities, dependencies" },
-          { icon: "③", label: "Track & ship", sub: "Assign, update status, watch health" },
+          { icon: "①", label: t("empty.describe"), sub: t("empty.describeHelp") },
+          { icon: "②", label: t("empty.plan"), sub: t("empty.planHelp") },
+          { icon: "③", label: t("empty.track"), sub: t("empty.trackHelp") },
         ].map(({ icon, label, sub }) => (
           <div key={icon} className="flex-1 rounded-xl border border-white/8 bg-white/3 p-4">
             <div className="mb-2 text-lg text-purple-400">{icon}</div>
@@ -131,15 +133,15 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           </div>
         ))}
       </div>
-      <Button onClick={onCreate}>+ Create First Project</Button>
+      <Button onClick={onCreate}>+ {t("createFirstProject")}</Button>
     </motion.div>
   );
 }
 
 function ConfirmDeleteModal({
-  projectName, onConfirm, onCancel, deleting,
+  projectName, onConfirm, onCancel, deleting, t,
 }: {
-  projectName: string; onConfirm: () => void; onCancel: () => void; deleting: boolean;
+  projectName: string; onConfirm: () => void; onCancel: () => void; deleting: boolean; t: TFunction;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6">
@@ -147,16 +149,16 @@ function ConfirmDeleteModal({
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className="w-full max-w-md rounded-2xl border border-red-500/40 bg-black/90 p-6 shadow-2xl shadow-red-500/20"
+        className="w-full max-w-md rounded-2xl border border-red-500/40 app-surface-elevated p-6 shadow-2xl shadow-red-500/20"
       >
         <div className="mb-5 flex items-start gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-900/50 border border-red-500/40">
             <AlertTriangle className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">Delete project?</h3>
+            <h3 className="text-lg font-semibold text-white">{t("delete.title")}</h3>
             <p className="mt-1 text-sm text-gray-400">
-              <span className="font-semibold text-white">"{projectName}"</span> and all its tasks will be permanently deleted.
+              {t("delete.description", { name: projectName })}
             </p>
           </div>
           <button onClick={onCancel} className="ml-auto rounded-lg border border-white/10 p-1.5 text-gray-400 hover:text-white hover:bg-white/5">
@@ -165,10 +167,10 @@ function ConfirmDeleteModal({
         </div>
         <div className="flex justify-end gap-3">
           <button onClick={onCancel} disabled={deleting} className="rounded-xl border border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white disabled:opacity-40">
-            Cancel
+            {t("common:actions.cancel")}
           </button>
           <button onClick={onConfirm} disabled={deleting} className="rounded-xl bg-red-600 hover:bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-red-500/20 disabled:opacity-40 transition-colors">
-            {deleting ? "Deleting…" : "Delete project"}
+            {deleting ? t("delete.deleting") : t("delete.action")}
           </button>
         </div>
       </motion.div>
@@ -179,6 +181,7 @@ function ConfirmDeleteModal({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ProjectsDashboard() {
+  const { t, i18n } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const { session } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -204,7 +207,7 @@ export function ProjectsDashboard() {
       await api.projects.delete(confirmId, session?.user.id);
       setProjects((prev) => prev.filter((p) => p.id !== confirmId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete project");
+      setError(err instanceof Error ? err.message : t("projects:delete.failed"));
     } finally {
       setDeletingId(null);
       setConfirmId(null);
@@ -233,10 +236,10 @@ export function ProjectsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl md:text-3xl mb-1 font-light">Projects</h2>
-          <p className="text-gray-500 text-sm">{projects.length} project{projects.length !== 1 ? "s" : ""} · AI-powered execution</p>
+          <h2 className="text-2xl md:text-3xl mb-1 font-light">{t("projects:title")}</h2>
+          <p className="text-gray-500 text-sm">{t("projects:count", { count: projects.length })} · {t("projects:aiExecution")}</p>
         </div>
-        <Button onClick={() => navigate("/create")}>+ New Project</Button>
+        <Button onClick={() => navigate("/create")}>+ {t("projects:newProject")}</Button>
       </div>
 
       {error && (
@@ -247,13 +250,13 @@ export function ProjectsDashboard() {
         <div className="flex items-center justify-center h-48 text-gray-500">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm">Loading projects…</p>
+            <p className="text-sm">{t("projects:loading")}</p>
           </div>
         </div>
       )}
 
       {!loading && !error && projects.length === 0 && (
-        <EmptyState onCreate={() => navigate("/create")} />
+        <EmptyState onCreate={() => navigate("/create")} t={t} />
       )}
 
       {!loading && projects.length > 0 && (
@@ -269,15 +272,15 @@ export function ProjectsDashboard() {
               >
                 <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
                 <span className="text-sm text-orange-300">
-                  <span className="font-semibold">{attentionProjects.length} project{attentionProjects.length > 1 ? "s" : ""}</span> need attention
-                  {totalOverdue > 0 && <> · <span className="font-medium">{totalOverdue} overdue task{totalOverdue > 1 ? "s" : ""}</span></>}
-                  {totalBlocked > 0 && <> · <span className="font-medium">{totalBlocked} blocked task{totalBlocked > 1 ? "s" : ""}</span></>}
+                  <span className="font-semibold">{t("projects:attention.projects", { count: attentionProjects.length })}</span>
+                  {totalOverdue > 0 && <> · <span className="font-medium">{t("projects:attention.overdue", { count: totalOverdue })}</span></>}
+                  {totalBlocked > 0 && <> · <span className="font-medium">{t("projects:attention.blocked", { count: totalBlocked })}</span></>}
                 </span>
                 <button
                   onClick={() => setFilter("attention")}
                   className="ml-auto flex items-center gap-1 text-xs text-orange-400 hover:text-orange-200 transition-colors"
                 >
-                  Show only <ChevronRight className="h-3 w-3" />
+                  {t("projects:attention.showOnly")} <ChevronRight className="h-3 w-3 rtl:rotate-180" />
                 </button>
               </motion.div>
             )}
@@ -299,7 +302,7 @@ export function ProjectsDashboard() {
                         : "text-gray-500 hover:text-gray-300 border border-white/6 hover:border-white/12"
                     }`}
                   >
-                    {key.charAt(0).toUpperCase() + key.slice(1)}
+                    {t(`projects:sort.${key}`)}
                   </button>
                 ))}
               </div>
@@ -309,7 +312,7 @@ export function ProjectsDashboard() {
             <div className="ml-auto flex gap-1">
               {(["all", "attention", "blocked", "delayed", "healthy"] as FilterKey[]).map((key) => {
                 const count = filterCounts[key];
-                const label = key === "all" ? "All" : key.charAt(0).toUpperCase() + key.slice(1);
+                const label = t(`projects:filters.${key}`);
                 return (
                   <button
                     key={key}
@@ -335,8 +338,8 @@ export function ProjectsDashboard() {
           {/* Empty filter result */}
           {displayed.length === 0 && (
             <div className="py-16 text-center text-gray-500">
-              <p className="text-sm">No projects match this filter.</p>
-              <button onClick={() => setFilter("all")} className="mt-3 text-xs text-purple-400 hover:text-purple-300">Clear filter</button>
+              <p className="text-sm">{t("projects:noFilterResults")}</p>
+              <button onClick={() => setFilter("all")} className="mt-3 text-xs text-purple-400 hover:text-purple-300">{t("projects:clearFilter")}</button>
             </div>
           )}
 
@@ -362,7 +365,7 @@ export function ProjectsDashboard() {
                     <Link to={`/task/${project.id}`} className="flex flex-col gap-3 p-5 flex-1">
                       {/* Row 1: badge + index */}
                       <div className="flex items-center justify-between">
-                        <HealthPill badge={badge} />
+                        <HealthPill badge={badge} t={t} />
                         <span className="text-xs font-medium text-white/30">{String(index + 1).padStart(2, "0")}</span>
                       </div>
 
@@ -382,19 +385,19 @@ export function ProjectsDashboard() {
                           {(project.overdue_count ?? 0) > 0 && (
                             <Chip color="orange">
                               <Clock className="h-2.5 w-2.5" />
-                              {project.overdue_count} overdue
+                              {t("projects:overdue", { count: project.overdue_count })}
                             </Chip>
                           )}
                           {(project.blocked_count ?? 0) > 0 && (
                             <Chip color="red">
                               <AlertTriangle className="h-2.5 w-2.5" />
-                              {project.blocked_count} blocked
+                              {t("projects:blocked", { count: project.blocked_count })}
                             </Chip>
                           )}
                           {project.overload_warning && (
                             <Chip color="yellow">
                               <Zap className="h-2.5 w-2.5" />
-                              Overloaded
+                              {t("projects:overloaded")}
                             </Chip>
                           )}
                         </div>
@@ -404,26 +407,26 @@ export function ProjectsDashboard() {
                       <div className="flex items-center gap-3 text-[11px] text-gray-600">
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
-                          {project.team_count ?? 0} member{(project.team_count ?? 0) !== 1 ? "s" : ""}
+                          {t("projects:members", { count: project.team_count ?? 0 })}
                         </span>
                         {project.next_deadline && (
                           <span className="flex items-center gap-1">
                             <CalendarClock className="h-3 w-3" />
-                            {formatNextDeadline(project.next_deadline)}
+                            {formatNextDeadline(project.next_deadline, i18n.resolvedLanguage ?? "en", t)}
                           </span>
                         )}
                         {project.risk_level && (
-                          <span className="ml-auto text-gray-600">{project.risk_level} risk</span>
+                          <span className="ms-auto text-gray-600">{t("projects:risk.suffix", { level: t(`projects:risk.${project.risk_level}`) })}</span>
                         )}
                       </div>
 
                       {/* Row 6: Progress bar */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] text-gray-600">Progress</span>
+                          <span className="text-[10px] text-gray-600">{t("projects:progress")}</span>
                           <span className="text-[10px] font-medium text-white">{project.progress ?? 0}%</span>
                         </div>
-                        <div className="h-1 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                        <div className="h-1 app-input rounded-full overflow-hidden border border-white/5">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${project.progress ?? 0}%` }}
@@ -447,28 +450,28 @@ export function ProjectsDashboard() {
                           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-500 hover:text-white hover:bg-white/8 transition-colors"
                         >
                           <FolderOpen className="h-3 w-3" />
-                          Open
+                          {t("projects:open")}
                         </button>
                         <button
                           onClick={() => navigate(`/project/${project.id}/health`)}
                           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-500 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
                         >
                           <Activity className="h-3 w-3" />
-                          Health
+                          {t("projects:healthAction")}
                         </button>
                         <button
                           onClick={() => navigate(`/project/${project.id}/report`)}
                           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-500 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
                         >
                           <FileText className="h-3 w-3" />
-                          Report
+                          {t("projects:report")}
                         </button>
                       </div>
 
                       <button
                         onClick={() => setConfirmId(project.id)}
                         className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/8 text-gray-600 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-400 transition-colors"
-                        aria-label={`Delete ${project.name}`}
+                        aria-label={t("projects:delete.ariaLabel", { name: project.name })}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -488,6 +491,7 @@ export function ProjectsDashboard() {
             onConfirm={handleDelete}
             onCancel={() => setConfirmId(null)}
             deleting={deletingId !== null}
+            t={t}
           />
         )}
       </AnimatePresence>

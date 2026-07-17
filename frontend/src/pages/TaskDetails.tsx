@@ -931,7 +931,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     initial={{ opacity: 0, y: -6, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                    className="absolute right-0 top-12 z-30 w-44 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                    className="absolute right-0 top-12 z-30 w-44 overflow-hidden rounded-xl border border-white/10 app-surface-elevated p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
                   >
                     {[
                       { label: "PDF report", value: "pdf" },
@@ -977,7 +977,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             <div className="flex items-center gap-3 text-gray-400 mb-3"><CalendarIcon className="w-5 h-5" /><span className="text-base">Progress</span></div>
             <div className="flex items-center gap-4">
               <p className="text-2xl font-semibold">{doneTasks}/{tasks.length} tasks</p>
-              <div className="flex-1 h-3 bg-black/40 rounded-full overflow-hidden border border-white/10">
+              <div className="flex-1 h-3 app-input rounded-full overflow-hidden border border-white/10">
                 <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1, ease: "easeOut" }} className="h-full rounded-full bg-linear-to-r from-purple-600 to-purple-400" />
               </div>
             </div>
@@ -1037,15 +1037,15 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+            <div className="rounded-xl border border-white/10 app-surface-soft p-3">
               <div className="text-xs text-gray-500">Actual effort</div>
               <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.actual_minutes ?? 0)}</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+            <div className="rounded-xl border border-white/10 app-surface-soft p-3">
               <div className="text-xs text-gray-500">AI estimate</div>
               <div className="mt-1 text-xl font-semibold text-white">{formatMinutes(timeTotals?.estimated_minutes ?? tasks.reduce((sum, task) => sum + Number(task.estimated_days || 0) * 8 * 60, 0))}</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+            <div className="rounded-xl border border-white/10 app-surface-soft p-3">
               <div className="text-xs text-gray-500">Estimate accuracy</div>
               <div className="mt-1 text-xl font-semibold text-white">{timeTotals?.estimate_accuracy === null || timeTotals?.estimate_accuracy === undefined ? "-" : `${timeTotals.estimate_accuracy}%`}</div>
             </div>
@@ -1097,7 +1097,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               {activeClientShare ? (
                 <span className="rounded-full border border-green-500/30 bg-green-900/20 px-3 py-1 text-xs font-semibold text-green-300">Active link</span>
               ) : (
-                <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs text-gray-500">Not shared</span>
+                <span className="rounded-full border border-white/10 app-surface-soft px-3 py-1 text-xs text-gray-500">Not shared</span>
               )}
             </div>
 
@@ -1111,7 +1111,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 ["show_internal_risks", "Shared risk note"],
                 ["allow_client_comments", "Client comments"],
               ].map(([key, label]) => (
-                <label key={key} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                <label key={key} className="flex items-center justify-between rounded-xl border border-white/10 app-surface-soft px-3 py-2 text-sm text-gray-300">
                   {label}
                   <input
                     type="checkbox"
@@ -1128,7 +1128,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 value={clientShareSettings.brand_label}
                 onChange={(e) => updateClientSetting("brand_label", e.target.value)}
                 placeholder="Client-facing label, e.g. Weekly Project Status"
-                className="rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                className="rounded-xl border border-white/10 app-input px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
               />
               <button
                 onClick={createOrUpdateClientShare}
@@ -1140,7 +1140,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             </div>
 
             {activeClientShare && (
-              <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-black/25 p-3 md:flex-row md:items-center">
+              <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 app-surface-soft p-3 md:flex-row md:items-center">
                 <div className="min-w-0 flex-1 truncate text-xs text-gray-400">{clientShareUrl}</div>
                 <button onClick={copyClientShare} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-200 hover:border-purple-500/40">
                   <Copy className="h-3.5 w-3.5" /> Copy
@@ -1172,7 +1172,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
 
           {githubRepo ? (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 app-surface-soft p-3">
                 <div className="min-w-0">
                   <a href={githubRepo.repo_url} target="_blank" rel="noreferrer" className="truncate text-sm font-semibold text-white hover:text-purple-200">
                     {githubRepo.owner}/{githubRepo.repo}
@@ -1206,7 +1206,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   onChange={(e) => setGithubRepoInput(e.target.value)}
                   disabled={!canManageIntegrations}
                   placeholder="owner/repo or https://github.com/owner/repo"
-                  className="w-full rounded-xl border border-white/10 bg-black/35 py-3 pl-10 pr-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
+                  className="w-full rounded-xl border border-white/10 app-input py-3 pl-10 pr-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
                 />
               </div>
               <button
@@ -1238,14 +1238,14 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
 
           {calendarConnection ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+              <div className="rounded-xl border border-white/10 app-surface-soft p-3">
                 <div className="text-sm font-semibold text-white">{calendarConnection.calendar_name ?? "Google Calendar"}</div>
                 <div className="mt-1 text-xs text-gray-500">
                   Timezone: {calendarConnection.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 app-surface-soft px-3 py-2 text-sm text-gray-300">
                   Sync enabled
                   <input
                     type="checkbox"
@@ -1255,7 +1255,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     className="h-4 w-4 accent-purple-500"
                   />
                 </label>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 app-surface-soft px-3 py-2 text-sm text-gray-300">
                   Work blocks by default
                   <input
                     type="checkbox"
@@ -1322,7 +1322,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   onBlur={() => updateSlackSettings({ channel_name: slackChannelInput.trim() })}
                   disabled={!canManageIntegrations}
                   placeholder="#project-channel"
-                  className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
+                  className="rounded-xl border border-white/10 app-input px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
                 />
                 <button
                   onClick={sendSlackSummary}
@@ -1340,7 +1340,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   ["mention_notifications", "Mentions"],
                   ["summary_notifications", "Summaries"],
                 ].map(([key, label]) => (
-                  <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-300">
+                  <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 app-surface-soft px-3 py-2 text-sm text-gray-300">
                     {label}
                     <input
                       type="checkbox"
@@ -1357,7 +1357,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                   value={slackIntegration.summary_frequency}
                   onChange={(e) => updateSlackSettings({ summary_frequency: e.target.value as SlackIntegration["summary_frequency"] })}
                   disabled={!canManageIntegrations}
-                  className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
+                  className="rounded-lg border border-white/10 app-input px-3 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/50"
                 >
                   <option value="weekly">Weekly summary</option>
                   <option value="daily">Daily summary</option>
@@ -1380,14 +1380,14 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 onChange={(e) => setSlackWebhookInput(e.target.value)}
                 disabled={!canManageIntegrations}
                 placeholder="Slack incoming webhook URL"
-                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
+                className="w-full rounded-xl border border-white/10 app-input px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
               />
               <input
                 value={slackChannelInput}
                 onChange={(e) => setSlackChannelInput(e.target.value)}
                 disabled={!canManageIntegrations}
                 placeholder="Channel name (optional)"
-                className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
+                className="w-full rounded-xl border border-white/10 app-input px-3 py-3 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50 disabled:opacity-40"
               />
               <button
                 onClick={connectSlack}
@@ -1422,9 +1422,9 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="Invite by email"
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                    className="rounded-lg border border-white/10 app-input px-3 py-2 text-sm text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
                   />
-                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as ProjectRole)} className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-200 outline-none focus:border-purple-500/50">
+                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as ProjectRole)} className="rounded-lg border border-white/10 app-input px-3 py-2 text-sm text-gray-200 outline-none focus:border-purple-500/50">
                     <option value="Admin">Admin</option>
                     <option value="Member">Member</option>
                     <option value="Guest">Guest</option>
@@ -1488,7 +1488,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         onChange={(e) => handleChangeMemberRole(member.user_id, e.target.value as ProjectRole)}
                         disabled={memberActionId === member.user_id}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-1 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-xs text-gray-300 outline-none focus:border-purple-500/50 disabled:opacity-40"
+                        className="mt-1 rounded-md border border-white/10 app-input px-2 py-1 text-xs text-gray-300 outline-none focus:border-purple-500/50 disabled:opacity-40"
                       >
                         <option value="Owner">Owner</option>
                         <option value="Admin">Admin</option>
@@ -1522,7 +1522,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <button
                   key={task.id}
                   onClick={() => setSelectedTaskId(task.id)}
-                  className="rounded-xl border border-red-500/20 bg-black/25 p-3 text-left transition-colors hover:border-red-400/50"
+                  className="rounded-xl border border-red-500/20 app-surface-soft p-3 text-left transition-colors hover:border-red-400/50"
                 >
                   <div className="truncate text-sm font-semibold text-white">{task.title}</div>
                   <div className="mt-2 text-xs text-red-200">
@@ -1542,16 +1542,16 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
               <h3 className="text-2xl font-semibold">Tasks ({tasks.length})</h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex rounded-xl border border-white/10 bg-black/30 p-1">
+              <div className="inline-flex rounded-xl border border-white/10 app-surface-soft p-1">
                 <button
                   onClick={() => setView("list")}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "list" ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"}`}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "list" ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20" : "text-gray-500 hover:text-gray-300"}`}
                 >
                   <List className="h-3.5 w-3.5" /> List
                 </button>
                 <button
                   onClick={() => setView("kanban")}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "kanban" ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"}`}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === "kanban" ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20" : "text-gray-500 hover:text-gray-300"}`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" /> Kanban
                 </button>
@@ -1564,7 +1564,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             </div>
           </div>
 
-          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
+          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 app-surface-soft p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
               <Filter className="h-3.5 w-3.5" /> Filters
             </div>
@@ -1599,7 +1599,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                 <option key={column.status} value={column.status}>{column.label}</option>
               ))}
             </select>
-            <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${filters.overdueOnly ? "border-red-500/40 bg-red-900/20 text-red-300" : "border-white/10 bg-black/30 text-gray-400 hover:text-gray-300"}`}>
+            <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${filters.overdueOnly ? "border-red-500/40 bg-red-900/20 text-red-300" : "border-white/10 app-surface-soft text-gray-400 hover:text-gray-300"}`}>
               <input
                 type="checkbox"
                 checked={filters.overdueOnly}
@@ -1639,7 +1639,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         const tid = e.dataTransfer.getData("text/task-id") || draggingTaskId;
                         if (tid) handleStatusChange(tid, column.status);
                       }}
-                      className={`min-h-[420px] rounded-2xl border p-3 transition-all ${isTarget ? "border-purple-400/70 bg-purple-900/20 shadow-lg shadow-purple-500/15" : "border-white/10 bg-black/25"}`}
+                      className={`min-h-[420px] rounded-2xl border p-3 transition-all ${isTarget ? "border-purple-400/70 bg-purple-900/20 shadow-lg shadow-purple-500/15" : "border-white/10 app-surface-soft"}`}
                     >
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -1680,7 +1680,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                                 }}
                                 whileHover={{ y: -2 }}
                                 onClick={() => setSelectedTaskId(task.id)}
-                                className={`cursor-grab rounded-xl border bg-black/45 p-3 shadow-sm transition-all active:cursor-grabbing ${isDragging ? "scale-[0.98] border-purple-400/60 opacity-60" : selectedTaskId === task.id ? "border-purple-500/60 shadow-purple-500/10" : "border-white/10 hover:border-white/25"}`}
+                                className={`cursor-grab rounded-xl border app-panel p-3 shadow-sm transition-all active:cursor-grabbing ${isDragging ? "scale-[0.98] border-purple-400/60 opacity-60" : selectedTaskId === task.id ? "border-purple-500/60 shadow-purple-500/10" : "border-white/10 hover:border-white/25"}`}
                               >
                                 <div className="mb-3 flex items-start justify-between gap-2">
                                   <h5 className={`text-sm font-medium leading-snug ${task.status === "Done" ? "text-gray-500 line-through" : "text-white"}`}>{task.title}</h5>
@@ -1789,7 +1789,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
 
                     <AnimatePresence>
                       {isDropdownOpen && (
-                        <motion.div initial={{ opacity: 0, y: -4, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }} transition={{ duration: 0.12 }} className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-2xl overflow-hidden">
+                        <motion.div initial={{ opacity: 0, y: -4, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }} transition={{ duration: 0.12 }} className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/10 app-surface-elevated backdrop-blur-xl shadow-2xl overflow-hidden">
                           {members.length === 0 ? (
                             <p className="px-4 py-3 text-xs text-gray-500">No members on this project yet.</p>
                           ) : (
@@ -1820,7 +1820,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
 
       {/* Right Panel — Task Detail or AI Assistant */}
       <div
-        className={`shrink-0 min-h-0 bg-linear-to-br from-purple-950/35 to-black/45 backdrop-blur-2xl border border-purple-500/45 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-purple-500/20 relative
+        className={`shrink-0 min-h-0 app-surface-elevated backdrop-blur-2xl border border-white/10 rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-black/10 relative
           ${isMobile && !selectedTaskId ? "hidden" : ""}
           ${isMobile ? "w-full flex-1" : "w-full h-[60vh] lg:h-auto lg:w-(--task-panel-width)"}`}
         style={{ "--task-panel-width": `${taskPanelWidth}px` } as CSSProperties}
@@ -1834,7 +1834,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         >
           <div className="h-20 w-1 rounded-full bg-purple-500/25 transition-colors group-hover:bg-purple-400/80" />
         </div>
-        <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-purple-600 via-purple-500 to-transparent pointer-events-none" />
 
         {selectedTask ? (
           <TaskDetailPanel
@@ -1865,20 +1865,20 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         ) : (
           /* Default AI Assistant view */
           <div className="flex flex-col h-full relative z-10">
-            <div className="p-5 border-b border-purple-500/30 bg-linear-to-r from-purple-600/12 to-black/20">
+            <div className="p-5 border-b border-white/10 app-surface">
               <div className="flex items-center gap-3 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-purple-600 to-purple-900 shadow-lg shadow-purple-500/25">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 shadow-lg shadow-purple-500/20">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-2xl font-semibold bg-linear-to-r from-purple-300 to-white bg-clip-text text-transparent">AI Assistant</h3>
+                <h3 className="text-2xl font-semibold text-white">AI Assistant</h3>
               </div>
               <p className="text-sm text-gray-400">Select a task to view details and chat with AI</p>
             </div>
 
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center space-y-4">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-purple-900/30 border border-purple-500/20 flex items-center justify-center">
-                  <Tag className="w-8 h-8 text-purple-400/60" />
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-purple-900/12 border border-purple-500/20 flex items-center justify-center">
+                  <Tag className="w-8 h-8 text-purple-400" />
                 </div>
                 <div>
                   <p className="text-gray-300 font-medium mb-1">No task selected</p>

@@ -4,6 +4,7 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 import type { Task } from "../lib/api";
 import type { TeamMember } from "../lib/teamUtils";
 import { skillGapDetection } from "../lib/teamUtils";
+import { useTranslation } from "react-i18next";
 
 interface SkillGapPanelProps {
   members: TeamMember[];
@@ -11,6 +12,7 @@ interface SkillGapPanelProps {
 }
 
 export function SkillGapPanel({ members, tasks }: SkillGapPanelProps) {
+  const { t } = useTranslation("team");
   const [open, setOpen] = useState(false);
   const gaps = skillGapDetection(members, tasks);
 
@@ -31,9 +33,9 @@ export function SkillGapPanel({ members, tasks }: SkillGapPanelProps) {
           <AlertTriangle className="w-5 h-5 text-amber-400" />
         </div>
         <div className="flex-1">
-          <h3 className="text-base font-semibold text-amber-300">Skill Gap Detected</h3>
+          <h3 className="text-base font-semibold text-amber-300">{t("skillGap.title")}</h3>
           <p className="text-sm text-gray-400 mt-0.5">
-            {gaps.length} skill{gaps.length > 1 ? "s" : ""} required by active tasks but not covered by any team member
+            {t("skillGap.description", { count: gaps.length })}
           </p>
         </div>
         <ChevronDown
@@ -44,11 +46,11 @@ export function SkillGapPanel({ members, tasks }: SkillGapPanelProps) {
       {open && (
         <div className="px-5 pb-5 space-y-3 border-t border-amber-500/15">
           {gaps.map(({ skill, tasks: taskTitles }) => (
-            <div key={skill} className="rounded-xl bg-black/30 border border-white/8 p-4">
+            <div key={skill} className="rounded-xl app-surface-soft border border-white/8 p-4">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-sm font-semibold text-amber-300 capitalize">{skill}</span>
                 <span className="text-xs text-gray-500">
-                  needed by {taskTitles.length} task{taskTitles.length > 1 ? "s" : ""}
+                  {t("skillGap.neededBy", { count: taskTitles.length })}
                 </span>
               </div>
               <div className="space-y-1">
@@ -59,13 +61,13 @@ export function SkillGapPanel({ members, tasks }: SkillGapPanelProps) {
                   </div>
                 ))}
                 {taskTitles.length > 3 && (
-                  <div className="text-xs text-gray-600">+{taskTitles.length - 3} more</div>
+                  <div className="text-xs text-gray-600">{t("skillGap.more", { count: taskTitles.length - 3 })}</div>
                 )}
               </div>
             </div>
           ))}
           <p className="text-xs text-gray-600 pt-1">
-            Consider hiring for these skills or upskilling existing team members.
+            {t("skillGap.advice")}
           </p>
         </div>
       )}

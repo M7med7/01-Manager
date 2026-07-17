@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AdvancedProjectOptionsProps {
   show: boolean;
@@ -28,6 +29,7 @@ export function AdvancedProjectOptions({
   preferredTech, onPreferredTechChange, preferredTechInput, onPreferredTechInputChange,
   excludedTech, onExcludedTechChange, excludedTechInput, onExcludedTechInputChange,
 }: AdvancedProjectOptionsProps) {
+  const { t } = useTranslation("projects");
   const addPreferredTag = () => {
     const tag = preferredTechInput.trim().replace(/,$/, "");
     if (tag && !preferredTech.includes(tag)) onPreferredTechChange([...preferredTech, tag]);
@@ -47,8 +49,8 @@ export function AdvancedProjectOptions({
         onClick={onToggle}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-300 transition-colors"
       >
-        <span className="text-base font-semibold text-gray-300">Advanced Options</span>
-        <span className="text-xs text-gray-600 border border-white/10 rounded px-1.5 py-0.5">Optional</span>
+        <span className="text-base font-semibold text-gray-300">{t("create.advanced.title")}</span>
+        <span className="text-xs text-gray-600 border border-white/10 rounded px-1.5 py-0.5">{t("create.optional")}</span>
         <svg className={`w-4 h-4 transition-transform ${show ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </button>
       <AnimatePresence>
@@ -64,7 +66,7 @@ export function AdvancedProjectOptions({
 
               {/* Complexity */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3">Complexity Level</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-3">{t("create.advanced.complexity")}</label>
                 <div className="grid grid-cols-3 gap-3">
                   {(["simple", "standard", "advanced"] as const).map((level) => (
                     <button
@@ -77,33 +79,33 @@ export function AdvancedProjectOptions({
                           : "border-white/10 bg-white/3 text-gray-400 hover:border-white/25 hover:text-gray-300"
                       }`}
                     >
-                      {level}
+                      {t(`create.advanced.levels.${level}`)}
                     </button>
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
                   {complexity === "simple"
-                    ? "Minimal scope, straightforward solutions, no over-engineering."
+                    ? t("create.advanced.complexityHelp.simple")
                     : complexity === "advanced"
-                    ? "Enterprise-grade, comprehensive coverage, scalability & security focus."
-                    : "Balanced depth and scope for a typical project."}
+                    ? t("create.advanced.complexityHelp.advanced")
+                    : t("create.advanced.complexityHelp.standard")}
                 </p>
               </div>
 
               {/* Budget */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Budget (USD)</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">{t("create.advanced.budget")}</label>
                 <input
-                  type="number" min="0" placeholder="e.g. 50000"
+                  type="number" min="0" placeholder={t("create.advanced.budgetPlaceholder")}
                   value={budget} onChange={(e) => onBudgetChange(e.target.value)}
                   className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded-xl focus:outline-none focus:border-purple-500/60 text-white placeholder-gray-600 transition-colors text-sm"
                 />
-                <p className="mt-1.5 text-xs text-gray-500">AI will factor in cost-effective technology choices.</p>
+                <p className="mt-1.5 text-xs text-gray-500">{t("create.advanced.budgetHelp")}</p>
               </div>
 
               {/* Deadline strictness */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3">Deadline Strictness</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-3">{t("create.advanced.deadline")}</label>
                 <div className="flex gap-3">
                   {(["flexible", "fixed"] as const).map((opt) => (
                     <button
@@ -116,22 +118,22 @@ export function AdvancedProjectOptions({
                           : "border-white/10 bg-white/3 text-gray-400 hover:border-white/25 hover:text-gray-300"
                       }`}
                     >
-                      {opt === "flexible" ? "Flexible" : "Fixed"}
+                      {t(`create.advanced.deadlines.${opt}`)}
                     </button>
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
                   {deadlineStrictness === "fixed"
-                    ? "Hard deadline — AI will prioritize critical path aggressively."
-                    : "Quality takes priority; AI can suggest extending if needed."}
+                    ? t("create.advanced.deadlineHelp.fixed")
+                    : t("create.advanced.deadlineHelp.flexible")}
                 </p>
               </div>
 
               {/* Preferred tech */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Preferred Technologies</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">{t("create.advanced.preferred")}</label>
                 <input
-                  type="text" placeholder="e.g. React, PostgreSQL — press Enter"
+                  type="text" placeholder={t("create.advanced.preferredPlaceholder")}
                   value={preferredTechInput} onChange={(e) => onPreferredTechInputChange(e.target.value)}
                   onKeyDown={(e) => {
                     if ((e.key === "Enter" || e.key === ",") && preferredTechInput.trim()) {
@@ -155,9 +157,9 @@ export function AdvancedProjectOptions({
 
               {/* Excluded tech */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Excluded Technologies</label>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">{t("create.advanced.excluded")}</label>
                 <input
-                  type="text" placeholder="e.g. PHP, MongoDB — press Enter"
+                  type="text" placeholder={t("create.advanced.excludedPlaceholder")}
                   value={excludedTechInput} onChange={(e) => onExcludedTechInputChange(e.target.value)}
                   onKeyDown={(e) => {
                     if ((e.key === "Enter" || e.key === ",") && excludedTechInput.trim()) {

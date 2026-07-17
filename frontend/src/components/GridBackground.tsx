@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 
 interface GridBackgroundProps {
   isAIActive?: boolean;
+  theme?: "dark" | "light";
 }
 
-export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
+export function GridBackground({ isAIActive = false, theme = "dark" }: GridBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -26,7 +27,8 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
     const RINGS = 14;
     const SPOKES = 24;
     const SPEED = 0.0017;
-    const LINE_COLOR = "148,163,184";
+    const isLight = theme === "light";
+    const LINE_COLOR = isLight ? "0,0,0" : "148,163,184";
 
     function draw() {
       if (!canvas || !ctx) return;
@@ -35,7 +37,7 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
       const cx = W / 2;
       const cy = H / 2;
 
-      ctx.fillStyle = "#000";
+      ctx.fillStyle = isLight ? "#f8fafc" : "#000";
       ctx.fillRect(0, 0, W, H);
 
       offset = (offset + SPEED) % 1;
@@ -43,7 +45,7 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
       const maxW = W * 0.75;
       const maxH = H * 0.75;
 
-      const spokeAlpha = isAIActive ? 0.22 : 0.16;
+      const spokeAlpha = isLight ? (isAIActive ? 0.25 : 0.15) : (isAIActive ? 0.22 : 0.16);
       ctx.strokeStyle = `rgba(${LINE_COLOR},${spokeAlpha})`;
       ctx.lineWidth = 0.8;
       for (let i = 0; i < SPOKES; i++) {
@@ -63,7 +65,9 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
         const rw = maxW * t;
         const rh = maxH * t;
         const fade = Math.min(1, raw * 1.2);
-        const alpha = isAIActive ? 0.15 + fade * 0.38 : 0.10 + fade * 0.26;
+        const alpha = isLight
+          ? (isAIActive ? 0.15 + fade * 0.25 : 0.10 + fade * 0.20)
+          : (isAIActive ? 0.15 + fade * 0.38 : 0.10 + fade * 0.26);
         ctx.strokeStyle = `rgba(${LINE_COLOR},${alpha.toFixed(3)})`;
         ctx.lineWidth = 0.75 + t * 0.75;
         ctx.strokeRect(cx - rw, cy - rh, rw * 2, rh * 2);
@@ -78,7 +82,7 @@ export function GridBackground({ isAIActive = false }: GridBackgroundProps) {
       cancelAnimationFrame(animFrameId);
       window.removeEventListener("resize", resize);
     };
-  }, [isAIActive]);
+  }, [isAIActive, theme]);
 
   return (
     <div className="fixed inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>

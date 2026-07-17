@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { api, type ImportRow, type ImportAnalysis, type ImportAnalysisFinding, type Project } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 
 type Tab = "export" | "import";
 type ExportFormat = "jira" | "linear";
@@ -20,7 +21,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  Backlog: "text-gray-400 bg-white/5 border-white/10",
+  Backlog: "text-gray-400 app-surface-soft border-white/10",
   "To Do": "text-blue-400 bg-blue-500/10 border-blue-500/20",
   "In Progress": "text-purple-400 bg-purple-500/10 border-purple-500/20",
   "In Review": "text-orange-400 bg-orange-500/10 border-orange-500/20",
@@ -49,14 +50,14 @@ function Badge({ text, colorClass }: { text: string; colorClass: string }) {
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/3 p-6 ${className}`}>
+    <div className={`rounded-2xl border border-white/10 app-surface-soft p-6 ${className}`}>
       {children}
     </div>
   );
 }
 
 function FormatButton({
-  format: _format, selected, onSelect, label, description,
+  selected, onSelect, label, description,
 }: {
   format: string; selected: boolean; onSelect: () => void; label: string; description: string;
 }) {
@@ -64,8 +65,8 @@ function FormatButton({
     <button
       onClick={onSelect}
       className={`flex flex-col gap-1 rounded-xl border px-5 py-4 text-left transition-all ${selected
-        ? "border-purple-500/60 bg-purple-500/10 text-white"
-        : "border-white/10 bg-white/2 text-gray-400 hover:border-white/20 hover:text-gray-300"
+        ? "border-purple-500/60 bg-purple-500/10 text-purple-200"
+        : "border-white/10 app-surface-soft text-gray-400 hover:border-white/20 hover:text-gray-300"
         }`}
     >
       <span className="text-sm font-semibold">{label}</span>
@@ -77,6 +78,7 @@ function FormatButton({
 export function MigrationPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const { t: tr } = useTranslation("integrations");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<Tab>("export");
@@ -119,9 +121,9 @@ export function MigrationPage() {
         setImportProjectId(projects[0].id);
       }
     } catch {
-      setExportError("Failed to load projects.");
+      setExportError(tr("migration.errors.load"));
     }
-  }, [exportProjects]);
+  }, [exportProjects, tr]);
 
   // ── Export ──────────────────────────────────────────────────────────────────
 
@@ -138,8 +140,8 @@ export function MigrationPage() {
       const url = api.imports.exportCsv(exportProjectId, exportFormat);
       const res = await fetch(url);
       if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Export failed" }));
-        throw new Error(body.error ?? "Export failed");
+        const body = await res.json().catch(() => ({ error: tr("migration.errors.export") }));
+        throw new Error(body.error ?? tr("migration.errors.export"));
       }
       const blob = await res.blob();
       const project = exportProjects?.find((p) => p.id === exportProjectId);
@@ -150,7 +152,7 @@ export function MigrationPage() {
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (err: unknown) {
-      setExportError(err instanceof Error ? err.message : "Export failed");
+      setExportError(err instanceof Error ? err.message : tr("migration.errors.export"));
     } finally {
       setExportLoading(false);
     }
@@ -160,11 +162,11 @@ export function MigrationPage() {
 
   const handleFile = async (file: File) => {
     if (!file.name.endsWith(".csv")) {
-      setPreviewError("Please upload a .csv file.");
+      setPreviewError(tr("migration.errors.csvOnly"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setPreviewError("File is too large (max 5 MB).");
+      setPreviewError(tr("migration.errors.tooLarge"));
       return;
     }
     setCsvFileName(file.name);
@@ -182,7 +184,7 @@ export function MigrationPage() {
       });
       setPreviewRows(result.tasks);
     } catch (err: unknown) {
-      setPreviewError(err instanceof Error ? err.message : "Failed to parse CSV.");
+      setPreviewError(err instanceof Error ? err.message : tr("migration.errors.parse"));
     } finally {
       setPreviewLoading(false);
     }
@@ -202,7 +204,8 @@ export function MigrationPage() {
   const toggleRow = (i: number) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
       return next;
     });
   };
@@ -210,7 +213,8 @@ export function MigrationPage() {
   const toggleFinding = (i: number) => {
     setExpandedFindings((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
       return next;
     });
   };
@@ -228,7 +232,7 @@ export function MigrationPage() {
       setImportResult({ imported: result.imported, skipped: result.skipped, taskIds: result.tasks.map((t) => t.id) });
       setPreviewRows(null);
     } catch (err: unknown) {
-      setImportError(err instanceof Error ? err.message : "Import failed");
+      setImportError(err instanceof Error ? err.message : tr("migration.errors.import"));
     } finally {
       setImporting(false);
     }
@@ -242,7 +246,7 @@ export function MigrationPage() {
       const { analysis: result } = await api.imports.analyze(importProjectId, importResult.taskIds);
       setAnalysis(result);
     } catch (err: unknown) {
-      setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+      setAnalysisError(err instanceof Error ? err.message : tr("migration.errors.analysis"));
     } finally {
       setAnalyzing(false);
     }
@@ -260,7 +264,7 @@ export function MigrationPage() {
       Medium: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
       Low: "text-green-400 bg-green-500/10 border-green-500/30",
     };
-    return <Badge text={`${level} Risk`} colorClass={map[level] ?? "text-gray-400 bg-white/5 border-white/10"} />;
+    return <Badge text={tr("migration.risk", { level })} colorClass={map[level] ?? "text-gray-400 app-surface-soft border-white/10"} />;
   };
 
   const projects = tab === "export" ? exportProjects : importProjects;
@@ -269,14 +273,14 @@ export function MigrationPage() {
     <div className="min-h-full px-6 py-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-1">Migration</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">{tr("migration.title")}</h1>
         <p className="text-sm text-gray-500">
-          Export your plans to Jira or Linear, or import existing issues into 01 Manager for AI analysis.
+          {tr("migration.subtitle")}
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 bg-white/[0.03] border border-white/10 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-8 app-surface-soft border border-white/10 rounded-xl p-1 w-fit">
         {(["export", "import"] as Tab[]).map((t) => (
           <button
             key={t}
@@ -287,7 +291,7 @@ export function MigrationPage() {
               }`}
           >
             {t === "export" ? <Download className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-            {t === "export" ? "Export" : "Import"}
+            {t === "export" ? tr("migration.export") : tr("migration.import")}
           </button>
         ))}
       </div>
@@ -298,25 +302,25 @@ export function MigrationPage() {
 
             {/* Format */}
             <SectionCard>
-              <h2 className="text-sm font-semibold text-white mb-4">Choose export format</h2>
+              <h2 className="text-sm font-semibold text-white mb-4">{tr("migration.chooseFormat")}</h2>
               <div className="grid grid-cols-2 gap-3">
-                <FormatButton format="jira" selected={exportFormat === "jira"} onSelect={() => setExportFormat("jira")} label="Jira CSV" description="Summary, Description, Priority, Story Points, Labels, Acceptance Criteria" />
-                <FormatButton format="linear" selected={exportFormat === "linear"} onSelect={() => setExportFormat("linear")} label="Linear CSV" description="Title, Description, Priority, Status, Estimate, Labels" />
+                <FormatButton format="jira" selected={exportFormat === "jira"} onSelect={() => setExportFormat("jira")} label="Jira CSV" description={tr("migration.jiraDescription")} />
+                <FormatButton format="linear" selected={exportFormat === "linear"} onSelect={() => setExportFormat("linear")} label="Linear CSV" description={tr("migration.linearDescription")} />
               </div>
             </SectionCard>
 
             {/* Project selector */}
             <SectionCard>
-              <h2 className="text-sm font-semibold text-white mb-4">Select project</h2>
+              <h2 className="text-sm font-semibold text-white mb-4">{tr("migration.selectProject")}</h2>
               {!projects ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading projects…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {tr("migration.loadingProjects")}
                 </div>
               ) : (
                 <select
                   value={exportProjectId}
                   onChange={(e) => setExportProjectId(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/60 transition-colors"
+                  className="w-full rounded-xl border border-white/10 app-surface-soft px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/60 transition-colors"
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id} className="bg-black">{p.name}</option>
@@ -327,37 +331,23 @@ export function MigrationPage() {
 
             {/* Field mapping reference */}
             <SectionCard>
-              <h2 className="text-sm font-semibold text-white mb-3">Field mapping</h2>
+              <h2 className="text-sm font-semibold text-white mb-3">{tr("migration.fieldMapping")}</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/10">
-                      <th className="pb-2 text-left text-gray-500 font-medium pr-8">01 Manager</th>
-                      <th className="pb-2 text-left text-gray-500 font-medium pr-8">{exportFormat === "jira" ? "Jira column" : "Linear column"}</th>
-                      <th className="pb-2 text-left text-gray-500 font-medium">Notes</th>
+                      <th className="pb-2 text-start text-gray-500 font-medium pe-8">{tr("migration.managerColumn")}</th>
+                      <th className="pb-2 text-start text-gray-500 font-medium pe-8">{exportFormat === "jira" ? tr("migration.jiraColumn") : tr("migration.linearColumn")}</th>
+                      <th className="pb-2 text-start text-gray-500 font-medium">{tr("migration.notes")}</th>
                     </tr>
                   </thead>
                   <tbody className="text-gray-400 space-y-1">
                     {(exportFormat === "jira"
                       ? [
-                        ["Title", "Summary", ""],
-                        ["Description", "Description", ""],
-                        ["Priority", "Priority", "High/Medium/Low"],
-                        ["Status", "Status", ""],
-                        ["Estimated days", "Story Points", "1 day = 1 point"],
-                        ["Due date", "Due Date", "YYYY-MM-DD"],
-                        ["Labels", "Labels", "comma-separated"],
-                        ["Acceptance criteria", "Acceptance Criteria", "checklist format"],
-                        ["Definition of done", "Implementation Steps", "checklist format"],
+                        [tr("migration.fields.title"), tr("migration.fields.summary"), ""], [tr("migration.fields.description"), tr("migration.fields.description"), ""], [tr("migration.fields.priority"), tr("migration.fields.priority"), tr("migration.noteValues.priorities")], [tr("migration.fields.status"), tr("migration.fields.status"), ""], [tr("migration.fields.estimatedDays"), tr("migration.fields.storyPoints"), tr("migration.noteValues.dayPoint")], [tr("migration.fields.dueDate"), tr("migration.fields.dueDate"), "YYYY-MM-DD"], [tr("migration.fields.labels"), tr("migration.fields.labels"), tr("migration.noteValues.comma")], [tr("migration.fields.acceptance"), tr("migration.fields.acceptance"), tr("migration.noteValues.checklist")], [tr("migration.fields.definition"), tr("migration.fields.implementation"), tr("migration.noteValues.checklist")],
                       ]
                       : [
-                        ["Title", "Title", ""],
-                        ["Description", "Description", "includes AC"],
-                        ["Priority", "Priority", "High/Medium/Low"],
-                        ["Status", "Status", ""],
-                        ["Estimated days", "Estimate", ""],
-                        ["Due date", "Due Date", "YYYY-MM-DD"],
-                        ["Labels", "Labels", "comma-separated"],
+                        [tr("migration.fields.title"), tr("migration.fields.title"), ""], [tr("migration.fields.description"), tr("migration.fields.description"), tr("migration.noteValues.includesAcceptance")], [tr("migration.fields.priority"), tr("migration.fields.priority"), tr("migration.noteValues.priorities")], [tr("migration.fields.status"), tr("migration.fields.status"), ""], [tr("migration.fields.estimatedDays"), tr("migration.fields.estimate"), ""], [tr("migration.fields.dueDate"), tr("migration.fields.dueDate"), "YYYY-MM-DD"], [tr("migration.fields.labels"), tr("migration.fields.labels"), tr("migration.noteValues.comma")],
                       ]
                     ).map(([src, dest, note]) => (
                       <tr key={src} className="border-b border-white/5">
@@ -383,7 +373,7 @@ export function MigrationPage() {
               className="flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-purple-500/20"
             >
               {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exportLoading ? "Exporting…" : `Download ${exportFormat === "jira" ? "Jira" : "Linear"} CSV`}
+              {exportLoading ? tr("migration.exporting") : tr("migration.download", { format: exportFormat === "jira" ? "Jira" : "Linear" })}
             </button>
           </motion.div>
         )}
@@ -393,22 +383,22 @@ export function MigrationPage() {
 
             {/* Source + project */}
             <SectionCard>
-              <h2 className="text-sm font-semibold text-white mb-4">Import source</h2>
+              <h2 className="text-sm font-semibold text-white mb-4">{tr("migration.importSource")}</h2>
               <div className="grid grid-cols-2 gap-3 mb-5">
-                <FormatButton format="jira" selected={importSource === "jira"} onSelect={() => { setImportSource("jira"); setPreviewRows(null); setCsvFileName(null); }} label="From Jira" description="Upload a Jira CSV export" />
-                <FormatButton format="linear" selected={importSource === "linear"} onSelect={() => { setImportSource("linear"); setPreviewRows(null); setCsvFileName(null); }} label="From Linear" description="Upload a Linear CSV export" />
+                <FormatButton format="jira" selected={importSource === "jira"} onSelect={() => { setImportSource("jira"); setPreviewRows(null); setCsvFileName(null); }} label={tr("migration.fromJira")} description={tr("migration.uploadJira")} />
+                <FormatButton format="linear" selected={importSource === "linear"} onSelect={() => { setImportSource("linear"); setPreviewRows(null); setCsvFileName(null); }} label={tr("migration.fromLinear")} description={tr("migration.uploadLinear")} />
               </div>
 
-              <h2 className="text-sm font-semibold text-white mb-3">Destination project</h2>
+              <h2 className="text-sm font-semibold text-white mb-3">{tr("migration.destination")}</h2>
               {!projects ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading projects…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {tr("migration.loadingProjects")}
                 </div>
               ) : (
                 <select
                   value={importProjectId}
                   onChange={(e) => setImportProjectId(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/60 transition-colors"
+                  className="w-full rounded-xl border border-white/10 app-surface-soft px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/60 transition-colors"
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id} className="bg-black">{p.name}</option>
@@ -420,26 +410,26 @@ export function MigrationPage() {
             {/* File upload */}
             {!importResult && (
               <SectionCard>
-                <h2 className="text-sm font-semibold text-white mb-4">Upload CSV</h2>
+                <h2 className="text-sm font-semibold text-white mb-4">{tr("migration.uploadCsv")}</h2>
                 <div
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02] px-6 py-10 cursor-pointer hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all"
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-white/10 app-surface-soft px-6 py-10 cursor-pointer hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 app-surface-soft">
                     {previewLoading ? <Loader2 className="h-5 w-5 text-purple-400 animate-spin" /> : <FileText className="h-5 w-5 text-gray-400" />}
                   </div>
                   {csvFileName ? (
                     <div className="text-center">
                       <p className="text-sm font-medium text-white">{csvFileName}</p>
-                      <p className="text-xs text-gray-500 mt-1">Click to replace</p>
+                      <p className="text-xs text-gray-500 mt-1">{tr("migration.replace")}</p>
                     </div>
                   ) : (
                     <div className="text-center">
-                      <p className="text-sm font-medium text-gray-300">Drop your CSV here or click to upload</p>
+                      <p className="text-sm font-medium text-gray-300">{tr("migration.drop")}</p>
                       <p className="text-xs text-gray-600 mt-1">
-                        Export from {importSource === "jira" ? "Jira → Issues → Export → CSV" : "Linear → Export → CSV"}
+                        {importSource === "jira" ? tr("migration.jiraPath") : tr("migration.linearPath")}
                       </p>
                     </div>
                   )}
@@ -461,12 +451,12 @@ export function MigrationPage() {
                   <SectionCard>
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h2 className="text-sm font-semibold text-white">Mapping preview</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">{previewRows.length} task{previewRows.length !== 1 ? "s" : ""} ready to import</p>
+                        <h2 className="text-sm font-semibold text-white">{tr("migration.preview")}</h2>
+                        <p className="text-xs text-gray-500 mt-0.5">{tr("migration.ready", { count: previewRows.length })}</p>
                       </div>
                       <button
                         onClick={() => { setPreviewRows(null); setCsvFileName(null); }}
-                        className="rounded-lg p-1.5 text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                        className="rounded-lg p-1.5 text-gray-500 hover:text-white hover:app-surface-soft transition-colors"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -474,17 +464,17 @@ export function MigrationPage() {
 
                     <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                       {previewRows.map((row, i) => (
-                        <div key={i} className="rounded-xl border border-white/8 bg-white/[0.02] overflow-hidden">
+                        <div key={i} className="rounded-xl border border-white/8 app-surface-soft overflow-hidden">
                           <button
                             onClick={() => toggleRow(i)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:app-surface-soft transition-colors"
                           >
                             <span className="text-xs text-gray-600 w-5 shrink-0">{i + 1}</span>
                             <span className="flex-1 text-sm font-medium text-white truncate">{row.title}</span>
                             <div className="flex items-center gap-2 shrink-0">
-                              <Badge text={row.priority} colorClass={PRIORITY_COLORS[row.priority] ?? "text-gray-400 bg-white/5 border-white/10"} />
-                              <Badge text={row.status} colorClass={STATUS_COLORS[row.status] ?? "text-gray-400 bg-white/5 border-white/10"} />
-                              <span className="text-xs text-gray-500">{row.estimated_days}d</span>
+                              <Badge text={row.priority} colorClass={PRIORITY_COLORS[row.priority] ?? "text-gray-400 app-surface-soft border-white/10"} />
+                              <Badge text={row.status} colorClass={STATUS_COLORS[row.status] ?? "text-gray-400 app-surface-soft border-white/10"} />
+                              <span className="text-xs text-gray-500">{tr("migration.daysShort", { count: row.estimated_days })}</span>
                               {expandedRows.has(i) ? <ChevronUp className="h-3.5 w-3.5 text-gray-500" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-500" />}
                             </div>
                           </button>
@@ -501,23 +491,23 @@ export function MigrationPage() {
                                 <div className="px-4 pb-4 pt-2 border-t border-white/8 space-y-3">
                                   {row.description && (
                                     <div>
-                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">{tr("migration.fields.description")}</p>
                                       <p className="text-xs text-gray-400 leading-relaxed line-clamp-4">{row.description}</p>
                                     </div>
                                   )}
                                   {row.labels.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">Labels</p>
+                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">{tr("migration.fields.labels")}</p>
                                       <div className="flex flex-wrap gap-1">
                                         {row.labels.map((l) => (
-                                          <span key={l} className="px-1.5 py-0.5 rounded-md border border-white/10 bg-white/5 text-[10px] text-gray-400">{l}</span>
+                                          <span key={l} className="px-1.5 py-0.5 rounded-md border border-white/10 app-surface-soft text-[10px] text-gray-400">{l}</span>
                                         ))}
                                       </div>
                                     </div>
                                   )}
                                   {row.acceptance_criteria.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">Acceptance criteria</p>
+                                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">{tr("migration.fields.acceptance")}</p>
                                       <ul className="space-y-1">
                                         {row.acceptance_criteria.slice(0, 4).map((ac) => (
                                           <li key={ac.id} className="text-xs text-gray-400 flex items-start gap-1.5">
@@ -525,14 +515,14 @@ export function MigrationPage() {
                                           </li>
                                         ))}
                                         {row.acceptance_criteria.length > 4 && (
-                                          <li className="text-xs text-gray-600">+{row.acceptance_criteria.length - 4} more</li>
+                                          <li className="text-xs text-gray-600">{tr("migration.more", { count: row.acceptance_criteria.length - 4 })}</li>
                                         )}
                                       </ul>
                                     </div>
                                   )}
                                   <div className="flex items-center gap-4 text-xs text-gray-600">
-                                    {row.end_date && <span>Due: {row.end_date}</span>}
-                                    <span>External ID: {row.external_id}</span>
+                                    {row.end_date && <span>{tr("migration.due", { date: row.end_date })}</span>}
+                                    <span>{tr("migration.externalId", { id: row.external_id })}</span>
                                   </div>
                                 </div>
                               </motion.div>
@@ -555,9 +545,9 @@ export function MigrationPage() {
                         className="flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-purple-500/20"
                       >
                         {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                        {importing ? "Importing…" : `Import ${previewRows.length} task${previewRows.length !== 1 ? "s" : ""}`}
+                        {importing ? tr("migration.importing") : tr("migration.importTasks", { count: previewRows.length })}
                       </button>
-                      <p className="text-xs text-gray-600">Duplicate tasks will be skipped automatically.</p>
+                      <p className="text-xs text-gray-600">{tr("migration.duplicates")}</p>
                     </div>
                   </SectionCard>
                 </motion.div>
@@ -574,18 +564,18 @@ export function MigrationPage() {
                         <CheckCircle2 className="h-5 w-5 text-green-400" />
                       </div>
                       <div className="flex-1">
-                        <h2 className="text-sm font-semibold text-white">Import complete</h2>
+                        <h2 className="text-sm font-semibold text-white">{tr("migration.complete")}</h2>
                         <p className="text-xs text-gray-400 mt-1">
-                          <span className="text-green-400 font-medium">{importResult.imported} task{importResult.imported !== 1 ? "s" : ""} imported</span>
-                          {importResult.skipped > 0 && <span className="text-gray-500"> · {importResult.skipped} skipped (already exist)</span>}
+                          <span className="text-green-400 font-medium">{tr("migration.imported", { count: importResult.imported })}</span>
+                          {importResult.skipped > 0 && <span className="text-gray-500"> · {tr("migration.skipped", { count: importResult.skipped })}</span>}
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-3">
                           <button
                             onClick={() => navigate("/")}
-                            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+                            className="flex items-center gap-2 rounded-xl border border-white/10 app-surface-soft hover:app-surface-soft px-4 py-2.5 text-xs font-medium text-gray-300 hover:text-white transition-colors"
                           >
-                            View in Projects
+                            {tr("migration.viewProjects")}
                           </button>
                           {importResult.taskIds.length > 0 && (
                             <button
@@ -594,14 +584,14 @@ export function MigrationPage() {
                               className="flex items-center gap-2 rounded-xl bg-purple-600/20 border border-purple-500/40 hover:bg-purple-600/30 px-4 py-2.5 text-xs font-semibold text-purple-300 hover:text-white transition-colors"
                             >
                               {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                              {analyzing ? "Analyzing…" : "AI Analysis"}
+                              {analyzing ? tr("migration.analyzing") : tr("migration.analysis")}
                             </button>
                           )}
                           <button
                             onClick={() => { setImportResult(null); setCsvFileName(null); setAnalysis(null); }}
-                            className="flex items-center gap-2 rounded-xl border border-white/10 hover:bg-white/5 px-4 py-2.5 text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors"
+                            className="flex items-center gap-2 rounded-xl border border-white/10 hover:app-surface-soft px-4 py-2.5 text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors"
                           >
-                            Import another file
+                            {tr("migration.another")}
                           </button>
                         </div>
                       </div>
@@ -619,7 +609,7 @@ export function MigrationPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-purple-400" />
-                        <h2 className="text-sm font-semibold text-white">AI Analysis</h2>
+                        <h2 className="text-sm font-semibold text-white">{tr("migration.analysis")}</h2>
                         {riskBadge(analysis.risk_level)}
                       </div>
                     </div>
@@ -628,9 +618,9 @@ export function MigrationPage() {
 
                     {analysis.findings.length > 0 && (
                       <div className="space-y-2 mb-5">
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Findings</h3>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{tr("migration.findings")}</h3>
                         {analysis.findings.map((f, i) => (
-                          <div key={i} className={`rounded-xl border overflow-hidden ${SEVERITY_COLORS[f.severity] ?? "border-white/10 bg-white/[0.02]"}`}>
+                          <div key={i} className={`rounded-xl border overflow-hidden ${SEVERITY_COLORS[f.severity] ?? "border-white/10 app-surface-soft"}`}>
                             <button
                               onClick={() => toggleFinding(i)}
                               className="w-full flex items-center gap-3 px-4 py-3 text-left"
@@ -638,8 +628,8 @@ export function MigrationPage() {
                               <span className={SEVERITY_ICON_COLORS[f.severity]}>{findingIcon(f)}</span>
                               <span className="flex-1 text-sm font-medium text-white">{f.title}</span>
                               <div className="flex items-center gap-2 shrink-0">
-                                <Badge text={f.severity} colorClass={SEVERITY_COLORS[f.severity] ?? "text-gray-400 bg-white/5 border-white/10"} />
-                                <Badge text={f.type.replace("_", " ")} colorClass="text-gray-400 bg-white/5 border-white/10" />
+                                <Badge text={f.severity} colorClass={SEVERITY_COLORS[f.severity] ?? "text-gray-400 app-surface-soft border-white/10"} />
+                                <Badge text={f.type.replace("_", " ")} colorClass="text-gray-400 app-surface-soft border-white/10" />
                                 {expandedFindings.has(i) ? <ChevronUp className="h-3.5 w-3.5 text-gray-500" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-500" />}
                               </div>
                             </button>
@@ -657,7 +647,7 @@ export function MigrationPage() {
                                     {f.affected_tasks.length > 0 && (
                                       <div className="flex flex-wrap gap-1 mt-2">
                                         {f.affected_tasks.map((t) => (
-                                          <span key={t} className="px-2 py-0.5 rounded-md border border-white/10 bg-white/5 text-[10px] text-gray-400">{t}</span>
+                                          <span key={t} className="px-2 py-0.5 rounded-md border border-white/10 app-surface-soft text-[10px] text-gray-400">{t}</span>
                                         ))}
                                       </div>
                                     )}
@@ -672,7 +662,7 @@ export function MigrationPage() {
 
                     {analysis.recommendations.length > 0 && (
                       <div>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Recommendations</h3>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{tr("migration.recommendations")}</h3>
                         <ul className="space-y-2">
                           {analysis.recommendations.map((r, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-gray-400">

@@ -120,6 +120,8 @@ export function Profile() {
   useEffect(() => {
     if (!currentUserId) return;
     const extended = loadExt(currentUserId);
+    // Local persisted profile data is an external store synchronized here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExt(extended);
 
     api.users
@@ -333,7 +335,7 @@ Output only the profile text, no headers or labels.`,
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-linear-to-br from-purple-900/20 to-black border border-purple-500/20 rounded-3xl p-7"
+            className="bg-linear-to-br from-purple-900/20 to-purple-950/10 border border-purple-500/20 rounded-3xl p-7"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -454,7 +456,7 @@ Output only the profile text, no headers or labels.`,
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-linear-to-br from-purple-900/30 to-black border border-purple-500/20 rounded-3xl p-7 flex items-center gap-8"
+            className="bg-linear-to-br from-purple-900/30 to-purple-950/10 border border-purple-500/20 rounded-3xl p-7 flex items-center gap-8"
           >
             <div className="w-20 h-20 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/20 border-4 border-white/10">
               <TrendingUp className="w-9 h-9 text-white" />
@@ -662,7 +664,7 @@ Output only the profile text, no headers or labels.`,
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}
-            className="bg-linear-to-br from-orange-900/20 to-black border border-orange-500/20 rounded-3xl p-6 relative overflow-hidden"
+            className="bg-linear-to-br from-orange-900/20 to-orange-950/10 border border-orange-500/20 rounded-3xl p-6 relative overflow-hidden"
           >
             <div className="absolute -right-4 -top-4 opacity-10">
               <Flame className="w-32 h-32 text-orange-500" />

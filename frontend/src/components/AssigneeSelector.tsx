@@ -67,7 +67,7 @@ export function AssigneeSelector({
         className={`flex items-center gap-1.5 text-xs rounded-lg px-2 py-1 border transition-colors ${
           open
             ? "border-purple-500/50 bg-purple-900/20 text-purple-200"
-            : "border-white/10 bg-white/4 text-gray-400 hover:border-white/20 hover:text-gray-300"
+            : "border-white/10 app-surface-soft text-gray-400 hover:border-white/20 hover:text-gray-300"
         }`}
       >
         <User className="w-3 h-3 shrink-0" />
@@ -185,7 +185,7 @@ export function AssigneeSelector({
                       className={`w-full flex items-start gap-2.5 px-3 py-2 text-left transition-colors ${
                         isSelected
                           ? "bg-purple-900/20 text-white"
-                          : "text-gray-300 hover:bg-white/4 hover:text-white"
+                          : "text-gray-300 hover:app-surface-soft hover:text-white"
                       }`}
                     >
                       <div className="shrink-0 w-4 h-4 mt-0.5 flex items-center justify-center">

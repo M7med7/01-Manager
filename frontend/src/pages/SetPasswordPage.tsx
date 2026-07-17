@@ -3,10 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Session } from '@supabase/supabase-js';
+import { useTranslation } from 'react-i18next';
 import { Logo } from '../components/Logo';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { supabase } from '../lib/supabase';
 
 export function SetPasswordPage() {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
@@ -28,11 +31,11 @@ export function SetPasswordPage() {
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('shared.passwordMinLengthError'));
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      setError(t('shared.passwordMismatchError'));
       return;
     }
     setError(null);
@@ -43,7 +46,7 @@ export function SetPasswordPage() {
       setSuccess(true);
       setTimeout(() => navigate('/'), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set password. Please try again.');
+      setError(err instanceof Error ? err.message : t('setPassword.genericError'));
     } finally {
       setLoading(false);
     }
@@ -59,7 +62,8 @@ export function SetPasswordPage() {
 
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black px-6">
+      <div className="min-h-screen flex items-center justify-center app-bg px-6">
+        <LanguageSwitcher className="absolute top-6 end-6" />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -70,12 +74,12 @@ export function SetPasswordPage() {
           </div>
           <div className="rounded-xl border border-red-500/40 bg-red-900/20 p-6">
             <p className="text-sm text-red-300">
-              This invite link is invalid or expired. Please request a new invitation.
+              {t('setPassword.invalidLink')}
             </p>
           </div>
           <p className="mt-8 text-sm text-gray-500">
             <Link to="/login" className="font-semibold text-purple-400 hover:text-purple-300">
-              Back to sign in
+              {t('shared.backToSignIn')}
             </Link>
           </p>
         </motion.div>
@@ -84,7 +88,8 @@ export function SetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black px-6">
+    <div className="min-h-screen flex items-center justify-center app-bg px-6">
+      <LanguageSwitcher className="absolute top-6 end-6" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -92,9 +97,9 @@ export function SetPasswordPage() {
       >
         <div className="mb-10 flex flex-col items-center gap-4">
           <Logo />
-          <h1 className="text-3xl font-bold text-white">Set your password</h1>
+          <h1 className="text-3xl font-bold text-white">{t('setPassword.title')}</h1>
           <p className="text-center text-gray-400">
-            Choose a password to activate your account.
+            {t('setPassword.subtitle')}
           </p>
         </div>
 
@@ -104,7 +109,7 @@ export function SetPasswordPage() {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-green-500/40 bg-green-900/20 p-5 text-center"
           >
-            <p className="text-sm text-green-300">Password set! Redirecting to dashboard…</p>
+            <p className="text-sm text-green-300">{t('setPassword.successMessage')}</p>
           </motion.div>
         ) : (
           <>
@@ -121,28 +126,28 @@ export function SetPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">
-                  New password
+                  {t('shared.newPasswordLabel')}
                 </label>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder={t('shared.passwordPlaceholder')}
                   className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-300">
-                  Confirm password
+                  {t('shared.confirmPasswordLabel')}
                 </label>
                 <input
                   type="password"
                   required
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
-                  placeholder="Repeat your password"
+                  placeholder={t('shared.confirmPasswordPlaceholder')}
                   className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
@@ -157,10 +162,10 @@ export function SetPasswordPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving…
+                    {t('setPassword.submitting')}
                   </span>
                 ) : (
-                  'Set password'
+                  t('setPassword.submit')
                 )}
               </motion.button>
             </form>

@@ -4,6 +4,7 @@ import { UserPlus, ChevronDown, Zap } from "lucide-react";
 import type { Task } from "../lib/api";
 import type { TeamMember } from "../lib/teamUtils";
 import { suggestOwner } from "../lib/teamUtils";
+import { useTranslation } from "react-i18next";
 
 interface UnassignedTasksPanelProps {
   tasks: Task[];
@@ -16,6 +17,7 @@ interface UnassignedTasksPanelProps {
 export function UnassignedTasksPanel({
   tasks, members, maxSP, perMemberMaxSP, onAssign,
 }: UnassignedTasksPanelProps) {
+  const { t } = useTranslation("team");
   const [open, setOpen] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
@@ -47,9 +49,9 @@ export function UnassignedTasksPanel({
           <UserPlus className="w-5 h-5 text-purple-400" />
         </div>
         <div className="flex-1">
-          <h3 className="text-base font-semibold text-purple-300">Unassigned Tasks</h3>
+          <h3 className="text-base font-semibold text-purple-300">{t("unassigned.title")}</h3>
           <p className="text-sm text-gray-400 mt-0.5">
-            {unassigned.length} task{unassigned.length > 1 ? "s" : ""} without an owner — AI suggests the best match by skill and capacity
+            {t("unassigned.description", { count: unassigned.length })}
           </p>
         </div>
         <ChevronDown
@@ -64,7 +66,7 @@ export function UnassignedTasksPanel({
             const isAssigning = assigningId === task.id;
 
             return (
-              <div key={task.id} className="rounded-xl bg-black/30 border border-white/8 p-4">
+              <div key={task.id} className="rounded-xl app-surface-soft border border-white/8 p-4">
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-200 truncate">{task.title}</div>
@@ -78,7 +80,7 @@ export function UnassignedTasksPanel({
                         </span>
                       ))}
                       {task.assigned_tech.length === 0 && (
-                        <span className="text-[10px] text-gray-600 italic">No tech requirements</span>
+                        <span className="text-[10px] text-gray-600 italic">{t("unassigned.noTech")}</span>
                       )}
                     </div>
                   </div>
@@ -110,11 +112,11 @@ export function UnassignedTasksPanel({
                           : "text-red-400"
                       }`}
                     >
-                      {suggestion.skillScore}% skill match
+                      {t("unassigned.skillMatch", { count: suggestion.skillScore })}
                     </span>
                     <span>·</span>
                     <span className={suggestion.capacityPct >= 30 ? "text-green-400" : "text-amber-400"}>
-                      {suggestion.capacityPct}% capacity free
+                      {t("unassigned.capacityFree", { count: suggestion.capacityPct })}
                     </span>
                     {task.project_name && (
                       <>
@@ -127,7 +129,7 @@ export function UnassignedTasksPanel({
 
                 {!suggestion && (
                   <div className="mt-2 text-[11px] text-gray-600 italic">
-                    No team members available — everyone is at or over capacity
+                    {t("unassigned.noneAvailable")}
                   </div>
                 )}
               </div>
@@ -136,7 +138,7 @@ export function UnassignedTasksPanel({
 
           {unassigned.length > 10 && (
             <p className="text-xs text-gray-600 text-center pt-1">
-              +{unassigned.length - 10} more unassigned tasks
+              {t("unassigned.more", { count: unassigned.length - 10 })}
             </p>
           )}
         </div>

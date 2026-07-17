@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { api, type Task, type Project } from "../lib/api";
 import { buildDependencyAwareSchedule } from "../lib/schedule";
 import { useAuth } from "../contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 import {
   type ScheduledTask,
   projectColors,
@@ -15,12 +16,6 @@ import {
 } from "../lib/calendarUtils";
 
 type ViewMode = "day" | "week" | "month" | "year";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -38,8 +33,8 @@ function isTaskOnDate(item: ScheduledTask, date: Date): boolean {
 function startOfWeek(date: Date): Date {
   return addDays(startOfDay(date), -date.getDay());
 }
-function formatShortDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatShortDate(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(date);
 }
 function buildSchedule(tasks: Task[], projectDurations: Map<string, number>): ScheduledTask[] {
   const map = buildDependencyAwareSchedule(tasks, projectDurations);
@@ -58,6 +53,12 @@ function buildSchedule(tasks: Task[], projectDurations: Map<string, number>): Sc
 }
 
 export function BoardCalendar() {
+  const { t, i18n } = useTranslation("board");
+  const locale = i18n.resolvedLanguage ?? "en";
+  const dayNames = useMemo(() => Array.from({ length: 7 }, (_, day) =>
+    new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7 + day))), [locale]);
+  const monthNames = useMemo(() => Array.from({ length: 12 }, (_, value) =>
+    new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2024, value, 1))), [locale]);
   const { session } = useAuth();
   const currentUserId = session?.user.id ?? null;
 
@@ -130,14 +131,14 @@ export function BoardCalendar() {
 
   function getViewTitle(): string {
     if (viewMode === "day")
-      return currentDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", year: "numeric" }).format(currentDate);
     if (viewMode === "week") {
       const s = startOfWeek(currentDate);
       const e = addDays(s, 6);
-      return `${formatShortDate(s)} – ${formatShortDate(e)}, ${e.getFullYear()}`;
+      return `${formatShortDate(s, locale)} – ${formatShortDate(e, locale)}, ${e.getFullYear()}`;
     }
     if (viewMode === "year") return String(year);
-    return `${MONTH_NAMES[month]} ${year}`;
+    return `${monthNames[month]} ${year}`;
   }
 
   function navigate(direction: -1 | 1) {
@@ -185,15 +186,15 @@ export function BoardCalendar() {
     setShowAiPanel(true);
     const summary = scheduledTasks
       .slice(0, 20)
-      .map((s) => `"${s.task.title}" (${formatShortDate(s.start)}→${formatShortDate(s.end)}, status: ${s.task.status}${s.hasDependencyWarning ? ", DEP WARNING" : ""}${conflictMap.has(s.task.id) ? ", CONFLICT" : ""})`)
+      .map((s) => `"${s.task.title}" (${formatShortDate(s.start, locale)}→${formatShortDate(s.end, locale)}, status: ${s.task.status}${s.hasDependencyWarning ? ", DEP WARNING" : ""}${conflictMap.has(s.task.id) ? ", CONFLICT" : ""})`)
       .join("\n");
     try {
       const { response } = await api.ai.chat({
-        message: `Review this project schedule and give 3 specific, actionable optimization suggestions to reduce conflicts, balance workload, and improve delivery confidence. Be concise.\n\nSchedule:\n${summary}`,
+        message: `Respond in ${locale.startsWith("ar") ? "Arabic" : "English"}. Review this project schedule and give 3 specific, actionable optimization suggestions to reduce conflicts, balance workload, and improve delivery confidence. Be concise.\n\nSchedule:\n${summary}`,
       });
       setAiSuggestion(response);
     } catch {
-      setAiSuggestion("Could not load suggestion. Please try again.");
+      setAiSuggestion(t("aiError"));
     } finally {
       setAiLoading(false);
     }
@@ -226,16 +227,16 @@ export function BoardCalendar() {
           ].filter(Boolean).join(" ")}
           title={[
             item.task.title,
-            `${formatShortDate(item.start)} – ${formatShortDate(item.end)}`,
-            isBlocked ? "⚠ Blocked" : "",
+            `${formatShortDate(item.start, locale)} – ${formatShortDate(item.end, locale)}`,
+            isBlocked ? `⚠ ${t("blocked")}` : "",
             hasConflict ? `⚡ ${conflictMap.get(item.task.id)}` : "",
-            hasDepWarn ? "🔗 Starts before a blocker finishes" : "",
+            hasDepWarn ? `🔗 ${t("startsBeforeBlocker")}` : "",
           ].filter(Boolean).join(" · ")}
         >
           <span className="block truncate">{item.task.title}</span>
           {!compact && (
             <span className="block text-[10px] opacity-70">
-              {formatShortDate(item.start)} – {formatShortDate(item.end)}
+              {formatShortDate(item.start, locale)} – {formatShortDate(item.end, locale)}
             </span>
           )}
         </motion.div>
@@ -264,12 +265,12 @@ export function BoardCalendar() {
     return (
       <div className="grid gap-4">
         <div className={`rounded-xl border p-5 ${load >= OVERLOAD_THRESHOLD ? "border-amber-500/40 bg-amber-900/10" : "border-purple-500/30 bg-purple-900/10"}`}>
-          <div className="text-sm uppercase tracking-wider text-purple-300">{DAY_NAMES[currentDate.getDay()]}</div>
+          <div className="text-sm uppercase tracking-wider text-purple-300">{dayNames[currentDate.getDay()]}</div>
           <div className="mt-1 text-3xl font-light">{currentDate.getDate()}</div>
-          {load >= OVERLOAD_THRESHOLD && <div className="mt-1 text-xs text-amber-400">⚠ Overloaded — {load} tasks</div>}
+          {load >= OVERLOAD_THRESHOLD && <div className="mt-1 text-xs text-amber-400">⚠ {t("overloadedTasks", { count: load })}</div>}
         </div>
         {dayTasks.length === 0
-          ? <div className="rounded-xl border border-white/10 bg-white/2 p-8 text-center text-gray-500">No scheduled work for this day</div>
+          ? <div className="rounded-xl border border-white/10 app-surface-soft p-8 text-center text-gray-500">{t("noDayWork")}</div>
           : dayTasks.map((item) => <TaskPill key={item.task.id} item={item} />)}
       </div>
     );
@@ -292,13 +293,13 @@ export function BoardCalendar() {
               className={`min-h-[520px] rounded-xl border p-3 ${
                 overloaded ? "border-amber-500/40 bg-amber-900/8" :
                 isToday ? "border-purple-500/50 bg-purple-900/10" :
-                "border-white/10 bg-white/2"
+                "border-white/10 app-surface-soft"
               }`}
             >
               <div className="mb-4">
-                <div className="text-xs uppercase tracking-wider text-gray-500">{DAY_NAMES[date.getDay()]}</div>
-                <div className={isToday ? "text-purple-300" : overloaded ? "text-amber-300" : "text-gray-200"}>{formatShortDate(date)}</div>
-                {overloaded && <div className="text-[10px] text-amber-500 mt-0.5">{load} tasks</div>}
+                <div className="text-xs uppercase tracking-wider text-gray-500">{dayNames[date.getDay()]}</div>
+                <div className={isToday ? "text-purple-300" : overloaded ? "text-amber-300" : "text-gray-200"}>{formatShortDate(date, locale)}</div>
+                {overloaded && <div className="text-[10px] text-amber-500 mt-0.5">{t("tasks", { count: load })}</div>}
               </div>
               <div className="space-y-2">
                 {dayTasks.map((item) => <TaskPill key={item.task.id} item={item} compact />)}
@@ -314,7 +315,7 @@ export function BoardCalendar() {
     return (
       <>
         <div className="grid grid-cols-7 gap-3 mb-4">
-          {DAY_NAMES.map((day) => (
+          {dayNames.map((day) => (
             <div key={day} className="text-center text-gray-500 text-xs uppercase tracking-wider py-2">{day}</div>
           ))}
         </div>
@@ -334,7 +335,7 @@ export function BoardCalendar() {
                 className={`aspect-square border rounded-lg p-2 relative overflow-hidden group transition-all duration-200 ${
                   overloaded ? "border-amber-500/40 bg-amber-900/8" :
                   isToday ? "border-purple-500/50 bg-purple-900/10" :
-                  "border-white/10 hover:border-white/20 bg-white/2 hover:bg-white/4"
+                  "border-white/10 hover:border-white/20 app-surface-soft hover:app-surface-soft"
                 }`}
               >
                 <motion.div className="absolute inset-0 bg-linear-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -344,7 +345,7 @@ export function BoardCalendar() {
                 </div>
                 <div className="space-y-1 relative z-10">
                   {dayTasks.slice(0, 3).map((item) => <TaskPill key={item.task.id} item={item} compact />)}
-                  {dayTasks.length > 3 && <div className="text-[9px] text-gray-500 px-1">+{dayTasks.length - 3} more</div>}
+                  {dayTasks.length > 3 && <div className="text-[9px] text-gray-500 px-1">{t("more", { count: dayTasks.length - 3 })}</div>}
                 </div>
                 {isToday && <div className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full shadow-lg shadow-purple-500/50" />}
               </DayCell>
@@ -358,19 +359,19 @@ export function BoardCalendar() {
   function renderYearView() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        {MONTH_NAMES.map((name, monthIndex) => {
+        {monthNames.map((name, monthIndex) => {
           const monthTasks = scheduledTasks.filter(
             (s) => s.start.getFullYear() === year && s.start.getMonth() === monthIndex
           );
           return (
-            <div key={name} className="min-h-44 rounded-xl border border-white/10 bg-white/2 p-4">
+            <div key={name} className="min-h-44 rounded-xl border border-white/10 app-surface-soft p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h4 className="text-lg font-light">{name}</h4>
-                <span className="text-xs text-gray-500">{monthTasks.length} tasks</span>
+                <span className="text-xs text-gray-500">{t("tasks", { count: monthTasks.length })}</span>
               </div>
               <div className="space-y-2">
                 {monthTasks.slice(0, 4).map((item) => <TaskPill key={item.task.id} item={item} compact />)}
-                {monthTasks.length === 0 && <p className="text-sm text-gray-600">No scheduled work</p>}
+                {monthTasks.length === 0 && <p className="text-sm text-gray-600">{t("noWork")}</p>}
               </div>
             </div>
           );
@@ -384,8 +385,8 @@ export function BoardCalendar() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-3xl mb-1 font-light">Board Calendar</h2>
-          <p className="text-gray-400 text-sm">Project timeline and task schedule</p>
+          <h2 className="text-3xl mb-1 font-light">{t("title")}</h2>
+          <p className="text-gray-400 text-sm">{t("description")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {currentUserId && (
@@ -395,30 +396,30 @@ export function BoardCalendar() {
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                 myScheduleOnly
                   ? "border-purple-500/60 bg-purple-900/25 text-purple-200"
-                  : "border-white/10 bg-white/3 text-gray-400 hover:text-gray-300 hover:border-white/20"
+                  : "border-white/10 app-surface-soft text-gray-400 hover:text-gray-300 hover:border-white/20"
               }`}
             >
-              <User className="w-4 h-4" /> My Schedule
+              <User className="w-4 h-4" /> {t("mySchedule")}
             </motion.button>
           )}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={getAiSuggestion}
             disabled={aiLoading}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/3 text-sm text-gray-400 hover:text-gray-300 hover:border-white/20 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 app-surface-soft text-sm text-gray-400 hover:text-gray-300 hover:border-white/20 transition-all disabled:opacity-50"
           >
             {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            AI Optimize
+            {t("aiOptimize")}
           </motion.button>
           <select
             value={selectedProjectId ?? ""}
             onChange={(e) => setSelectedProjectId(e.target.value || null)}
-            className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500/50 transition-colors"
+            className="rounded-lg border border-white/10 app-input backdrop-blur-sm px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500/50 transition-colors"
           >
-            <option value="">All Projects</option>
+            <option value="">{t("allProjects")}</option>
             {projectOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-lg p-1">
+          <div className="flex items-center gap-1 app-input backdrop-blur-sm border border-white/10 rounded-lg p-1">
             {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
               <motion.button
                 key={mode}
@@ -427,9 +428,9 @@ export function BoardCalendar() {
                 className={`relative px-3 py-1.5 rounded-md transition-all duration-200 capitalize text-sm overflow-hidden ${viewMode === mode ? "text-white" : "text-gray-400 hover:text-white"}`}
               >
                 {viewMode === mode && (
-                  <motion.div layoutId="activeViewMode" className="absolute inset-0 bg-linear-to-r from-purple-900 to-black" transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} />
+                  <motion.div layoutId="activeViewMode" className="absolute inset-0 bg-linear-to-r from-purple-600 to-purple-700" transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} />
                 )}
-                <span className="relative z-10">{mode}</span>
+                <span className="relative z-10">{t(`views.${mode}`)}</span>
               </motion.button>
             ))}
           </div>
@@ -444,7 +445,7 @@ export function BoardCalendar() {
             className="mb-4 flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-900/15 px-4 py-3 text-sm text-yellow-300"
           >
             <AlertTriangle className="w-4 h-4 shrink-0 text-yellow-400" />
-            <span><strong>{conflictMap.size}</strong> task{conflictMap.size > 1 ? "s have" : " has"} scheduling conflicts — same assignee with overlapping dates.</span>
+            <span>{t("conflicts", { count: conflictMap.size })}</span>
           </motion.div>
         )}
         {depWarningIds.size > 0 && (
@@ -453,7 +454,7 @@ export function BoardCalendar() {
             className="mb-4 flex items-center gap-3 rounded-xl border border-orange-500/30 bg-orange-900/15 px-4 py-3 text-sm text-orange-300"
           >
             <AlertTriangle className="w-4 h-4 shrink-0 text-orange-400" />
-            <span><strong>{depWarningIds.size}</strong> task{depWarningIds.size > 1 ? "s start" : " starts"} before a dependency finishes — dependency order may be violated.</span>
+            <span>{t("dependencyWarnings", { count: depWarningIds.size })}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -467,14 +468,14 @@ export function BoardCalendar() {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-purple-300 mb-2">
-                <Sparkles className="w-4 h-4" /> AI Schedule Optimization
+                <Sparkles className="w-4 h-4" /> {t("aiPanelTitle")}
               </div>
               <button onClick={() => setShowAiPanel(false)} className="text-gray-500 hover:text-gray-300 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
             {aiLoading
-              ? <div className="flex items-center gap-2 text-sm text-gray-400"><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing schedule…</div>
+              ? <div className="flex items-center gap-2 text-sm text-gray-400"><RefreshCw className="w-4 h-4 animate-spin" /> {t("analyzing")}</div>
               : <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed">{aiSuggestion}</p>
             }
           </motion.div>
@@ -483,19 +484,19 @@ export function BoardCalendar() {
 
       {/* Nav */}
       <div className="flex items-center justify-between mb-5">
-        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(-1)} className="p-2 rounded-lg border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all">
-          <ChevronLeft className="w-5 h-5" />
+        <motion.button aria-label={t("previous")} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(-1)} className="p-2 rounded-lg border border-white/10 hover:border-white/20 hover:app-surface-soft transition-all">
+          <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
         </motion.button>
         <h3 className="text-2xl font-light">{getViewTitle()}</h3>
-        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(1)} className="p-2 rounded-lg border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all">
-          <ChevronRight className="w-5 h-5" />
+        <motion.button aria-label={t("next")} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(1)} className="p-2 rounded-lg border border-white/10 hover:border-white/20 hover:app-surface-soft transition-all">
+          <ChevronRight className="w-5 h-5 rtl:rotate-180" />
         </motion.button>
       </div>
 
       {/* Calendar area */}
-      <div className="flex-1 min-h-0 bg-white/2 backdrop-blur-sm border border-white/10 rounded-xl p-6 overflow-auto">
+      <div className="flex-1 min-h-0 app-surface-soft backdrop-blur-sm border border-white/10 rounded-xl p-6 overflow-auto">
         {loading
-          ? <div className="flex items-center justify-center h-32 text-gray-500"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-3" />Loading tasks...</div>
+          ? <div className="flex items-center justify-center h-32 text-gray-500"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin me-3" />{t("loading")}</div>
           : <>
               {viewMode === "day" && renderDayView()}
               {viewMode === "week" && renderWeekView()}
@@ -508,7 +509,7 @@ export function BoardCalendar() {
       {/* Footer */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-5 px-1">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-gray-500">Projects:</span>
+          <span className="text-xs text-gray-500">{t("projects")}</span>
           {projectOptions.slice(0, 6).map((p) => {
             const c = projectColors(p.id);
             return (
@@ -519,16 +520,16 @@ export function BoardCalendar() {
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ms-auto flex items-center gap-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="inline-block w-4 h-0.5 border-b-2 border-dashed border-gray-500" /> Blocked
+            <span className="inline-block w-4 h-0.5 border-b-2 border-dashed border-gray-500" /> {t("blocked")}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-yellow-600"><span className="w-2 h-2 rounded-full bg-yellow-400/70 ring-1 ring-yellow-400/60" /> Conflict</div>
-          <div className="flex items-center gap-1.5 text-xs text-orange-600"><span className="w-2 h-2 rounded-full bg-orange-400/70 ring-1 ring-orange-400/60" /> Dep. warning</div>
-          <div className="flex items-center gap-1.5 text-xs text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400" /> Overloaded day</div>
+          <div className="flex items-center gap-1.5 text-xs text-yellow-600"><span className="w-2 h-2 rounded-full bg-yellow-400/70 ring-1 ring-yellow-400/60" /> {t("conflict")}</div>
+          <div className="flex items-center gap-1.5 text-xs text-orange-600"><span className="w-2 h-2 rounded-full bg-orange-400/70 ring-1 ring-orange-400/60" /> {t("dependencyWarning")}</div>
+          <div className="flex items-center gap-1.5 text-xs text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400" /> {t("overloadedDay")}</div>
           <div className={`flex items-center gap-1.5 text-xs ${calConnected ? "text-emerald-400" : "text-gray-600"}`}>
             <Calendar className="w-3.5 h-3.5" />
-            {calConnected ? "Calendar synced" : "No calendar sync"}
+            {calConnected ? t("calendarSynced") : t("noCalendarSync")}
           </div>
         </div>
       </div>

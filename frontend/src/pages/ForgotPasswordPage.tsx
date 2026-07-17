@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Logo } from '../components/Logo';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { supabase } from '../lib/supabase';
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation('auth');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -22,14 +25,15 @@ export function ForgotPasswordPage() {
       if (resetError) throw resetError;
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setError(err instanceof Error ? err.message : t('forgotPassword.genericError'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black px-6">
+    <div className="min-h-screen flex items-center justify-center app-bg px-6">
+      <LanguageSwitcher className="absolute top-6 end-6" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -37,9 +41,9 @@ export function ForgotPasswordPage() {
       >
         <div className="mb-10 flex flex-col items-center gap-4">
           <Logo />
-          <h1 className="text-3xl font-bold text-white">Reset your password</h1>
+          <h1 className="text-3xl font-bold text-white">{t('forgotPassword.title')}</h1>
           <p className="text-center text-gray-400">
-            Enter your email and we'll send you a reset link.
+            {t('forgotPassword.subtitle')}
           </p>
         </div>
 
@@ -50,9 +54,9 @@ export function ForgotPasswordPage() {
             className="rounded-xl border border-green-500/40 bg-green-900/20 p-5 text-center"
           >
             <p className="text-sm text-green-300">
-              If an account exists for this email, a reset link has been sent.
+              {t('forgotPassword.successMessage')}
             </p>
-            <p className="mt-1 text-xs text-gray-500">Check your spam folder if you don't see it.</p>
+            <p className="mt-1 text-xs text-gray-500">{t('forgotPassword.checkSpam')}</p>
           </motion.div>
         ) : (
           <>
@@ -68,14 +72,15 @@ export function ForgotPasswordPage() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">Email</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">{t('shared.emailLabel')}</label>
                 <input
                   type="email"
                   required
+                  dir="ltr"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
+                  placeholder={t('shared.emailPlaceholder')}
+                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-start text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
 
@@ -89,10 +94,10 @@ export function ForgotPasswordPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending…
+                    {t('forgotPassword.submitting')}
                   </span>
                 ) : (
-                  'Send reset link'
+                  t('forgotPassword.submit')
                 )}
               </motion.button>
             </form>
@@ -100,9 +105,9 @@ export function ForgotPasswordPage() {
         )}
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Remember your password?{' '}
+          {t('forgotPassword.rememberPassword')}{' '}
           <Link to="/login" className="font-semibold text-purple-400 hover:text-purple-300">
-            Sign in
+            {t('shared.signInLink')}
           </Link>
         </p>
       </motion.div>

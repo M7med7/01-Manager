@@ -774,11 +774,11 @@ export function TaskDetailPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-5 border-b border-purple-500/30 bg-linear-to-r from-purple-600/12 to-black/20">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-3 transition-colors">
+      <div className="p-5 border-b border-purple-500/25 app-surface-soft">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm app-muted hover:app-text mb-3 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to AI Assistant
         </button>
-        <h3 className="text-xl font-semibold text-white mb-3 leading-snug">{task.title}</h3>
+        <h3 className="text-xl font-semibold app-text mb-3 leading-snug">{task.title}</h3>
         {task.is_blocked && (
           <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-100">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300" />
@@ -796,8 +796,8 @@ export function TaskDetailPanel({
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${isDone
                 ? "bg-green-900/40 border-green-500/50 text-green-300 hover:bg-green-900/60"
                 : canComplete
-                  ? "bg-white/5 border-white/15 text-gray-300 hover:border-purple-500/50 hover:bg-purple-900/20"
-                  : "bg-white/5 border-white/10 text-gray-600 cursor-not-allowed"
+                  ? "app-surface-soft border-white/15 app-muted hover:border-purple-500/50 hover:bg-purple-900/20"
+                  : "app-surface-soft border-white/10 app-subtle cursor-not-allowed"
                 }`}
             >
               {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
@@ -828,13 +828,13 @@ export function TaskDetailPanel({
                     'text-green-400'
               }`} />
             <div className="min-w-0 flex-1">
-              <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Suggested Next Action</div>
-              <p className="text-sm text-gray-200 leading-snug">{suggestedNextAction.text}</p>
+            <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide app-subtle">Suggested Next Action</div>
+              <p className="text-sm app-muted leading-snug">{suggestedNextAction.text}</p>
             </div>
             <button
               type="button"
               onClick={() => sendPrompt(`Give me specific guidance: ${suggestedNextAction.text}`, 'What should I do?')}
-              className="shrink-0 self-center rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:text-purple-200 transition-colors"
+              className="shrink-0 self-center rounded-lg border app-border px-2.5 py-1.5 text-xs app-muted hover:border-purple-500/40 hover:text-purple-600 transition-colors"
             >
               Ask AI
             </button>
@@ -843,22 +843,22 @@ export function TaskDetailPanel({
 
         {/* Schedule */}
         {(schedule || task.start_date) && (
-          <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+          <div className="p-3 rounded-xl app-surface-soft border app-border">
             {editingSchedule ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                <div className="flex items-center gap-2 text-xs app-muted mb-1">
                   <CalendarIcon className="w-3.5 h-3.5 text-purple-400" /> Edit timeframe
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <input type="date" value={schedStart} onChange={e => setSchedStart(e.target.value)}
-                    className="flex-1 min-w-0 px-2 py-1.5 bg-black/40 border border-purple-500/40 rounded-lg text-sm text-white focus:outline-none focus:border-purple-400" />
-                  <span className="text-gray-500 text-xs">→</span>
+                    className="flex-1 min-w-0 px-2 py-1.5 app-input border border-purple-500/40 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+                  <span className="app-subtle text-xs">→</span>
                   <input type="date" value={schedEnd} onChange={e => setSchedEnd(e.target.value)}
-                    className="flex-1 min-w-0 px-2 py-1.5 bg-black/40 border border-purple-500/40 rounded-lg text-sm text-white focus:outline-none focus:border-purple-400" />
+                    className="flex-1 min-w-0 px-2 py-1.5 app-input border border-purple-500/40 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setEditingSchedule(false)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors">
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border app-border text-xs app-muted hover:app-text transition-colors">
                     <X className="w-3 h-3" /> Cancel
                   </button>
                   <button onClick={saveSchedule} disabled={savingSchedule || !schedStart || !schedEnd}
@@ -873,12 +873,12 @@ export function TaskDetailPanel({
                 <div className="flex items-center gap-3">
                   <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0" />
                   <div className="flex-1 text-sm">
-                    <span className="text-gray-400">Schedule: </span>
-                    <span className="text-white">
+                    <span className="app-muted">Schedule: </span>
+                    <span className="app-text">
                       {schedule ? `${formatDate(schedule.start)} → ${formatDate(schedule.end)}` : `${task.start_date} → ${task.end_date}`}
                     </span>
                   </div>
-                  <button onClick={openScheduleEdit} disabled={!canEditTasks} className="shrink-0 p-1 rounded-md text-gray-500 hover:text-purple-300 hover:bg-purple-900/30 transition-colors disabled:opacity-30" title="Edit schedule">
+                  <button onClick={openScheduleEdit} disabled={!canEditTasks} className="shrink-0 p-1 rounded-md app-muted hover:text-purple-300 hover:app-surface-soft transition-colors disabled:opacity-30" title="Edit schedule">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -902,29 +902,29 @@ export function TaskDetailPanel({
             value={task.priority}
             onChange={(e) => updatePriority(e.target.value)}
             disabled={savingPriority || !canEditTasks}
-            className="rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-xs text-gray-300 outline-none focus:border-purple-500/60 disabled:opacity-40"
+            className="rounded-lg border app-border app-input px-2 py-1.5 text-xs app-muted outline-none focus:border-purple-500/60 disabled:opacity-40"
           >
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-gray-300">
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs app-surface-soft border app-border app-muted">
             <Clock className="w-3 h-3" /> {task.estimated_days}d
           </span>
         </div>
 
         {/* Task Objective */}
         {(summary || steps.length > 0) && (
-          <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+          <div className="space-y-3 rounded-xl border app-border app-surface-soft p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold app-muted">
               <Target className="h-4 w-4 text-purple-400" /> Objective
             </div>
-            {summary && <p className="text-sm text-gray-300 leading-relaxed">{summary}</p>}
+            {summary && <p className="text-sm app-muted leading-relaxed">{summary}</p>}
             {steps.length > 0 && (
               <div className="space-y-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Implementation Steps</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide app-subtle">Implementation Steps</div>
                 {steps.map((s, i) => (
-                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5 text-sm text-gray-300">
+                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg app-surface-soft border app-border text-sm app-muted">
                     <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-purple-900/50 text-[10px] font-bold text-purple-300">{i + 1}</span>
                     <span>{s}</span>
                   </div>
@@ -958,25 +958,25 @@ export function TaskDetailPanel({
           </div>
         </div>
 
-        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="space-y-3 rounded-xl border app-border app-surface-soft p-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+            <div className="flex items-center gap-2 text-sm font-semibold app-text">
               <Timer className="h-4 w-4 text-purple-400" /> Time Tracking
             </div>
-            <span className="rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-gray-400">Optional</span>
+            <span className="rounded-full border app-border app-surface-soft px-2 py-1 text-[10px] app-subtle">Optional</span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
-              <div className="text-[10px] text-gray-500">Actual</div>
-              <div className="text-sm font-semibold text-white">{formatMinutes(totalMinutes)}</div>
+            <div className="rounded-lg border app-border app-surface-soft p-2">
+              <div className="text-[10px] app-subtle">Actual</div>
+              <div className="text-sm font-semibold app-text">{formatMinutes(totalMinutes)}</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
-              <div className="text-[10px] text-gray-500">Estimate</div>
-              <div className="text-sm font-semibold text-white">{formatMinutes(Math.round(task.estimated_days * 8 * 60))}</div>
+            <div className="rounded-lg border app-border app-surface-soft p-2">
+              <div className="text-[10px] app-subtle">Estimate</div>
+              <div className="text-sm font-semibold app-text">{formatMinutes(Math.round(task.estimated_days * 8 * 60))}</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-black/25 p-2">
-              <div className="text-[10px] text-gray-500">Accuracy</div>
-              <div className="text-sm font-semibold text-white">{timeAccuracy === null ? "-" : `${timeAccuracy}%`}</div>
+            <div className="rounded-lg border app-border app-surface-soft p-2">
+              <div className="text-[10px] app-subtle">Accuracy</div>
+              <div className="text-sm font-semibold app-text">{timeAccuracy === null ? "-" : `${timeAccuracy}%`}</div>
             </div>
           </div>
           {timeError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{timeError}</p>}
@@ -994,22 +994,22 @@ export function TaskDetailPanel({
               type="number"
               min="1"
               placeholder="Min"
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+              className="rounded-lg border app-border app-input px-3 py-2 text-xs outline-none focus:border-purple-500/50"
             />
             <input
               value={manualNote}
               onChange={(e) => setManualNote(e.target.value)}
               placeholder="Note for planning or billing"
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+              className="rounded-lg border app-border app-input px-3 py-2 text-xs outline-none focus:border-purple-500/50"
             />
-            <button onClick={addManualTime} disabled={timeLoading || !manualMinutes} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-300 hover:border-purple-500/40 disabled:opacity-40">
+            <button onClick={addManualTime} disabled={timeLoading || !manualMinutes} className="rounded-lg border app-border px-3 py-2 text-xs app-muted hover:border-purple-500/40 disabled:opacity-40">
               Add
             </button>
           </div>
           {timeEntries.length > 0 && (
-            <div className="space-y-1 border-t border-white/10 pt-2">
+            <div className="space-y-1 border-t app-border pt-2">
               {timeEntries.slice(0, 3).map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                <div key={entry.id} className="flex items-center justify-between gap-2 text-xs app-subtle">
                   <span>{entry.source === "timer" ? "Timer" : "Manual"} {entry.note ? `- ${entry.note}` : ""}</span>
                   <span>{formatMinutes(entry.minutes)}</span>
                 </div>
@@ -1019,31 +1019,31 @@ export function TaskDetailPanel({
         </div>
 
         {/* Assignee */}
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+        <div className="flex items-center gap-3 p-3 rounded-xl app-surface-soft border app-border">
           <UserIcon className="w-4 h-4 text-purple-400 shrink-0" />
-          <span className="text-sm text-gray-300">
+          <span className="text-sm app-muted">
             {assignee ? (assignee.full_name ?? assignee.email) : "Unassigned"}
           </span>
         </div>
 
         {/* Dependencies */}
-        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+        <div className="space-y-3 rounded-xl border app-border app-surface-soft p-3">
+          <div className="flex items-center gap-2 text-sm font-semibold app-muted">
             <Link2 className="h-4 w-4 text-purple-400" /> Blocked by
           </div>
           {(task.blocked_by ?? []).length === 0 ? (
-            <p className="text-xs text-gray-600">No blockers</p>
+            <p className="text-xs app-subtle">No blockers</p>
           ) : (
             <div className="space-y-2">
               {(task.blocked_by ?? []).map((blocker) => (
-                <div key={blocker.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+                <div key={blocker.id} className="flex items-center gap-2 rounded-lg border app-border app-surface-soft px-3 py-2">
                   <span className={`h-2 w-2 rounded-full ${blocker.status === "Done" ? "bg-green-400" : "bg-red-400"}`} />
-                  <span className="min-w-0 flex-1 truncate text-sm text-gray-200">{blocker.title}</span>
-                  <span className="text-[10px] text-gray-500">{blocker.status}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm app-text">{blocker.title}</span>
+                  <span className="text-[10px] app-subtle">{blocker.status}</span>
                   <button
                     onClick={() => removeBlocker(blocker.id)}
                     disabled={savingDependency === blocker.id || !canEditTasks}
-                    className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-40"
+                    className="rounded-md p-1 app-subtle hover:bg-red-900/30 hover:text-red-300 disabled:opacity-40"
                     aria-label={`Remove blocker ${blocker.title}`}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1058,7 +1058,7 @@ export function TaskDetailPanel({
               value={selectedBlockerId}
               onChange={(e) => setSelectedBlockerId(e.target.value)}
               disabled={!canEditTasks}
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-gray-300 outline-none focus:border-purple-500/60"
+              className="min-w-0 flex-1 rounded-lg border app-border app-input px-2 py-2 text-xs app-muted outline-none focus:border-purple-500/60"
             >
               <option value="">Add blocker...</option>
               {availableBlockers.map((item) => (
@@ -1076,17 +1076,17 @@ export function TaskDetailPanel({
           </div>
           {dependencyError && <p className="text-xs text-red-300">{dependencyError}</p>}
 
-          <div className="border-t border-white/10 pt-3">
-            <div className="mb-2 text-sm font-semibold text-gray-300">Unlocks</div>
+          <div className="border-t app-border pt-3">
+            <div className="mb-2 text-sm font-semibold app-muted">Unlocks</div>
             {(task.unlocks ?? []).length === 0 ? (
-              <p className="text-xs text-gray-600">No dependent tasks</p>
+              <p className="text-xs app-subtle">No dependent tasks</p>
             ) : (
               <div className="space-y-2">
                 {(task.unlocks ?? []).map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-200">
+                  <div key={item.id} className="flex items-center gap-2 rounded-lg border app-border app-surface-soft px-3 py-2 text-sm app-text">
                     <span className={`h-2 w-2 rounded-full ${item.status === "Done" ? "bg-green-400" : "bg-purple-400"}`} />
                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                    <span className="text-[10px] text-gray-500">{item.status}</span>
+                    <span className="text-[10px] app-subtle">{item.status}</span>
                   </div>
                 ))}
               </div>
@@ -1096,16 +1096,16 @@ export function TaskDetailPanel({
 
         {/* Related tasks */}
         {relatedTasks.length > 0 && (
-          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+          <div className="space-y-2 rounded-xl border app-border app-surface-soft p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold app-muted">
               <Link2 className="h-4 w-4 text-purple-400" /> Related Tasks
             </div>
             <div className="space-y-1.5">
               {relatedTasks.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs">
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border app-border app-surface-soft px-3 py-2 text-xs">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${item.status === 'Done' ? 'bg-green-400' : item.status === 'In Progress' ? 'bg-purple-400' : 'bg-gray-400'}`} />
-                  <span className="min-w-0 flex-1 truncate text-gray-200">{item.title}</span>
-                  <span className="shrink-0 text-[10px] text-gray-500">{item.status}</span>
+                  <span className="min-w-0 flex-1 truncate app-text">{item.title}</span>
+                  <span className="shrink-0 text-[10px] app-subtle">{item.status}</span>
                 </div>
               ))}
             </div>
@@ -1115,7 +1115,7 @@ export function TaskDetailPanel({
         {/* Tech */}
         {(task.assigned_tech ?? []).length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-2 text-sm text-gray-400"><Tag className="w-3.5 h-3.5" /> Tech Stack</div>
+            <div className="flex items-center gap-2 mb-2 text-sm app-muted"><Tag className="w-3.5 h-3.5" /> Tech Stack</div>
             <div className="flex flex-wrap gap-2">
               {task.assigned_tech.map(t => (
                 <span key={t} className="px-3 py-1 rounded-lg text-xs bg-purple-900/30 border border-purple-500/30 text-purple-300">{t}</span>
@@ -1126,11 +1126,11 @@ export function TaskDetailPanel({
 
 
         {/* Acceptance Criteria + Definition of Done */}
-        <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="space-y-4 rounded-xl border app-border app-surface-soft p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-gray-200">Acceptance Criteria</div>
-              <div className="text-[11px] text-gray-600">Specific checks for correct completion</div>
+              <div className="text-sm font-semibold app-text">Acceptance Criteria</div>
+              <div className="text-[11px] app-subtle">Specific checks for correct completion</div>
             </div>
             <button
               onClick={improveQuality}
@@ -1144,9 +1144,9 @@ export function TaskDetailPanel({
 
           <div className="space-y-2">
             {acceptanceCriteria.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">No criteria yet</p>
+              <p className="rounded-lg border border-dashed app-border py-3 text-center text-xs app-subtle">No criteria yet</p>
             ) : acceptanceCriteria.map((item) => (
-              <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2 py-2">
+              <div key={item.id} className="flex items-center gap-2 rounded-lg border app-border app-surface-soft px-2 py-2">
                 <input
                   type="checkbox"
                   checked={item.checked}
@@ -1159,9 +1159,9 @@ export function TaskDetailPanel({
                   onChange={(e) => onTaskUpdated?.({ ...task, acceptance_criteria: acceptanceCriteria.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
                   onBlur={(e) => updateQualityItem("acceptance", item.id, { text: e.target.value })}
                   disabled={!canEditTasks}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
+                  className="min-w-0 flex-1 bg-transparent text-sm app-text outline-none"
                 />
-                <button onClick={() => removeQualityItem("acceptance", item.id)} disabled={!canEditTasks} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-30">
+                <button onClick={() => removeQualityItem("acceptance", item.id)} disabled={!canEditTasks} className="rounded-md p-1 app-subtle hover:bg-red-900/30 hover:text-red-500 disabled:opacity-30">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -1171,13 +1171,13 @@ export function TaskDetailPanel({
             </button>
           </div>
 
-          <div className="border-t border-white/10 pt-4">
-            <div className="mb-2 text-sm font-semibold text-gray-200">Definition of Done</div>
+          <div className="border-t app-border pt-4">
+            <div className="mb-2 text-sm font-semibold app-text">Definition of Done</div>
             <div className="space-y-2">
               {definitionOfDone.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">No done checks yet</p>
+                <p className="rounded-lg border border-dashed app-border py-3 text-center text-xs app-subtle">No done checks yet</p>
               ) : definitionOfDone.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2 py-2">
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border app-border app-surface-soft px-2 py-2">
                   <input
                     type="checkbox"
                     checked={item.checked}
@@ -1190,9 +1190,9 @@ export function TaskDetailPanel({
                     onChange={(e) => onTaskUpdated?.({ ...task, definition_of_done: definitionOfDone.map((current) => current.id === item.id ? { ...current, text: e.target.value } : current) })}
                     onBlur={(e) => updateQualityItem("done", item.id, { text: e.target.value })}
                     disabled={!canEditTasks}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
+                    className="min-w-0 flex-1 bg-transparent text-sm app-text outline-none"
                   />
-                  <button onClick={() => removeQualityItem("done", item.id)} disabled={!canEditTasks} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300 disabled:opacity-30">
+                  <button onClick={() => removeQualityItem("done", item.id)} disabled={!canEditTasks} className="rounded-md p-1 app-subtle hover:bg-red-900/30 hover:text-red-500 disabled:opacity-30">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -1202,7 +1202,7 @@ export function TaskDetailPanel({
               </button>
             </div>
           </div>
-          {savingQuality && <p className="text-[11px] text-gray-500">Saving criteria...</p>}
+          {savingQuality && <p className="text-[11px] app-subtle">Saving criteria...</p>}
         </div>
 
         {/* Completed by */}
@@ -1212,9 +1212,9 @@ export function TaskDetailPanel({
           </div>
         )}
 
-        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="space-y-3 rounded-xl border app-border app-surface-soft p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+            <div className="flex items-center gap-2 text-sm font-semibold app-text">
               <CalendarPlus className="h-4 w-4 text-purple-400" /> Calendar
             </div>
             {calendarConnection ? (
@@ -1222,13 +1222,13 @@ export function TaskDetailPanel({
                 {calendarConnection.sync_enabled ? "Sync ready" : "Sync off"}
               </span>
             ) : (
-              <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-gray-500">Not connected</span>
+              <span className="rounded-full border app-border px-2 py-1 text-[10px] app-subtle">Not connected</span>
             )}
           </div>
 
           {calendarConnection ? (
             <div className="space-y-3">
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-400">
+              <div className="rounded-lg border app-border app-surface-soft p-2 text-xs app-muted">
                 {calendarConnection.calendar_name ?? "Google Calendar"} · {calendarConnection.timezone ?? "UTC"}
               </div>
               {calendarError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{calendarError}</p>}
@@ -1243,7 +1243,7 @@ export function TaskDetailPanel({
                 <button
                   onClick={() => syncCalendar("work_block")}
                   disabled={calendarLoading || !calendarConnection.sync_enabled || !(task.start_date || task.end_date || schedule)}
-                  className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-purple-500/40 disabled:opacity-40"
+                  className="rounded-lg border app-border app-surface-soft px-3 py-2 text-xs font-semibold app-muted hover:border-purple-500/40 disabled:opacity-40"
                 >
                   Create work block
                 </button>
@@ -1251,31 +1251,31 @@ export function TaskDetailPanel({
               {calendarEvents.length > 0 && (
                 <div className="space-y-2">
                   {calendarEvents.map((event) => (
-                    <div key={event.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300">
+                    <div key={event.id} className="rounded-lg border app-border app-surface-soft p-2 text-xs app-muted">
                       <div className="flex items-center justify-between gap-2">
                         <span>{event.event_type === "due_date" ? "Due date" : "Work block"}</span>
-                        <span className={event.sync_status === "synced" ? "text-green-300" : event.sync_status === "error" ? "text-red-300" : "text-gray-500"}>
+                        <span className={event.sync_status === "synced" ? "text-green-600" : event.sync_status === "error" ? "text-red-600" : "app-subtle"}>
                           {event.sync_enabled ? event.sync_status ?? "pending" : "disabled"}
                         </span>
                       </div>
-                      {event.last_synced_at && <div className="mt-1 text-gray-600">Synced {formatCompactDate(event.last_synced_at)}</div>}
+                      {event.last_synced_at && <div className="mt-1 app-subtle">Synced {formatCompactDate(event.last_synced_at)}</div>}
                       {event.last_error && <div className="mt-1 text-red-300">{event.last_error}</div>}
                     </div>
                   ))}
-                  <button onClick={disableCalendarSync} disabled={calendarLoading} className="text-xs text-gray-500 hover:text-red-300 disabled:opacity-40">
+                  <button onClick={disableCalendarSync} disabled={calendarLoading} className="text-xs app-subtle hover:text-red-300 disabled:opacity-40">
                     Disable sync for this task
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">Connect Google Calendar on the project page to sync this task.</p>
+            <p className="rounded-lg border border-dashed app-border py-3 text-center text-xs app-subtle">Connect Google Calendar on the project page to sync this task.</p>
           )}
         </div>
 
-        <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="space-y-4 rounded-xl border app-border app-surface-soft p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+            <div className="flex items-center gap-2 text-sm font-semibold app-text">
               <Github className="h-4 w-4 text-purple-400" /> GitHub
             </div>
             {githubRepository ? (
@@ -1283,7 +1283,7 @@ export function TaskDetailPanel({
                 <button
                   onClick={syncGithubActivity}
                   disabled={githubLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-gray-300 hover:border-purple-500/40 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-lg border app-border app-surface-soft px-2.5 py-1.5 text-xs app-muted hover:border-purple-500/40 disabled:opacity-40"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${githubLoading ? "animate-spin" : ""}`} /> Sync
                 </button>
@@ -1296,14 +1296,14 @@ export function TaskDetailPanel({
                 </button>
               </div>
             ) : (
-              <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-gray-500">Not connected</span>
+              <span className="rounded-full border app-border px-2 py-1 text-[10px] app-subtle">Not connected</span>
             )}
           </div>
 
           {githubRepository ? (
             <div className="space-y-3">
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-400">
-                Connected to <span className="text-gray-200">{githubRepository.owner}/{githubRepository.repo}</span>
+              <div className="rounded-lg border app-border app-surface-soft p-2 text-xs app-muted">
+                Connected to <span className="app-text">{githubRepository.owner}/{githubRepository.repo}</span>
               </div>
               {githubError && <p className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 text-xs text-red-200">{githubError}</p>}
               <div className="grid gap-2">
@@ -1311,19 +1311,19 @@ export function TaskDetailPanel({
                   value={githubIssueInput}
                   onChange={(e) => setGithubIssueInput(e.target.value)}
                   placeholder="Issue number"
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  className="rounded-lg border app-border app-input px-3 py-2 text-xs outline-none focus:border-purple-500/50"
                 />
                 <input
                   value={githubBranchInput}
                   onChange={(e) => setGithubBranchInput(e.target.value)}
                   placeholder="Branch name"
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  className="rounded-lg border app-border app-input px-3 py-2 text-xs outline-none focus:border-purple-500/50"
                 />
                 <input
                   value={githubPrInput}
                   onChange={(e) => setGithubPrInput(e.target.value)}
                   placeholder="Pull request number"
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder-gray-600 focus:border-purple-500/50"
+                  className="rounded-lg border app-border app-input px-3 py-2 text-xs outline-none focus:border-purple-500/50"
                 />
                 <button
                   onClick={addGithubLink}
@@ -1336,9 +1336,9 @@ export function TaskDetailPanel({
 
               {githubLinks.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs font-semibold text-gray-400">Linked work</div>
+                  <div className="text-xs font-semibold app-muted">Linked work</div>
                   {githubLinks.map((link) => (
-                    <div key={link.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300">
+                    <div key={link.id} className="rounded-lg border app-border app-surface-soft p-2 text-xs app-muted">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 space-y-1">
                           {link.issue_number && (
@@ -1355,7 +1355,7 @@ export function TaskDetailPanel({
                             </a>
                           )}
                         </div>
-                        <button onClick={() => removeGithubLink(link.id)} disabled={githubLoading} className="rounded-md p-1 text-gray-600 hover:bg-red-900/30 hover:text-red-300">
+                        <button onClick={() => removeGithubLink(link.id)} disabled={githubLoading} className="rounded-md p-1 app-subtle hover:bg-red-900/30 hover:text-red-300">
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -1365,23 +1365,23 @@ export function TaskDetailPanel({
               )}
 
               {(githubCommits.length > 0 || githubPrs.length > 0) && (
-                <div className="space-y-3 border-t border-white/10 pt-3">
+                <div className="space-y-3 border-t app-border pt-3">
                   {githubPrs.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-xs font-semibold text-gray-400">Pull requests</div>
+                      <div className="text-xs font-semibold app-muted">Pull requests</div>
                       {githubPrs.slice(0, 5).map((pr) => (
-                        <a key={pr.number} href={pr.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300 hover:border-purple-500/40">
-                          <span className="font-semibold text-gray-100">#{pr.number}</span> {pr.title}
-                          <span className="ml-2 text-gray-500">{pr.merged ? "merged" : pr.state}</span>
+                        <a key={pr.number} href={pr.url} target="_blank" rel="noreferrer" className="block rounded-lg border app-border app-surface-soft p-2 text-xs app-muted hover:border-purple-500/40">
+                          <span className="font-semibold app-text">#{pr.number}</span> {pr.title}
+                          <span className="ml-2 app-subtle">{pr.merged ? "merged" : pr.state}</span>
                         </a>
                       ))}
                     </div>
                   )}
                   {githubCommits.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-xs font-semibold text-gray-400">Commits</div>
+                      <div className="text-xs font-semibold app-muted">Commits</div>
                       {githubCommits.slice(0, 5).map((commit) => (
-                        <a key={commit.sha} href={commit.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/10 bg-black/25 p-2 text-xs text-gray-300 hover:border-purple-500/40">
+                        <a key={commit.sha} href={commit.url} target="_blank" rel="noreferrer" className="block rounded-lg border app-border app-surface-soft p-2 text-xs app-muted hover:border-purple-500/40">
                           <span className="font-mono text-purple-300">{commit.sha.slice(0, 7)}</span> {commit.message?.split("\n")[0]}
                         </a>
                       ))}
@@ -1391,17 +1391,17 @@ export function TaskDetailPanel({
               )}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-white/10 py-3 text-center text-xs text-gray-600">Connect a repository on the project page to link code activity.</p>
+            <p className="rounded-lg border border-dashed app-border py-3 text-center text-xs app-subtle">Connect a repository on the project page to link code activity.</p>
           )}
         </div>
 
         {/* Human collaboration */}
-        <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="space-y-4 rounded-xl border app-border app-surface-soft p-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+            <div className="flex items-center gap-2 text-sm font-semibold app-text">
               <MessageSquare className="h-4 w-4 text-purple-400" /> Comments
             </div>
-            <label className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-gray-300 hover:border-purple-500/40 ${canUploadFiles ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}>
+            <label className={`inline-flex items-center gap-1.5 rounded-lg border app-border app-surface-soft px-2.5 py-1.5 text-xs app-muted hover:border-purple-500/40 ${canUploadFiles ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}>
               {uploadingAttachment ? <div className="h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" /> : <Upload className="h-3.5 w-3.5" />}
               Attach
               <input
@@ -1425,10 +1425,10 @@ export function TaskDetailPanel({
               onChange={(e) => setCommentText(e.target.value)}
               rows={3}
               placeholder='Write a comment... use @name to mention someone'
-              className="w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-500/50"
+              className="w-full resize-none rounded-xl border app-border app-input px-3 py-2 text-sm outline-none focus:border-purple-500/50"
             />
             <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 text-[10px] text-gray-600">
+              <div className="min-w-0 text-[10px] app-subtle">
                 {members.slice(0, 3).map((m) => `@${(m.full_name ?? m.email.split("@")[0]).split(" ")[0]}`).join("  ")}
               </div>
               <button
@@ -1442,27 +1442,27 @@ export function TaskDetailPanel({
           </div>
 
           {collabLoading ? (
-            <p className="py-4 text-center text-xs text-gray-500">Loading comments...</p>
+            <p className="py-4 text-center text-xs app-subtle">Loading comments...</p>
           ) : comments.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-white/10 py-4 text-center text-xs text-gray-600">No human comments yet</p>
+            <p className="rounded-lg border border-dashed app-border py-4 text-center text-xs app-subtle">No human comments yet</p>
           ) : (
             <div className="space-y-3">
               {comments.map((comment) => {
                 const isOwn = comment.user_id && comment.user_id === currentUserId;
                 const isEditing = editingCommentId === comment.id;
                 return (
-                  <div key={comment.id} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <div key={comment.id} className="rounded-xl border app-border app-surface-soft p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-gray-200">{displayUser(comment.users)}</div>
-                        <div className="text-[10px] text-gray-600">{formatCompactDate(comment.created_at)}{comment.edited_at ? " · edited" : ""}</div>
+                        <div className="truncate text-sm font-semibold app-text">{displayUser(comment.users)}</div>
+                        <div className="text-[10px] app-subtle">{formatCompactDate(comment.created_at)}{comment.edited_at ? " · edited" : ""}</div>
                       </div>
                       {isOwn && (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditingCommentId(comment.id); setEditingText(comment.content); }} className="rounded-md p-1 text-gray-500 hover:bg-white/10 hover:text-white">
+                          <button onClick={() => { setEditingCommentId(comment.id); setEditingText(comment.content); }} className="rounded-md p-1 app-subtle hover:app-surface-soft hover:app-text">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => deleteComment(comment.id)} className="rounded-md p-1 text-gray-500 hover:bg-red-900/30 hover:text-red-300">
+                          <button onClick={() => deleteComment(comment.id)} className="rounded-md p-1 app-subtle hover:bg-red-900/30 hover:text-red-300">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -1470,14 +1470,14 @@ export function TaskDetailPanel({
                     </div>
                     {isEditing ? (
                       <div className="space-y-2">
-                        <textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} rows={2} className="w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-purple-500/50" />
+                        <textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} rows={2} className="w-full resize-none rounded-lg border app-border app-input px-3 py-2 text-sm outline-none focus:border-purple-500/50" />
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => setEditingCommentId(null)} className="text-xs text-gray-500 hover:text-white">Cancel</button>
+                          <button onClick={() => setEditingCommentId(null)} className="text-xs app-subtle hover:app-text">Cancel</button>
                           <button onClick={() => saveCommentEdit(comment.id)} className="rounded-md bg-purple-600 px-2.5 py-1 text-xs text-white">Save</button>
                         </div>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">{comment.content}</p>
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed app-muted">{comment.content}</p>
                     )}
                   </div>
                 );
@@ -1486,21 +1486,21 @@ export function TaskDetailPanel({
           )}
 
           {attachments.length > 0 && (
-            <div className="border-t border-white/10 pt-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-300">
+            <div className="border-t app-border pt-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold app-muted">
                 <Paperclip className="h-4 w-4 text-purple-400" /> Attachments
               </div>
               <div className="grid gap-2">
                 {attachments.map((file) => (
-                  <a key={file.id} href={file.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/25 p-2 hover:border-purple-500/40">
+                  <a key={file.id} href={file.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border app-border app-surface-soft p-2 hover:border-purple-500/40">
                     {file.is_image ? (
                       <img src={file.file_url} alt={file.file_name} className="h-10 w-10 rounded-md object-cover" />
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5"><ImageIcon className="h-4 w-4 text-gray-400" /></div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md app-surface-soft"><ImageIcon className="h-4 w-4 app-muted" /></div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm text-gray-200">{file.file_name}</div>
-                      <div className="text-[10px] text-gray-600">{fileSizeLabel(file.file_size)} · {formatCompactDate(file.created_at)}</div>
+                      <div className="truncate text-sm app-text">{file.file_name}</div>
+                      <div className="text-[10px] app-subtle">{fileSizeLabel(file.file_size)} · {formatCompactDate(file.created_at)}</div>
                     </div>
                   </a>
                 ))}
@@ -1509,17 +1509,17 @@ export function TaskDetailPanel({
           )}
 
           {activity.length > 0 && (
-            <div className="border-t border-white/10 pt-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-300">
+            <div className="border-t app-border pt-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold app-muted">
                 <History className="h-4 w-4 text-purple-400" /> Activity
               </div>
               <div className="space-y-2">
                 {activity.slice(0, 8).map((item) => (
-                  <div key={item.id} className="flex gap-2 text-xs text-gray-400">
+                  <div key={item.id} className="flex gap-2 text-xs app-muted">
                     <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-400/70" />
                     <div className="min-w-0">
-                      <span className="text-gray-300">{displayUser(item.users)}</span> {item.summary}
-                      <div className="text-[10px] text-gray-600">{formatCompactDate(item.created_at)}</div>
+                      <span className="app-text">{displayUser(item.users)}</span> {item.summary}
+                      <div className="text-[10px] app-subtle">{formatCompactDate(item.created_at)}</div>
                     </div>
                   </div>
                 ))}
@@ -1546,7 +1546,7 @@ export function TaskDetailPanel({
         {/* Chat header */}
         <div className="flex items-center gap-2 px-4 pt-2 pb-2 shrink-0">
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-          <span className="text-xs font-semibold text-gray-400 truncate">AI Chat — {task.title}</span>
+          <span className="text-xs font-semibold app-muted truncate">AI Chat — {task.title}</span>
         </div>
 
         <div className="shrink-0 px-4 pb-2">
@@ -1559,7 +1559,7 @@ export function TaskDetailPanel({
                   type="button"
                   onClick={() => sendPrompt(action.prompt, action.label)}
                   disabled={sending}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-colors hover:border-purple-400/50 hover:bg-purple-500/15 disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border app-border app-input px-2.5 py-1.5 text-[11px] font-medium app-muted transition-colors hover:border-purple-400/50 hover:bg-purple-500/15 disabled:opacity-50"
                 >
                   <Icon className="h-3 w-3 text-purple-300" />
                   {action.label}
@@ -1575,7 +1575,7 @@ export function TaskDetailPanel({
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[88%] p-2.5 rounded-xl text-sm ${m.role === "user"
                 ? "bg-linear-to-br from-purple-600 to-purple-900 text-white"
-                : "bg-white/[0.07] border border-white/10 text-gray-100"
+                : "app-input border app-border app-muted"
                 }`}>
                 <pre className="whitespace-pre-wrap font-sans leading-relaxed">{m.content}</pre>
               </div>
@@ -1583,7 +1583,7 @@ export function TaskDetailPanel({
           ))}
           {sending && (
             <div className="flex justify-start">
-              <div className="bg-white/10 rounded-xl p-3 flex gap-1.5">
+              <div className="app-surface-soft rounded-xl p-3 flex gap-1.5">
                 {[0, 0.2, 0.4].map(d => (
                   <motion.div key={d} animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 0.8, repeat: Infinity, delay: d }} className="w-2 h-2 bg-purple-400 rounded-full" />
                 ))}
@@ -1594,13 +1594,13 @@ export function TaskDetailPanel({
         </div>
 
         {/* Input — always at bottom */}
-        <div className="shrink-0 p-3 border-t border-purple-500/20 bg-black/45">
+        <div className="shrink-0 p-3 border-t border-purple-500/20 app-panel">
           <div className="flex items-center gap-2">
             <input
               value={message} onChange={e => setMessage(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMsg()}
               placeholder={`Ask about "${task.title}"...`}
-              className="min-w-0 flex-1 px-3 py-2 bg-white/[0.07] border border-purple-500/35 rounded-xl focus:outline-none focus:border-purple-400/70 text-white placeholder-gray-500 text-sm"
+              className="min-w-0 flex-1 px-3 py-2 app-input border border-purple-500/35 rounded-xl focus:outline-none focus:border-purple-400/70 text-sm"
             />
             <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={sendMsg} disabled={sending}
               className="h-9 w-9 shrink-0 flex items-center justify-center bg-linear-to-r from-purple-600 to-purple-900 rounded-xl disabled:opacity-50">

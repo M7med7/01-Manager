@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Logo } from '../components/Logo';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 export function LoginPage() {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -21,14 +24,15 @@ export function LoginPage() {
       await signIn(email, password);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed');
+      setError(err instanceof Error ? err.message : t('login.genericError'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black px-6">
+    <div className="min-h-screen flex items-center justify-center app-bg px-6">
+      <LanguageSwitcher className="absolute top-6 end-6" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -36,8 +40,8 @@ export function LoginPage() {
       >
         <div className="mb-10 flex flex-col items-center gap-4">
           <Logo />
-          <h1 className="text-3xl font-bold text-white">Welcome back</h1>
-          <p className="text-gray-400">Sign in to your account</p>
+          <h1 className="text-3xl font-bold text-white">{t('login.title')}</h1>
+          <p className="text-gray-400">{t('login.subtitle')}</p>
         </div>
 
         {error && (
@@ -52,22 +56,23 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-300">Email</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-300">{t('shared.emailLabel')}</label>
             <input
               type="email"
               required
+              dir="ltr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
+              placeholder={t('shared.emailPlaceholder')}
+              className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-start text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
             />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-300">Password</label>
+              <label className="text-sm font-semibold text-gray-300">{t('login.passwordLabel')}</label>
               <Link to="/forgot-password" className="text-xs text-purple-400 hover:text-purple-300">
-                Forgot password?
+                {t('login.forgotPassword')}
               </Link>
             </div>
             <input
@@ -90,18 +95,18 @@ export function LoginPage() {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Signing in…
+                {t('login.submitting')}
               </span>
             ) : (
-              'Sign in'
+              t('login.submit')
             )}
           </motion.button>
         </form>
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Don&apos;t have an account?{' '}
+          {t('login.noAccount')}{' '}
           <Link to="/signup" className="font-semibold text-purple-400 hover:text-purple-300">
-            Sign up
+            {t('shared.signUpLink')}
           </Link>
         </p>
       </motion.div>

@@ -9,6 +9,8 @@ import { MemberCard } from "../components/MemberCard";
 import { SkillGapPanel } from "../components/SkillGapPanel";
 import { UnassignedTasksPanel } from "../components/UnassignedTasksPanel";
 import type { Task } from "../lib/api";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 const GRADIENTS = [
   "from-purple-600 to-purple-800",
@@ -83,12 +85,13 @@ interface MemberFormData {
 }
 
 function ConfirmDeleteModal({
-  memberName, onConfirm, onCancel, deleting,
+  memberName, onConfirm, onCancel, deleting, t,
 }: {
   memberName: string;
   onConfirm: () => void;
   onCancel: () => void;
   deleting: boolean;
+  t: TFunction;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6">
@@ -96,16 +99,16 @@ function ConfirmDeleteModal({
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className="w-full max-w-md rounded-2xl border border-red-500/40 bg-black/90 p-6 shadow-2xl shadow-red-500/20"
+        className="w-full max-w-md rounded-2xl border border-red-500/40 app-surface-elevated p-6 shadow-2xl shadow-red-500/20"
       >
         <div className="mb-5 flex items-start gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-900/50 border border-red-500/40">
             <AlertTriangle className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">Remove member?</h3>
+            <h3 className="text-lg font-semibold text-white">{t("remove.title")}</h3>
             <p className="mt-1 text-sm text-gray-400">
-              <span className="font-semibold text-white">"{memberName}"</span> will be removed from the system.
+              {t("remove.description", { name: memberName })}
             </p>
           </div>
           <button
@@ -121,14 +124,14 @@ function ConfirmDeleteModal({
             disabled={deleting}
             className="rounded-xl border border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white disabled:opacity-40"
           >
-            Cancel
+            {t("common:actions.cancel")}
           </button>
           <button
             onClick={onConfirm}
             disabled={deleting}
             className="rounded-xl bg-red-600 hover:bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-red-500/20 disabled:opacity-40 transition-colors"
           >
-            {deleting ? "Removing…" : "Remove member"}
+            {deleting ? t("remove.removing") : t("remove.action")}
           </button>
         </div>
       </motion.div>
@@ -137,6 +140,7 @@ function ConfirmDeleteModal({
 }
 
 export function TeamCapacity() {
+  const { t } = useTranslation(["team", "common"]);
   const { session } = useAuth();
   const currentUserId = session?.user.id;
 
@@ -188,7 +192,6 @@ export function TeamCapacity() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("userProfileUpdated", fetchData);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUploadCV = async (memberId: string, file: File) => {
@@ -206,7 +209,7 @@ export function TeamCapacity() {
         );
       }
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Failed to upload CV");
+      setUploadError(err instanceof Error ? err.message : t("team:uploadFailed"));
     } finally {
       setUploadingCVId(null);
     }
@@ -268,7 +271,7 @@ export function TeamCapacity() {
       }
       setMembers((prev) => prev.filter((m) => m.id !== confirmId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove member");
+      setError(err instanceof Error ? err.message : t("team:remove.failed"));
     } finally {
       setDeletingId(null);
       setConfirmId(null);
@@ -290,14 +293,14 @@ export function TeamCapacity() {
       {/* Header */}
       <div className="mb-8 md:mb-12 flex flex-col sm:flex-row sm:items-start justify-between gap-4 md:gap-6">
         <div>
-          <h2 className="text-3xl md:text-5xl mb-2 md:mb-3 bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            Team & Capacity
+          <h2 className="text-3xl md:text-5xl mb-2 md:mb-3 font-semibold text-white">
+            {t("team:title")}
           </h2>
-          <p className="text-gray-500 text-sm md:text-lg">Workload forecasting, skill matching, and smart assignment</p>
+          <p className="text-gray-500 text-sm md:text-lg">{t("team:description")}</p>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
-            <span className="text-sm font-semibold text-gray-400">Team max SP:</span>
+            <span className="text-sm font-semibold text-gray-400">{t("team:teamMaxSp")}</span>
             <input
               type="number"
               min="1"
@@ -311,10 +314,10 @@ export function TeamCapacity() {
             onClick={() => setIsAddMemberOpen(true)}
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.98 }}
-            className="inline-flex items-center gap-3 rounded-xl border border-purple-500/40 bg-purple-900/30 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 hover:border-purple-400/70 hover:bg-purple-800/40 transition-all"
+            className="inline-flex items-center gap-3 rounded-xl border border-purple-500/40 bg-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 hover:bg-purple-500 transition-all"
           >
             <Plus className="h-4 w-4" />
-            Add Member
+            {t("team:addMember")}
           </motion.button>
         </div>
       </div>
@@ -329,15 +332,15 @@ export function TeamCapacity() {
         <div className="flex items-center justify-center h-48 text-gray-500">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm">Loading team...</p>
+            <p className="text-sm">{t("team:loading")}</p>
           </div>
         </div>
       )}
 
       {!loading && !error && members.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-          <p className="text-xl mb-2">No team members yet</p>
-          <p className="text-sm">Team members will appear once users are added to the system</p>
+          <p className="text-xl mb-2">{t("team:emptyTitle")}</p>
+          <p className="text-sm">{t("team:emptyDescription")}</p>
         </div>
       )}
 
@@ -353,10 +356,9 @@ export function TeamCapacity() {
               <AlertCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="text-xl text-red-300 font-semibold">Capacity Alert</h3>
+              <h3 className="text-xl text-red-300 font-semibold">{t("team:capacityAlert")}</h3>
               <p className="text-sm text-gray-400 mt-0.5">
-                {overloaded.length} member{overloaded.length > 1 ? "s are" : " is"} over 90% capacity —
-                see overload reasons on each card below.
+                {t("team:capacityAlert", { count: overloaded.length })}
               </p>
             </div>
           </div>
@@ -412,19 +414,19 @@ export function TeamCapacity() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border-2 border-white/20 rounded-3xl p-8 hover:border-purple-500/50 transition-all duration-300">
             <div className="text-5xl mb-3 font-bold bg-linear-to-r from-white to-gray-400 bg-clip-text text-transparent">{members.length}</div>
-            <div className="text-gray-400 text-lg">Total Members</div>
+            <div className="text-gray-400 text-lg">{t("team:stats.total")}</div>
           </motion.div>
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-green-900/30 to-emerald-900/30 border-2 border-green-500/50 rounded-3xl p-8 shadow-xl shadow-green-500/20 hover:border-green-500/70 transition-all duration-300">
             <div className="text-5xl text-green-400 mb-3 font-bold">{available.length}</div>
-            <div className="text-gray-300 text-lg">Available</div>
+            <div className="text-gray-300 text-lg">{t("team:stats.available")}</div>
           </motion.div>
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-red-900/30 to-orange-900/30 border-2 border-red-500/50 rounded-3xl p-8 shadow-xl shadow-red-500/20 hover:border-red-500/70 transition-all duration-300">
             <div className="text-5xl text-red-400 mb-3 font-bold">{overloaded.length}</div>
-            <div className="text-gray-300 text-lg">Overloaded</div>
+            <div className="text-gray-300 text-lg">{t("team:stats.overloaded")}</div>
           </motion.div>
           <motion.div whileHover={{ scale: 1.05, y: -5 }} className="bg-linear-to-br from-purple-900/30 to-purple-900/10 border-2 border-purple-500/50 rounded-3xl p-8 shadow-xl shadow-purple-500/20 hover:border-purple-500/70 transition-all duration-300">
             <div className="text-5xl text-purple-400 mb-3 font-bold">{totalCompleted}</div>
-            <div className="text-gray-300 text-lg">Tasks Done</div>
+            <div className="text-gray-300 text-lg">{t("team:stats.done")}</div>
           </motion.div>
         </div>
       )}
@@ -435,12 +437,12 @@ export function TeamCapacity() {
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="w-full max-w-lg rounded-2xl border border-purple-500/40 bg-black/90 p-6 shadow-2xl shadow-purple-500/20"
+            className="w-full max-w-lg rounded-2xl border border-purple-500/40 app-surface-elevated p-6 shadow-2xl shadow-purple-500/20"
           >
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-2xl font-semibold text-white">Add Team Member</h3>
-                <p className="mt-1 text-sm text-gray-500">Create a local team profile for capacity planning.</p>
+                <h3 className="text-2xl font-semibold text-white">{t("team:form.title")}</h3>
+                <p className="mt-1 text-sm text-gray-500">{t("team:form.description")}</p>
               </div>
               <button
                 type="button"
@@ -452,29 +454,31 @@ export function TeamCapacity() {
             </div>
             <form onSubmit={handleAddMember} className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">Full Name</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.fullName")}</label>
                 <input
                   type="text" required value={formData.fullName}
                   onChange={(e) => setFormData((p) => ({ ...p, fullName: e.target.value }))}
-                  placeholder="e.g., Sarah Khan"
+                  placeholder={t("team:form.fullNamePlaceholder")}
                   className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">Email</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.email")}</label>
                 <input
                   type="email" required value={formData.email}
                   onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="name@example.com"
+                  placeholder={t("team:form.emailPlaceholder")}
+                  dir="ltr"
                   className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">Phone Number</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.phone")}</label>
                 <input
                   type="tel" required value={formData.phone}
                   onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="+966 5X XXX XXXX"
+                  placeholder={t("team:form.phonePlaceholder")}
+                  dir="ltr"
                   className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
                 />
               </div>
@@ -484,13 +488,13 @@ export function TeamCapacity() {
                   onClick={() => setIsAddMemberOpen(false)}
                   className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white"
                 >
-                  Cancel
+                  {t("common:actions.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20"
                 >
-                  Add Member
+                  {t("team:addMember")}
                 </button>
               </div>
             </form>
@@ -505,6 +509,7 @@ export function TeamCapacity() {
             onConfirm={handleDelete}
             onCancel={() => setConfirmId(null)}
             deleting={deletingId !== null}
+            t={t}
           />
         )}
       </AnimatePresence>

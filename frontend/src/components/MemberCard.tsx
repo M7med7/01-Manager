@@ -10,6 +10,7 @@ import {
   avgSkillMatch,
   deliveryMomentum,
 } from "../lib/teamUtils";
+import { useTranslation } from "react-i18next";
 
 interface AvailabilityRange {
   id: string;
@@ -58,6 +59,7 @@ export function MemberCard({
   isCurrentUser, canDelete, index,
   onDelete, onUploadCV, uploadingCVId, uploadError, onMaxSPChange,
 }: MemberCardProps) {
+  const { t } = useTranslation("team");
   const [showDetails, setShowDetails] = useState(false);
   const [showAvailability, setShowAvailability] = useState(false);
   const [availability, setAvailability] = useState<AvailabilityRange[]>(() => loadAvailability(member.id));
@@ -127,7 +129,7 @@ export function MemberCard({
       {canDelete && (
         <button
           onClick={onDelete}
-          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-gray-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all"
+          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 app-surface-elevated text-gray-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:border-red-500/50 hover:bg-red-900/30 hover:text-red-400 transition-all"
           aria-label={`Remove ${member.name}`}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -152,7 +154,7 @@ export function MemberCard({
         </div>
         <span
           className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-semibold ${momentum.bgColor} ${momentum.borderColor} ${momentum.color}`}
-          title="Delivery momentum — your own completion rate, not a ranking"
+          title={t("card.momentumTitle")}
         >
           {momentum.label}
         </span>
@@ -161,7 +163,7 @@ export function MemberCard({
       {/* Capacity */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-400 font-semibold">Capacity</span>
+          <span className="text-sm text-gray-400 font-semibold">{t("card.capacity")}</span>
           <div className="flex items-center gap-1">
             <span
               className={`text-sm font-bold ${
@@ -179,12 +181,12 @@ export function MemberCard({
               onChange={(e) => onMaxSPChange(member.id, Math.max(1, parseInt(e.target.value, 10) || 1))}
               onClick={(e) => e.stopPropagation()}
               className="w-9 bg-transparent text-xs text-gray-400 outline-none text-right border-b border-white/10 focus:border-purple-400/50"
-              title="Max story points for this member"
+              title={t("card.maxSpTitle")}
             />
             <span className="text-xs text-gray-600">SP</span>
           </div>
         </div>
-        <div className="h-3 bg-black/40 rounded-full overflow-hidden border border-white/10">
+        <div className="h-3 app-input rounded-full overflow-hidden border border-white/10">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${capacity}%` }}
@@ -213,17 +215,17 @@ export function MemberCard({
       {/* Workload forecast */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">5-Week Forecast</span>
+          <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">{t("card.forecast")}</span>
           {skillScore >= 0 && (
             <span className="text-[10px] text-gray-500">
-              Skill fit:{" "}
+              {t("card.skillFit")}: {" "}
               <span className={`font-semibold ${skillScore >= 70 ? "text-emerald-400" : skillScore >= 40 ? "text-amber-400" : "text-red-400"}`}>
                 {skillScore}%
               </span>
             </span>
           )}
           {skillScore < 0 && member.skills.length === 0 && (
-            <span className="text-[10px] text-gray-600 italic">Upload CV for skill analysis</span>
+            <span className="text-[10px] text-gray-600 italic">{t("card.uploadCv")}</span>
           )}
         </div>
         <div className="flex items-end gap-1.5 h-12">
@@ -264,15 +266,15 @@ export function MemberCard({
       <div className="grid grid-cols-3 gap-2 mb-5">
         <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
           <div className="text-lg font-bold text-white">{member.taskCount}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Active</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">{t("card.active")}</div>
         </div>
         <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
           <div className="text-lg font-bold text-white">{member.projectCount}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Projects</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">{t("card.projects")}</div>
         </div>
         <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
           <div className="text-lg font-bold text-green-400">{member.completedCount}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Done</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">{t("card.done")}</div>
         </div>
       </div>
 
@@ -282,7 +284,7 @@ export function MemberCard({
         onClick={() => setShowDetails((v) => !v)}
         className="w-full flex items-center justify-between text-sm text-gray-400 hover:text-gray-200 transition-colors"
       >
-        <span className="font-semibold">Skills & Availability</span>
+        <span className="font-semibold">{t("card.skillsAvailability")}</span>
         <ChevronDown className={`w-4 h-4 transition-transform ${showDetails ? "rotate-180" : ""}`} />
       </button>
 
@@ -298,7 +300,7 @@ export function MemberCard({
             <div className="pt-4 border-t border-white/10 mt-3 space-y-4">
               {/* Skills */}
               <div>
-                <h4 className="text-xs font-semibold text-gray-400 mb-2">Skills</h4>
+                <h4 className="text-xs font-semibold text-gray-400 mb-2">{t("card.skills")}</h4>
                 {member.skills.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {member.skills.map((skill, i) => (
@@ -311,14 +313,14 @@ export function MemberCard({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-600 italic">No CV uploaded yet</p>
+                  <p className="text-xs text-gray-600 italic">{t("card.noCv")}</p>
                 )}
               </div>
 
               {/* Experience */}
               {member.experienceSummary && (
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-400 mb-1">Experience</h4>
+                  <h4 className="text-xs font-semibold text-gray-400 mb-1">{t("card.experience")}</h4>
                   <p className="text-xs text-gray-500 leading-relaxed">{member.experienceSummary}</p>
                 </div>
               )}
@@ -383,7 +385,7 @@ export function MemberCard({
                   className="flex w-full items-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors mb-2"
                 >
                   <Calendar className="w-3.5 h-3.5" />
-                  <span className="font-semibold">Unavailable Periods</span>
+                  <span className="font-semibold">{t("card.unavailable")}</span>
                   {availability.length > 0 && (
                     <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-900/30 border border-amber-500/30 text-amber-400 text-[10px]">
                       {availability.length}
@@ -421,7 +423,7 @@ export function MemberCard({
                         <div className="flex gap-1.5">
                           <input
                             type="text"
-                            placeholder="Label"
+                            placeholder={t("card.label")}
                             value={newRange.label}
                             onChange={(e) => setNewRange((p) => ({ ...p, label: e.target.value }))}
                             className="flex-1 min-w-0 text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white placeholder-gray-600 outline-none focus:border-purple-400/40"

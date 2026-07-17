@@ -1,9 +1,13 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
-import logoUrl from "../assets/brand/zeroone-logo.svg";
+import { useTheme } from "../contexts/ThemeContext";
+import logoDarkUrl from "../assets/brand/zeroone-dark-horizontal.png";
+import logoLightUrl from "../assets/brand/zeroone-light-horizontal.png";
 
 export function Logo() {
   const navigate = useNavigate();
+  const { theme } = useTheme();
+
   return (
     <motion.div
       onClick={() => navigate("/")}
@@ -18,9 +22,9 @@ export function Logo() {
       />
 
       <motion.img
-        src={logoUrl}
+        src={theme === "dark" ? logoDarkUrl : logoLightUrl}
         alt="ZeroOne"
-        className="relative z-10 h-full w-full scale-170 object-contain object-center"
+        className="relative z-10 h-full w-full object-contain object-center"
         whileHover={{ scale: 1.02 }}
         transition={{ duration: 0.3 }}
       />

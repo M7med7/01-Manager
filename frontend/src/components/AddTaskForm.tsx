@@ -45,7 +45,7 @@ export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Pr
     } finally { setSaving(false); }
   };
 
-  const inputCls = "w-full rounded-lg border border-white/15 bg-white/6 px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-400/70 transition-colors";
+  const inputCls = "w-full rounded-lg border border-white/15 app-input px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-400/70 transition-colors";
 
   return (
     <div>
@@ -62,7 +62,7 @@ export function AddTaskForm({ projectId, members, currentUserId, onCreated }: Pr
           <motion.form
             initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
             onSubmit={handleSubmit}
-            className="mt-3 rounded-xl border border-purple-500/30 bg-black/50 p-4 space-y-3 overflow-hidden"
+            className="mt-3 rounded-xl border border-purple-500/30 app-input p-4 space-y-3 overflow-hidden"
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-white">New Task</span>

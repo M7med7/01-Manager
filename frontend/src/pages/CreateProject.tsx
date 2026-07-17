@@ -17,10 +17,12 @@ import { useAuth } from "../contexts/AuthContext";
 import { mapLocalTeamMemberToUser, readLocalTeamMembers } from "../lib/localTeamMembers";
 import { PlanQualityReview } from "../components/PlanQualityReview";
 import { AdvancedProjectOptions } from "../components/AdvancedProjectOptions";
+import { useTranslation } from "react-i18next";
 
 type Step = "form" | "reviewing";
 
 export function CreateProject() {
+  const { t } = useTranslation("projects");
   const navigate = useNavigate();
   const { session } = useAuth();
   const uid = useId();
@@ -341,12 +343,12 @@ export function CreateProject() {
         <div className="mb-12 flex items-center justify-between gap-6">
           <div>
             <h2 className="text-5xl mb-3 bg-linear-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
-              {step === "reviewing" ? "Plan Review" : "Create New Project"}
+              {step === "reviewing" ? t("create.reviewTitle") : t("create.title")}
             </h2>
             <p className="text-gray-400 text-xl">
               {step === "reviewing"
-                ? "Review, refine, and accept your AI-generated plan"
-                : "AI-powered execution plan generation"}
+                ? t("create.reviewSubtitle")
+                : t("create.subtitle")}
             </p>
           </div>
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-purple-400/30 bg-purple-900/30 shadow-lg shadow-purple-500/20">
@@ -411,8 +413,8 @@ export function CreateProject() {
               {/* Template selector */}
               <div>
                 <div className="mb-3 flex items-center justify-between gap-4">
-                  <label className="block text-lg text-gray-300 font-semibold">Project Template</label>
-                  <span className="text-sm text-gray-500">Optional</span>
+                  <label className="block text-lg text-gray-300 font-semibold">{t("create.template")}</label>
+                  <span className="text-sm text-gray-500">{t("create.optional")}</span>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {templates.map((template) => {
@@ -425,7 +427,7 @@ export function CreateProject() {
                         onClick={() => setSelectedTemplateId(template.id)}
                         className={`group min-h-[150px] rounded-2xl border-2 p-4 text-left transition-all ${isSelected
                           ? "border-purple-500/70 bg-purple-900/25 shadow-lg shadow-purple-500/10"
-                          : "border-white/10 bg-white/3 hover:border-white/25"
+                          : "border-white/10 app-surface-soft hover:border-white/25"
                           }`}
                       >
                         <div className="mb-3 flex items-start justify-between gap-3">
@@ -448,7 +450,7 @@ export function CreateProject() {
                               }}
                               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-gray-500 opacity-100 transition-colors hover:border-purple-500/40 hover:bg-purple-900/30 hover:text-purple-200 md:opacity-0 md:group-hover:opacity-100"
                               aria-label={`Duplicate ${template.name}`}
-                              title="Duplicate template"
+                              title={t("create.duplicate")}
                             >
                               {duplicatingTemplateId === template.id
                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -460,7 +462,7 @@ export function CreateProject() {
                         {template.phases.length > 0 && (
                           <div className="mt-4 flex flex-wrap gap-2">
                             {template.phases.slice(0, 3).map((phase) => (
-                              <span key={phase} className="rounded-md border border-white/10 bg-black/25 px-2 py-1 text-[11px] text-gray-400">
+                              <span key={phase} className="rounded-md border border-white/10 app-surface-soft px-2 py-1 text-[11px] text-gray-400">
                                 {phase}
                               </span>
                             ))}
@@ -472,7 +474,7 @@ export function CreateProject() {
                 </div>
                 {selectedTemplate && selectedTemplate.recommended_technologies.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-400">
-                    <span className="text-gray-500">Recommended:</span>
+                    <span className="text-gray-500">{t("create.recommended")}</span>
                     {selectedTemplate.recommended_technologies.slice(0, 8).map((tech) => (
                       <span key={tech} className="rounded-full border border-purple-500/20 bg-purple-900/20 px-2.5 py-1 text-xs text-purple-200">
                         {tech}
@@ -484,10 +486,10 @@ export function CreateProject() {
 
               {/* Project name */}
               <div>
-                <label className="block text-lg text-gray-300 mb-3 font-semibold">Project Name</label>
+                <label className="block text-lg text-gray-300 mb-3 font-semibold">{t("create.name")}</label>
                 <input
                   type="text" name="name" value={formData.name} onChange={handleChange} required
-                  placeholder="e.g., E-Commerce Platform"
+                  placeholder={t("create.namePlaceholder")}
                   className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 text-lg"
                 />
               </div>
@@ -495,34 +497,34 @@ export function CreateProject() {
               {/* Description */}
               <div>
                 <label className="block text-lg text-gray-300 mb-3 font-semibold">
-                  Project Description
-                  <span className="ml-3 text-purple-400 font-normal">(AI will analyze this)</span>
+                  {t("create.description")}
+                  <span className="ms-3 text-purple-400 font-normal">({t("create.analyze")})</span>
                 </label>
                 <textarea
                   name="description" value={formData.description} onChange={handleChange} required rows={5}
-                  placeholder="Describe your project goals, features, and requirements..."
+                  placeholder={t("create.descriptionPlaceholder")}
                   className="w-full px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 focus:shadow-2xl focus:shadow-purple-500/30 text-white placeholder-gray-500 transition-all duration-300 hover:border-white/30 resize-none text-lg leading-relaxed"
                 />
                 <label className="mt-4 flex items-start gap-3 cursor-pointer group">
                   <div className="relative mt-0.5 shrink-0">
                     <input type="checkbox" checked={expandDescription} onChange={(e) => setExpandDescription(e.target.checked)} className="sr-only peer" />
-                    <div className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 peer-checked:border-purple-500 peer-checked:bg-purple-600 transition-all flex items-center justify-center">
+                    <div className="w-5 h-5 rounded border-2 border-white/20 app-surface-soft peer-checked:border-purple-500 peer-checked:bg-purple-600 transition-all flex items-center justify-center">
                       {expandDescription && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                     </div>
                   </div>
                   <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors leading-5">
-                    <span className="text-white font-medium">Enhance description with AI</span> — AI will rewrite your description as a polished project summary.
+                    <span className="text-white font-medium">{t("create.enhance")}</span> — {t("create.enhanceHelp")}
                   </span>
                 </label>
                 <div className="mt-3 flex items-center gap-3 text-sm text-gray-400">
                   <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span>AI will generate: Timeline, Sprints, Tasks, Cost Estimation, Feasibility Analysis</span>
+                  <span>{t("create.willGenerate")}</span>
                 </div>
               </div>
 
               {/* Duration */}
               <div>
-                <label className="block text-lg text-gray-300 mb-3 font-semibold">Expected Duration</label>
+                <label className="block text-lg text-gray-300 mb-3 font-semibold">{t("create.duration")}</label>
                 <div className="flex gap-4">
                   <input
                     type="number" name="duration" value={formData.duration} onChange={handleChange}
@@ -534,9 +536,9 @@ export function CreateProject() {
                     className="w-48 px-6 py-5 bg-linear-to-br from-white/10 to-white/5 border-2 border-white/20 rounded-2xl focus:outline-none focus:border-purple-500/70 text-white transition-all duration-300 hover:border-white/30 text-lg appearance-none cursor-pointer"
                     style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
                   >
-                    <option value="Weeks" className="bg-gray-900">Weeks</option>
-                    <option value="Months" className="bg-gray-900">Months</option>
-                    <option value="Years" className="bg-gray-900">Years</option>
+                    <option value="Weeks" className="bg-gray-900">{t("create.weeks")}</option>
+                    <option value="Months" className="bg-gray-900">{t("create.months")}</option>
+                    <option value="Years" className="bg-gray-900">{t("create.years")}</option>
                   </select>
                 </div>
               </div>
@@ -544,11 +546,11 @@ export function CreateProject() {
               {/* Team members */}
               <div>
                 <div className="flex items-center justify-between gap-4 mb-3">
-                  <label className="block text-lg text-gray-300 font-semibold">Assign Team Members</label>
-                  <span className="text-sm text-gray-500">{selectedMembers.length} selected</span>
+                  <label className="block text-lg text-gray-300 font-semibold">{t("create.assign")}</label>
+                  <span className="text-sm text-gray-500">{t("create.selected", { count: selectedMembers.length })}</span>
                 </div>
                 {users.length === 0 ? (
-                  <div className="rounded-2xl border-2 border-white/10 bg-white/3 p-6 text-gray-500">
+                  <div className="rounded-2xl border-2 border-white/10 app-surface-soft p-6 text-gray-500">
                     No team members found. Add people in the Team tab first.
                   </div>
                 ) : (
@@ -559,7 +561,7 @@ export function CreateProject() {
                       return (
                         <button
                           key={user.id} type="button" onClick={() => toggleMember(user.id)}
-                          className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${isSelected ? "border-purple-500/70 bg-purple-900/25" : "border-white/10 bg-white/3 hover:border-white/25"
+                          className={`flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${isSelected ? "border-purple-500/70 bg-purple-900/25" : "border-white/10 app-surface-soft hover:border-white/25"
                             }`}
                         >
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-purple-600 to-purple-900 text-sm font-bold text-white">
@@ -579,7 +581,7 @@ export function CreateProject() {
                 )}
                 <div className="mt-3 flex items-center gap-3 text-sm text-gray-400">
                   <Users className="w-4 h-4 text-purple-400" />
-                  <span>AI will distribute generated tasks across the selected team members.</span>
+                  <span>{t("create.assignHelp")}</span>
                 </div>
               </div>
 
@@ -606,7 +608,7 @@ export function CreateProject() {
               {/* AI info card */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                className="bg-linear-to-br from-purple-900/30 to-black/30 border-2 border-purple-500/50 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
+                className="bg-linear-to-br from-purple-900/30 to-purple-950/10 border-2 border-purple-500/50 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent animate-pulse" />
                 <div className="flex items-start gap-6 relative z-10">
@@ -614,14 +616,14 @@ export function CreateProject() {
                     <Sparkles className="w-8 h-8 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="mb-3 text-2xl font-semibold bg-linear-to-r from-purple-300 to-white bg-clip-text text-transparent">AI-Powered Planning</h4>
-                    <p className="text-base text-gray-300 leading-relaxed mb-5">Our AI will analyze your project and automatically create:</p>
+                    <h4 className="mb-3 text-2xl font-semibold bg-linear-to-r from-purple-300 to-white bg-clip-text text-transparent">{t("create.planning")}</h4>
+                    <p className="text-base text-gray-300 leading-relaxed mb-5">{t("create.planningIntro")}</p>
                     <ul className="space-y-4 text-base text-gray-200">
                       {[
-                        { color: "bg-purple-400 shadow-purple-400/50", text: "Complete project timeline with milestones" },
-                        { color: "bg-purple-400 shadow-purple-400/50", text: "Sprint breakdown with daily tasks" },
-                        { color: "bg-green-400 shadow-green-400/50", text: "Cost estimation and resource allocation" },
-                        { color: "bg-yellow-400 shadow-yellow-400/50", text: "Feasibility insights and risk analysis" },
+                        { color: "bg-purple-400 shadow-purple-400/50", text: t("create.timeline") },
+                        { color: "bg-purple-400 shadow-purple-400/50", text: t("create.sprints") },
+                        { color: "bg-green-400 shadow-green-400/50", text: t("create.cost") },
+                        { color: "bg-yellow-400 shadow-yellow-400/50", text: t("create.feasibility") },
                       ].map((item, i) => (
                         <li key={i} className="flex items-center gap-3">
                           <div className={`w-2 h-2 rounded-full ${item.color} shadow-lg`} />
@@ -638,23 +640,23 @@ export function CreateProject() {
                 type="submit" disabled={isGenerating}
                 whileHover={!isGenerating ? { y: -2 } : {}}
                 whileTap={!isGenerating ? { scale: 0.98 } : {}}
-                className={`w-full py-7 rounded-3xl text-xl font-bold transition-all duration-300 relative overflow-hidden border ${isGenerating ? "bg-black/40 border-white/5 cursor-not-allowed text-white/40" : "bg-black/80 border-white/10 text-white"
+                className={`w-full py-7 rounded-3xl text-xl font-bold transition-all duration-300 relative overflow-hidden border ${isGenerating ? "app-input border-white/5 cursor-not-allowed text-white/40" : "bg-purple-600 border-purple-500/40 text-white shadow-lg shadow-purple-500/20"
                   }`}
               >
                 {!isGenerating && (
                   <motion.div
                     className="absolute inset-0 rounded-3xl pointer-events-none"
-                    style={{ background: "linear-gradient(135deg, rgba(88,28,135,0.7) 0%, rgba(0,0,0,0.9) 50%, rgba(255,255,255,0.15) 100%)" }}
+                    style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(124,58,237,0.34) 55%, rgba(255,255,255,0.16) 100%)" }}
                     initial={{ opacity: 0 }} whileHover={{ opacity: 1 }} transition={{ duration: 0.4, ease: "easeOut" }}
                   />
                 )}
                 {isGenerating ? (
                   <span className="flex items-center justify-center gap-4 relative z-10">
-                    <Loader2 className="w-7 h-7 animate-spin" /><span>AI is generating your project plan...</span>
+                    <Loader2 className="w-7 h-7 animate-spin" /><span>{t("create.generating")}</span>
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-4 relative z-10">
-                    <Sparkles className="w-7 h-7" /><span>Generate Project Plan</span>
+                    <Sparkles className="w-7 h-7" /><span>{t("create.generate")}</span>
                   </span>
                 )}
               </motion.button>
