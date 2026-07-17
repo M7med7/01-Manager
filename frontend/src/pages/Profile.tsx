@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { api, type ProfileData } from "../lib/api";
 import { computeLevelInfo, getInitials } from "../lib/teamUtils";
 import { useAuth } from "../contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 import { SkillsSection, type SkillLevel } from "../components/SkillsSection";
 import {
   Camera, Flame, Award,
@@ -85,18 +86,11 @@ function saveExt(userId: string, data: ExtendedProfile) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PRIVACY_LABELS: Record<string, string> = {
-  show_skills: "Skills & expertise",
-  show_availability: "Availability",
-  show_completed_tasks: "Completed tasks",
-  show_summary: "About / summary",
-  show_social_links: "Social links",
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Profile() {
   const { session } = useAuth();
+  const { t, i18n } = useTranslation("common");
   const currentUserId = session?.user.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -226,7 +220,7 @@ export function Profile() {
         .join(", ");
       const recent = profile.completed_tasks.slice(0, 5).map((t) => t.title).join(", ");
       const { response } = await api.ai.chat({
-        message: `Write a concise 2-3 sentence technical profile for team planning. Be specific and practical.
+        message: `Write a concise 2-3 sentence technical profile for team planning. Be specific and practical. Respond in ${i18n.language === "ar" ? "Arabic" : "English"}.
 Skills: ${skillsText || "Not specified"}
 Preferred tech: ${ext.preferred_tech.join(", ") || "None stated"}
 Background: ${profile.experience_summary || "Not provided"}
@@ -252,7 +246,7 @@ Output only the profile text, no headers or labels.`,
   if (error || !profile) {
     return (
       <div className="p-12 text-red-400">
-        <p>Failed to load profile: {error ?? "Not found"}</p>
+        <p>{t("profile.page.loadFailed")}: {error ?? t("profile.page.notFound")}</p>
       </div>
     );
   }
@@ -297,7 +291,7 @@ Output only the profile text, no headers or labels.`,
                   value={titleDraft}
                   onChange={(e) => setTitleDraft(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && saveTitle()}
-                  placeholder="e.g. Senior Frontend Engineer"
+                  placeholder={t("profile.page.rolePlaceholder")}
                   className="bg-black/40 border border-purple-500/50 rounded-lg px-3 py-1 text-sm text-white focus:outline-none"
                   autoFocus
                 />
@@ -307,7 +301,7 @@ Output only the profile text, no headers or labels.`,
               </div>
             ) : (
               <div className="group flex items-center gap-2 cursor-pointer" onClick={() => setEditingTitle(true)}>
-                <span className="text-purple-300 text-lg">{profile.job_title || "Add your role…"}</span>
+                <span className="text-purple-300 text-lg">{profile.job_title || t("profile.page.addRole")}</span>
                 <Edit2 className="w-4 h-4 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             )}
@@ -320,7 +314,7 @@ Output only the profile text, no headers or labels.`,
 
         <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition-all shrink-0">
           <FileText className="w-4 h-4" />
-          {profile.cv_parsed_at ? "Update CV" : "Upload CV"}
+          {profile.cv_parsed_at ? t("profile.page.updateCv") : t("profile.page.uploadCv")}
           <input type="file" className="hidden" accept=".pdf,.txt"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadCV(f); e.target.value = ""; }} />
         </label>
@@ -340,7 +334,7 @@ Output only the profile text, no headers or labels.`,
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-400" />
-                <h2 className="text-xl font-bold text-white">AI Technical Profile</h2>
+                <h2 className="text-xl font-bold text-white">{t("profile.page.aiProfile")}</h2>
               </div>
               <button
                 onClick={handleGenerateAISummary}
@@ -348,8 +342,8 @@ Output only the profile text, no headers or labels.`,
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-900/40 border border-purple-500/30 text-sm text-purple-300 hover:bg-purple-800/60 transition-all disabled:opacity-50"
               >
                 {generatingAI
-                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating…</>
-                  : <><Sparkles className="w-3.5 h-3.5" /> {ext.ai_skill_summary ? "Regenerate" : "Generate"}</>
+                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {t("profile.page.generating")}</>
+                  : <><Sparkles className="w-3.5 h-3.5" /> {ext.ai_skill_summary ? t("profile.page.regenerate") : t("profile.page.generate")}</>
                 }
               </button>
             </div>
@@ -357,7 +351,7 @@ Output only the profile text, no headers or labels.`,
               <p className="text-gray-300 leading-relaxed">{ext.ai_skill_summary}</p>
             ) : (
               <p className="text-sm text-gray-500 italic">
-                Generate an AI-written summary of your technical profile — used to improve task assignment and team planning.
+                {t("profile.page.aiProfileHelp")}
               </p>
             )}
           </motion.div>
@@ -370,7 +364,7 @@ Output only the profile text, no headers or labels.`,
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-7"
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">About</h2>
+              <h2 className="text-xl font-bold text-white">{t("profile.page.about")}</h2>
               {!editingSummary && (
                 <button onClick={() => setEditingSummary(true)} className="text-gray-400 hover:text-white transition-colors">
                   <Edit2 className="w-4 h-4" />
@@ -383,16 +377,16 @@ Output only the profile text, no headers or labels.`,
                   value={summaryDraft}
                   onChange={(e) => setSummaryDraft(e.target.value)}
                   className="w-full bg-black/40 border border-purple-500/30 rounded-xl p-4 text-gray-200 outline-none focus:border-purple-500 min-h-[100px] resize-none"
-                  placeholder="Tell the team about yourself and your background…"
+                  placeholder={t("profile.page.aboutPlaceholder")}
                 />
                 <div className="flex justify-end gap-3">
-                  <button onClick={() => { setEditingSummary(false); setSummaryDraft(profile.experience_summary ?? ""); }} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-                  <button onClick={saveSummary} className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg flex items-center gap-2"><Check className="w-4 h-4" /> Save</button>
+                  <button onClick={() => { setEditingSummary(false); setSummaryDraft(profile.experience_summary ?? ""); }} className="px-4 py-2 text-sm text-gray-400 hover:text-white">{t("actions.cancel")}</button>
+                  <button onClick={saveSummary} className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg flex items-center gap-2"><Check className="w-4 h-4" /> {t("actions.save")}</button>
                 </div>
               </div>
             ) : (
               <p className="text-gray-400 leading-relaxed">
-                {profile.experience_summary || "No summary yet. Upload your CV to auto-generate one."}
+                {profile.experience_summary || t("profile.page.noSummary")}
               </p>
             )}
           </motion.div>
@@ -405,7 +399,7 @@ Output only the profile text, no headers or labels.`,
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-7"
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-bold text-white">Skills</h2>
+              <h2 className="text-xl font-bold text-white">{t("profile.page.skills")}</h2>
               {savingSkills && <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />}
             </div>
             <SkillsSection
@@ -429,7 +423,7 @@ Output only the profile text, no headers or labels.`,
               transition={{ delay: 0.15 }}
               className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-7"
             >
-              <h2 className="text-xl font-bold text-white mb-5">Recent Completed Tasks</h2>
+              <h2 className="text-xl font-bold text-white mb-5">{t("profile.page.recentTasks")}</h2>
               <div className="space-y-2">
                 {profile.completed_tasks.slice(0, 8).map((t) => (
                   <div key={t.id} className="flex items-start gap-3 px-4 py-3 bg-green-900/10 rounded-xl border border-green-500/15">
@@ -444,7 +438,7 @@ Output only the profile text, no headers or labels.`,
                 ))}
                 {profile.completed_tasks.length > 8 && (
                   <p className="text-xs text-gray-600 text-center pt-1">
-                    +{profile.completed_tasks.length - 8} more completed
+                    {t("profile.page.moreCompleted", { count: profile.completed_tasks.length - 8 })}
                   </p>
                 )}
               </div>
@@ -464,10 +458,10 @@ Output only the profile text, no headers or labels.`,
             <div className="flex-1">
               <div className="flex justify-between items-end mb-2">
                 <div>
-                  <span className="text-gray-400 text-sm font-semibold uppercase tracking-wider">Level</span>
+                  <span className="text-gray-400 text-sm font-semibold uppercase tracking-wider">{t("profile.page.level")}</span>
                   <div className="text-3xl font-bold text-white">{level}</div>
                 </div>
-                <div className="text-sm text-purple-400 font-semibold">{profile.completed_count} / {level * 5} tasks</div>
+                <div className="text-sm text-purple-400 font-semibold">{t("profile.page.taskProgress", { completed: profile.completed_count, total: level * 5 })}</div>
               </div>
               <div className="h-3 bg-black/50 rounded-full overflow-hidden border border-white/5">
                 <motion.div
@@ -487,7 +481,7 @@ Output only the profile text, no headers or labels.`,
             transition={{ delay: 0.25 }}
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-7"
           >
-            <h2 className="text-xl font-bold text-white mb-5">Achievements</h2>
+            <h2 className="text-xl font-bold text-white mb-5">{t("profile.page.achievements")}</h2>
             {profile.achievements.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {profile.achievements.map((a, i) => (
@@ -501,7 +495,7 @@ Output only the profile text, no headers or labels.`,
               </div>
             ) : (
               <p className="text-sm text-gray-500 italic text-center p-5 bg-black/20 rounded-2xl border border-white/5">
-                Complete tasks to earn achievements.
+                {t("profile.page.noAchievements")}
               </p>
             )}
           </motion.div>
@@ -516,11 +510,11 @@ Output only the profile text, no headers or labels.`,
             animate={{ opacity: 1, x: 0 }}
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-6"
           >
-            <h3 className="text-lg font-bold text-white mb-4">Availability</h3>
-            <p className="text-xs text-gray-500 mb-4">Used for workload forecasting and task assignment suggestions.</p>
+            <h3 className="text-lg font-bold text-white mb-4">{t("profile.page.availability")}</h3>
+            <p className="text-xs text-gray-500 mb-4">{t("profile.page.availabilityHelp")}</p>
 
             <div className="mb-4">
-              <label className="text-xs font-semibold text-gray-400 mb-2 block">Days per week</label>
+              <label className="text-xs font-semibold text-gray-400 mb-2 block">{t("profile.page.daysPerWeek")}</label>
               <div className="flex gap-2">
                 {["M", "T", "W", "T", "F"].map((day, i) => (
                   <button
@@ -537,11 +531,11 @@ Output only the profile text, no headers or labels.`,
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-2">{ext.availability_days} day{ext.availability_days !== 1 ? "s" : ""} / week</p>
+              <p className="text-xs text-gray-500 mt-2">{t("profile.page.daysWeek", { count: ext.availability_days })}</p>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-400 mb-2 block">Daily capacity (hours)</label>
+              <label className="text-xs font-semibold text-gray-400 mb-2 block">{t("profile.page.dailyCapacity")}</label>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
@@ -553,7 +547,7 @@ Output only the profile text, no headers or labels.`,
                 <span className="text-sm font-semibold text-white w-12 text-right">{ext.daily_hours}h</span>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {ext.availability_days * ext.daily_hours}h / week total
+                {t("profile.page.weeklyHours", { count: ext.availability_days * ext.daily_hours })}
               </p>
             </div>
           </motion.div>
@@ -566,7 +560,7 @@ Output only the profile text, no headers or labels.`,
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-6"
           >
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-white">Links</h3>
+              <h3 className="text-lg font-bold text-white">{t("profile.page.links")}</h3>
               {!editingSocials && (
                 <button onClick={() => setEditingSocials(true)} className="text-gray-400 hover:text-white transition-colors">
                   <Edit2 className="w-4 h-4" />
@@ -580,7 +574,7 @@ Output only the profile text, no headers or labels.`,
                   { icon: GithubIcon, key: "github" as const, placeholder: "GitHub URL" },
                   { icon: LinkedinIcon, key: "linkedin" as const, placeholder: "LinkedIn URL" },
                   { icon: TwitterIcon, key: "x" as const, placeholder: "X / Twitter URL" },
-                  { icon: Globe, key: "portfolio" as const, placeholder: "Portfolio / website URL" },
+                  { icon: Globe, key: "portfolio" as const, placeholder: t("profile.page.portfolioUrl") },
                 ].map(({ icon: Icon, key, placeholder }) => (
                   <div key={key} className="relative">
                     <Icon className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
@@ -594,8 +588,8 @@ Output only the profile text, no headers or labels.`,
                   </div>
                 ))}
                 <div className="flex justify-end gap-2 pt-1">
-                  <button onClick={() => setEditingSocials(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
-                  <button onClick={saveSocials} className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded-md">Save</button>
+                  <button onClick={() => setEditingSocials(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white">{t("actions.cancel")}</button>
+                  <button onClick={saveSocials} className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded-md">{t("actions.save")}</button>
                 </div>
               </div>
             ) : (
@@ -604,7 +598,7 @@ Output only the profile text, no headers or labels.`,
                   { icon: GithubIcon, url: profile.github_url, label: "GitHub" },
                   { icon: LinkedinIcon, url: profile.linkedin_url, label: "LinkedIn" },
                   { icon: TwitterIcon, url: profile.x_url, label: "X / Twitter" },
-                  { icon: Globe, url: ext.portfolio_url, label: "Portfolio" },
+                  { icon: Globe, url: ext.portfolio_url, label: t("profile.page.portfolio") },
                 ].map(({ icon: Icon, url, label }) =>
                   url ? (
                     <a
@@ -620,7 +614,7 @@ Output only the profile text, no headers or labels.`,
                   ) : null
                 )}
                 {!profile.github_url && !profile.linkedin_url && !profile.x_url && !ext.portfolio_url && (
-                  <span className="text-sm text-gray-500 italic">No links added</span>
+                  <span className="text-sm text-gray-500 italic">{t("profile.page.noLinks")}</span>
                 )}
               </div>
             )}
@@ -633,14 +627,14 @@ Output only the profile text, no headers or labels.`,
             transition={{ delay: 0.1 }}
             className="bg-linear-to-br from-white/5 to-white/2 backdrop-blur-2xl border border-white/10 rounded-3xl p-6"
           >
-            <h3 className="text-lg font-bold text-white mb-1">Privacy</h3>
-            <p className="text-xs text-gray-500 mb-4">Control what team members see on your profile.</p>
+            <h3 className="text-lg font-bold text-white mb-1">{t("profile.page.privacy")}</h3>
+            <p className="text-xs text-gray-500 mb-4">{t("profile.page.privacyHelp")}</p>
             <div className="space-y-3">
-              {Object.entries(PRIVACY_LABELS).map(([key, label]) => {
+              {Object.keys(DEFAULT_PRIVACY).map((key) => {
                 const visible = ext.privacy[key] ?? true;
                 return (
                   <div key={key} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300">{label}</span>
+                    <span className="text-sm text-gray-300">{t(`profile.page.privacyLabels.${key}`)}</span>
                     <button
                       type="button"
                       onClick={() => patchExt({ privacy: { ...ext.privacy, [key]: !visible } })}
@@ -651,7 +645,7 @@ Output only the profile text, no headers or labels.`,
                       }`}
                     >
                       {visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                      {visible ? "Visible" : "Hidden"}
+                      {visible ? t("profile.page.visible") : t("profile.page.hidden")}
                     </button>
                   </div>
                 );
@@ -669,13 +663,13 @@ Output only the profile text, no headers or labels.`,
             <div className="absolute -right-4 -top-4 opacity-10">
               <Flame className="w-32 h-32 text-orange-500" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-5 relative z-10">Weekly Streak</h3>
+            <h3 className="text-lg font-bold text-white mb-5 relative z-10">{t("profile.page.weeklyStreak")}</h3>
             <div className="flex items-center gap-4 relative z-10">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
                 <Flame className={`w-6 h-6 ${profile.weekly_streak > 0 ? "text-orange-500" : "text-gray-600"}`} />
               </div>
               <div className="text-3xl font-bold text-white">
-                {profile.weekly_streak} <span className="text-base text-gray-400 font-normal">weeks</span>
+                {profile.weekly_streak} <span className="text-base text-gray-400 font-normal">{t("profile.page.weeks")}</span>
               </div>
             </div>
           </motion.div>
