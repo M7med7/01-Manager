@@ -84,13 +84,12 @@ function clipPromptText(value: string, maxChars: number): string {
   return `${trimmed.slice(0, startLength)}${marker}${trimmed.slice(-(remaining - startLength))}`;
 }
 
-function buildScheduleSchema(maxTasks: number): Schema {
+function buildScheduleSchema(): Schema {
   return {
     type: SchemaType.OBJECT,
     properties: {
       tasks: {
         type: SchemaType.ARRAY,
-        maxItems: maxTasks,
         items: {
           type: SchemaType.OBJECT,
           properties: {
@@ -99,17 +98,16 @@ function buildScheduleSchema(maxTasks: number): Schema {
             description:    { type: SchemaType.STRING },
             priority:       { type: SchemaType.STRING },
             estimated_days: { type: SchemaType.NUMBER },
-            assigned_tech:  { type: SchemaType.ARRAY, maxItems: 6, items: { type: SchemaType.STRING } },
+            assigned_tech:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
             assigned_to:    { type: SchemaType.STRING },
-            acceptance_criteria: { type: SchemaType.ARRAY, minItems: 2, maxItems: 4, items: { type: SchemaType.STRING } },
-            definition_of_done:  { type: SchemaType.ARRAY, minItems: 2, maxItems: 3, items: { type: SchemaType.STRING } },
+            acceptance_criteria: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            definition_of_done:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           },
           required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to', 'acceptance_criteria', 'definition_of_done'],
         },
       },
       dependencies: {
         type: SchemaType.ARRAY,
-        maxItems: maxTasks * 2,
         items: {
           type: SchemaType.OBJECT,
           properties: {
@@ -122,7 +120,6 @@ function buildScheduleSchema(maxTasks: number): Schema {
       },
       technology_recommendations: {
         type: SchemaType.ARRAY,
-        maxItems: 12,
         items: {
           type: SchemaType.OBJECT,
           properties: {
@@ -150,7 +147,9 @@ function createScheduleModel(
     systemInstruction,
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: buildScheduleSchema(limits.maxTasks),
+      // Keep cardinality limits in the prompt and post-response validation. Gemini
+      // can reject schemas with multiple bounded nested arrays as too complex.
+      responseSchema: buildScheduleSchema(),
       maxOutputTokens: limits.maxOutputTokens,
       temperature: 0.25,
     },

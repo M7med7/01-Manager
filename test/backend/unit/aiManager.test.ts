@@ -125,10 +125,11 @@ describe('generateSchedule', () => {
 
     const modelConfig = mockGetGenerativeModel.mock.calls.at(-1)?.[0];
     expect(modelConfig.generationConfig.maxOutputTokens).toBe(12_000);
-    expect(modelConfig.generationConfig.responseSchema.properties.tasks.maxItems).toBe(40);
+    expect(modelConfig.generationConfig.responseSchema.properties.tasks.maxItems).toBeUndefined();
 
     const [prompt, requestOptions] = mockGenerateContentStream.mock.calls.at(-1) ?? [];
     expect(prompt.length).toBeLessThan(25_000);
+    expect(prompt).toContain('Produce 40 or fewer execution-ready work packages');
     expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
   });
 
