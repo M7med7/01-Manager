@@ -5,3 +5,5 @@ dist/
 .claude/
 .code-graph/
 .gstack/
+/context-vault/
+/graphify-out/cache/

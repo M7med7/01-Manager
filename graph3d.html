@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3D Code Graph — graphify viewer</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #0a0a12; font-family: -apple-system, sans-serif; }
+  #graph { width: 100vw; height: 100vh; }
+  #panel {
+    position: fixed; top: 12px; left: 12px; max-width: 340px;
+    background: rgba(20,20,30,0.9); color: #e8e8f0; padding: 14px 16px;
+    border-radius: 10px; font-size: 13px; line-height: 1.5;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4); pointer-events: none;
+  }
+  #panel h1 { font-size: 14px; margin: 0 0 6px; color: #8ab4ff; }
+  #status { position: fixed; top: 12px; right: 12px; color: #999; font-size: 12px; font-family: monospace; }
+  #node-info {
+    position: fixed; bottom: 12px; left: 12px; max-width: 420px;
+    background: rgba(20,20,30,0.92); color: #e8e8f0; padding: 14px 16px;
+    border-radius: 10px; font-size: 13px; display: none; font-family: monospace;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #node-info b { color: #8ab4ff; }
+</style>
+</head>
+<body>
+
+<div id="graph"></div>
+<div id="panel">
+  <h1>3D Code Graph</h1>
+  Drag to rotate · Scroll to zoom · Click a node to inspect it · Colors = communities
+</div>
+<div id="status">loading graph.json...</div>
+<div id="node-info"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.128.0/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.3/dist/3d-force-graph.min.js"></script>
+
+<script>
+const statusEl = document.getElementById('status');
+const infoEl = document.getElementById('node-info');
+
+fetch('./graphify-out/graph.json')
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
+  .then(raw => {
+    const { nodes, links } = normalizeGraph(raw);
+    statusEl.textContent = `${nodes.length} nodes, ${links.length} edges`;
+    renderGraph(nodes, links);
+  })
+  .catch(err => {
+    statusEl.textContent = 'Failed to load graph.json: ' + err.message;
+    statusEl.style.color = '#ff6b6b';
+  });
+
+// graphify's graph.json is NetworkX node-link format: { nodes: [...], links: [...] }
+// but field names can vary slightly by version, so we normalize defensively.
+function normalizeGraph(raw) {
+  const rawNodes = raw.nodes || raw.elements?.nodes || [];
+  const rawLinks = raw.links || raw.edges || raw.elements?.edges || [];
+
+  const nodes = rawNodes.map(n => ({
+    id: n.id ?? n.name ?? n.label,
+    label: n.label ?? n.name ?? n.id,
+    type: n.type ?? n.kind ?? 'unknown',
+    community: n.community ?? n.cluster ?? 0,
+    file: n.file ?? n.path ?? null
+  }));
+
+  const links = rawLinks.map(e => ({
+    source: e.source ?? e.from,
+    target: e.target ?? e.to,
+    relation: e.relation ?? e.type ?? ''
+  }));
+
+  return { nodes, links };
+}
+
+function communityColor(c) {
+  const palette = [
+    '#8ab4ff','#ff8a8a','#8affc1','#ffd98a','#c98aff',
+    '#8affe0','#ff8ac6','#c1ff8a','#8ac6ff','#ffb38a'
+  ];
+  return palette[c % palette.length];
+}
+
+function renderGraph(nodes, links) {
+  const elem = document.getElementById('graph');
+
+  const Graph = ForceGraph3D()(elem)
+    .graphData({ nodes, links })
+    .nodeLabel(n => `${n.label}\n(${n.type})`)
+    .nodeColor(n => communityColor(n.community))
+    .nodeRelSize(4)
+    .linkColor(() => 'rgba(255,255,255,0.15)')
+    .linkDirectionalArrowLength(3)
+    .linkDirectionalArrowRelPos(1)
+    .linkWidth(0.6)
+    .backgroundColor('#0a0a12')
+    .onNodeClick(n => {
+      infoEl.style.display = 'block';
+      infoEl.innerHTML =
+        `<b>${n.label}</b><br>type: ${n.type}<br>community: ${n.community}` +
+        (n.file ? `<br>file: ${n.file}` : '');
+      const distance = 120;
+      const distRatio = 1 + distance / Math.hypot(n.x, n.y, n.z);
+      Graph.cameraPosition(
+        { x: n.x * distRatio, y: n.y * distRatio, z: n.z * distRatio },
+        n,
+        1200
+      );
+    });
+}
+</script>
+
+</body>
+</html>
