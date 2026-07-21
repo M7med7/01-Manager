@@ -61,11 +61,13 @@ export function calculateScheduleLimits(req: ScheduleRequest): ScheduleLimits {
   const totalDays = durationToDays(req.durationValue, req.durationUnit);
   const teamSize = Math.max(req.teamMembers.length, 1);
   const complexity = req.complexity ?? 'standard';
-  const complexityCap = complexity === 'simple' ? 16 : complexity === 'advanced' ? 40 : 28;
+  const complexityCap = complexity === 'simple' ? 16 : complexity === 'advanced' ? 32 : 28;
   const complexityBoost = complexity === 'advanced' ? 8 : complexity === 'simple' ? 0 : 4;
   const suggestedTasks = Math.ceil(totalDays / 7) + teamSize * 2 + complexityBoost;
   const maxTasks = Math.max(8, Math.min(complexityCap, suggestedTasks));
-  const maxOutputTokens = Math.max(4_096, Math.min(12_288, maxTasks * 300));
+  const tokensPerTask = complexity === 'advanced' ? 500 : 300;
+  const outputCap = complexity === 'advanced' ? 16_384 : 12_288;
+  const maxOutputTokens = Math.max(4_096, Math.min(outputCap, maxTasks * tokensPerTask));
   return { maxTasks, maxOutputTokens };
 }
 

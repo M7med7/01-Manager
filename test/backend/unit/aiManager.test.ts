@@ -120,17 +120,17 @@ describe('generateSchedule', () => {
       complexity: 'advanced' as const,
     };
 
-    expect(calculateScheduleLimits(largeRequest)).toEqual({ maxTasks: 40, maxOutputTokens: 12_000 });
+    expect(calculateScheduleLimits(largeRequest)).toEqual({ maxTasks: 32, maxOutputTokens: 16_000 });
     await generateSchedule(largeRequest);
 
     const modelConfig = mockGetGenerativeModel.mock.calls.at(-1)?.[0];
-    expect(modelConfig.generationConfig.maxOutputTokens).toBe(12_000);
+    expect(modelConfig.generationConfig.maxOutputTokens).toBe(16_000);
     expect(modelConfig.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 1_024 });
     expect(modelConfig.generationConfig.responseSchema.properties.tasks.maxItems).toBeUndefined();
 
     const [prompt, requestOptions] = mockGenerateContentStream.mock.calls.at(-1) ?? [];
     expect(prompt.length).toBeLessThan(25_000);
-    expect(prompt).toContain('Produce 40 or fewer execution-ready work packages');
+    expect(prompt).toContain('Produce 32 or fewer execution-ready work packages');
     expect(prompt).toContain('Use compact unique task IDs');
     expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
   });
@@ -138,7 +138,7 @@ describe('generateSchedule', () => {
   it('rejects a provider response that exceeds the enforced task budget', async () => {
     const oversizedSchedule = {
       ...mockSchedule,
-      tasks: Array.from({ length: 41 }, (_, index) => ({
+      tasks: Array.from({ length: 33 }, (_, index) => ({
         ...mockSchedule.tasks[0]!,
         id: `task-${index}`,
       })),
@@ -154,7 +154,7 @@ describe('generateSchedule', () => {
       durationValue: 3,
       durationUnit: 'Years',
       complexity: 'advanced',
-    })).rejects.toThrow('exceeding the 40-task plan limit');
+    })).rejects.toThrow('exceeding the 32-task plan limit');
   });
 
   it('clears its timeout after successful generation', async () => {
