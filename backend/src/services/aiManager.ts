@@ -50,6 +50,7 @@ const CHAT_TIMEOUT_MS     = 30_000;
 const MAX_PROMPT_DESCRIPTION_CHARS = 20_000;
 const MAX_MEMBER_SKILLS = 12;
 const MAX_MEMBER_EXPERIENCE_CHARS = 600;
+const GEMINI_25_FLASH_THINKING_BUDGET = 1_024;
 
 export interface ScheduleLimits {
   maxTasks: number;
@@ -142,6 +143,9 @@ function createScheduleModel(
   systemInstruction: string,
 ): GenerativeModel {
   const genAI = new GoogleGenerativeAI(apiKey);
+  const thinkingConfig = modelName.startsWith('gemini-2.5-flash')
+    ? { thinkingBudget: GEMINI_25_FLASH_THINKING_BUDGET }
+    : undefined;
   return genAI.getGenerativeModel({
     model: modelName,
     systemInstruction,
@@ -152,8 +156,12 @@ function createScheduleModel(
       responseSchema: buildScheduleSchema(),
       maxOutputTokens: limits.maxOutputTokens,
       temperature: 0.25,
+      // The legacy SDK predates this field but forwards generationConfig as-is.
+      // A fixed budget prevents Gemini 2.5 Flash thinking from consuming the
+      // response budget needed for large structured plans.
+      ...(thinkingConfig && { thinkingConfig }),
     },
-  });
+  } as Parameters<typeof genAI.getGenerativeModel>[0]);
 }
 
 async function withAbortTimeout<T>(
@@ -279,7 +287,7 @@ Rules:
 - Distribute assignments evenly. assigned_to="" only when team is empty.
 - You MUST force the assignment of each task to the member whose skills best match that task's required technologies.
 - assigned_tech = task-specific tools only (derived from technology_recommendations).
-- Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
+- Use compact unique task IDs such as "t1", "t2", and "t3". Only reference IDs that exist in tasks[].
 - Create dependencies when one task clearly needs another task first, especially setup before feature work, backend/API before frontend integration, schema before services, implementation before testing, and deployment after validation.
 - dependencies[] must use only generated task IDs, avoid circular dependencies, and use dependency_type="Finish-to-Start".
 - description = one-sentence summary + "\\nSteps:\\n" + 2–4 concise numbered steps.
