@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import type { Schema } from '@google/generative-ai';
+import type { GenerativeModel, Schema } from '@google/generative-ai';
 import { formatTemplateForPrompt, type ProjectTemplate } from '../lib/projectTemplates';
 
 export interface ScheduleRequest {
@@ -15,6 +15,7 @@ export interface ScheduleRequest {
   deadlineStrictness?: 'flexible' | 'fixed';
   preferredTech?: string[];
   excludedTech?: string[];
+  signal?: AbortSignal;
 }
 
 export interface GeneratedSchedule {
@@ -43,72 +44,180 @@ export interface GeneratedSchedule {
 
 const modelName = process.env.AI_MODEL ?? 'gemini-2.5-flash';
 
-// Chat is short; schedule streams large JSON so we give it 3 minutes.
+// Chat is short; bounded schedule generation gets up to three minutes.
 const SCHEDULE_TIMEOUT_MS = 3 * 60_000;
 const CHAT_TIMEOUT_MS     = 30_000;
+const MAX_PROMPT_DESCRIPTION_CHARS = 20_000;
+const MAX_MEMBER_SKILLS = 12;
+const MAX_MEMBER_EXPERIENCE_CHARS = 600;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`AI request timed out after ${ms / 1000}s. Try a shorter description or fewer weeks.`)),
-        ms,
-      )
-    ),
-  ]);
+export interface ScheduleLimits {
+  maxTasks: number;
+  maxOutputTokens: number;
 }
 
-// Declared once; reused across all generateSchedule calls.
-const SCHEDULE_SCHEMA = {
-  type: SchemaType.OBJECT,
-  properties: {
-    tasks: {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          id:             { type: SchemaType.STRING },
-          title:          { type: SchemaType.STRING },
-          description:    { type: SchemaType.STRING },
-          priority:       { type: SchemaType.STRING },
-          estimated_days: { type: SchemaType.NUMBER },
-          assigned_tech:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-          assigned_to:    { type: SchemaType.STRING },
-          acceptance_criteria: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-          definition_of_done:  { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+export function calculateScheduleLimits(req: ScheduleRequest): ScheduleLimits {
+  const totalDays = durationToDays(req.durationValue, req.durationUnit);
+  const teamSize = Math.max(req.teamMembers.length, 1);
+  const complexity = req.complexity ?? 'standard';
+  const complexityCap = complexity === 'simple' ? 16 : complexity === 'advanced' ? 40 : 28;
+  const complexityBoost = complexity === 'advanced' ? 8 : complexity === 'simple' ? 0 : 4;
+  const suggestedTasks = Math.ceil(totalDays / 7) + teamSize * 2 + complexityBoost;
+  const maxTasks = Math.max(8, Math.min(complexityCap, suggestedTasks));
+  const maxOutputTokens = Math.max(4_096, Math.min(12_288, maxTasks * 300));
+  return { maxTasks, maxOutputTokens };
+}
+
+function calculateRevisionLimits(req: ScheduleRequest, currentTaskCount: number): ScheduleLimits {
+  const base = calculateScheduleLimits(req);
+  const maxTasks = Math.max(base.maxTasks, Math.min(60, currentTaskCount + 6));
+  const maxOutputTokens = Math.max(base.maxOutputTokens, Math.min(16_384, maxTasks * 300));
+  return { maxTasks, maxOutputTokens };
+}
+
+function clipPromptText(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const marker = '\n\n[Middle section omitted to keep generation within the request budget.]\n\n';
+  const remaining = maxChars - marker.length;
+  const startLength = Math.ceil(remaining * 0.7);
+  return `${trimmed.slice(0, startLength)}${marker}${trimmed.slice(-(remaining - startLength))}`;
+}
+
+function buildScheduleSchema(maxTasks: number): Schema {
+  return {
+    type: SchemaType.OBJECT,
+    properties: {
+      tasks: {
+        type: SchemaType.ARRAY,
+        maxItems: maxTasks,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            id:             { type: SchemaType.STRING },
+            title:          { type: SchemaType.STRING },
+            description:    { type: SchemaType.STRING },
+            priority:       { type: SchemaType.STRING },
+            estimated_days: { type: SchemaType.NUMBER },
+            assigned_tech:  { type: SchemaType.ARRAY, maxItems: 6, items: { type: SchemaType.STRING } },
+            assigned_to:    { type: SchemaType.STRING },
+            acceptance_criteria: { type: SchemaType.ARRAY, minItems: 2, maxItems: 4, items: { type: SchemaType.STRING } },
+            definition_of_done:  { type: SchemaType.ARRAY, minItems: 2, maxItems: 3, items: { type: SchemaType.STRING } },
+          },
+          required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to', 'acceptance_criteria', 'definition_of_done'],
         },
-        required: ['id', 'title', 'description', 'priority', 'estimated_days', 'assigned_tech', 'assigned_to', 'acceptance_criteria', 'definition_of_done'],
       },
-    },
-    dependencies: {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          task_id:             { type: SchemaType.STRING },
-          depends_on_task_id:  { type: SchemaType.STRING },
-          dependency_type:     { type: SchemaType.STRING },
+      dependencies: {
+        type: SchemaType.ARRAY,
+        maxItems: maxTasks * 2,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            task_id:             { type: SchemaType.STRING },
+            depends_on_task_id:  { type: SchemaType.STRING },
+            dependency_type:     { type: SchemaType.STRING },
+          },
+          required: ['task_id', 'depends_on_task_id', 'dependency_type'],
         },
-        required: ['task_id', 'depends_on_task_id', 'dependency_type'],
       },
-    },
-    technology_recommendations: {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          tech_name: { type: SchemaType.STRING },
-          category:  { type: SchemaType.STRING },
-          reasoning: { type: SchemaType.STRING },
+      technology_recommendations: {
+        type: SchemaType.ARRAY,
+        maxItems: 12,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            tech_name: { type: SchemaType.STRING },
+            category:  { type: SchemaType.STRING },
+            reasoning: { type: SchemaType.STRING },
+          },
+          required: ['tech_name', 'category', 'reasoning'],
         },
-        required: ['tech_name', 'category', 'reasoning'],
       },
+      project_summary: { type: SchemaType.STRING },
     },
-    project_summary: { type: SchemaType.STRING },
-  },
-  required: ['project_summary', 'tasks', 'dependencies', 'technology_recommendations'],
-};
+    required: ['project_summary', 'tasks', 'dependencies', 'technology_recommendations'],
+  };
+}
+
+function createScheduleModel(
+  apiKey: string,
+  limits: ScheduleLimits,
+  systemInstruction: string,
+): GenerativeModel {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: buildScheduleSchema(limits.maxTasks),
+      maxOutputTokens: limits.maxOutputTokens,
+      temperature: 0.25,
+    },
+  });
+}
+
+async function withAbortTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  externalSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort();
+  externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  if (externalSignal?.aborted) controller.abort();
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await operation(controller.signal);
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`AI generation exceeded ${Math.round(timeoutMs / 1000)} seconds. Please retry; the request was cancelled cleanly.`);
+    }
+    if (controller.signal.aborted) throw new Error('AI generation was cancelled.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', abortFromCaller);
+  }
+}
+
+async function generateStructuredSchedule(
+  model: GenerativeModel,
+  prompt: string,
+  limits: ScheduleLimits,
+  externalSignal?: AbortSignal,
+): Promise<GeneratedSchedule> {
+  const text = await withAbortTimeout(
+    async (signal) => {
+      const { stream } = await model.generateContentStream(prompt, { signal });
+      const chunks: string[] = [];
+      for await (const chunk of stream) chunks.push(chunk.text());
+      return chunks.join('');
+    },
+    SCHEDULE_TIMEOUT_MS,
+    externalSignal,
+  );
+
+  let parsed: GeneratedSchedule;
+  try {
+    parsed = JSON.parse(text) as GeneratedSchedule;
+  } catch {
+    throw new Error('AI returned an incomplete project plan. Please retry the generation.');
+  }
+  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+    throw new Error('AI returned an empty task list. Please try again with a more detailed description.');
+  }
+  if (parsed.tasks.length > limits.maxTasks) {
+    throw new Error(`AI returned ${parsed.tasks.length} tasks, exceeding the ${limits.maxTasks}-task plan limit. Please retry.`);
+  }
+  return parsed;
+}
 
 export function durationToDays(value: number, unit: 'Weeks' | 'Months' | 'Years'): number {
   if (unit === 'Months') return value * 30;
@@ -116,7 +225,7 @@ export function durationToDays(value: number, unit: 'Weeks' | 'Months' | 'Years'
   return value * 7;
 }
 
-function buildSchedulePrompt(req: ScheduleRequest): string {
+function buildSchedulePrompt(req: ScheduleRequest, limits = calculateScheduleLimits(req)): string {
   const memberList = req.teamMembers.map((m) => m.user_id).join(', ');
   const totalDays = durationToDays(req.durationValue, req.durationUnit);
 
@@ -127,7 +236,9 @@ function buildSchedulePrompt(req: ScheduleRequest): string {
       req.teamMembers
         .map((m) => {
           if (!m.skills || m.skills.length === 0) return '';
-          return `- User ID ${m.user_id}: Skills [${m.skills.join(', ')}]. Experience: ${m.experience_summary ?? ''}`;
+          const skills = m.skills.slice(0, MAX_MEMBER_SKILLS).join(', ');
+          const experience = clipPromptText(m.experience_summary ?? '', MAX_MEMBER_EXPERIENCE_CHARS);
+          return `- User ID ${m.user_id}: Skills [${skills}]. Experience: ${experience}`;
         })
         .filter(Boolean)
         .join('\\n') +
@@ -154,16 +265,17 @@ function buildSchedulePrompt(req: ScheduleRequest): string {
   const extraConstraints = [complexityLine, budgetLine, deadlineLine, preferredTechLine, excludedTechLine]
     .filter(Boolean).join('\n');
 
-  return `Project: ${req.projectName}
-Description: ${req.description}
+  return `Project: ${clipPromptText(req.projectName, 300)}
+Description: ${clipPromptText(req.description, MAX_PROMPT_DESCRIPTION_CHARS)}
 Duration: ${req.durationValue} ${req.durationUnit} (${totalDays} days)
 Team IDs: ${memberList || 'none'}
 ${memberDetails}
 ${extraConstraints ? `${extraConstraints}\n` : ''}${formatTemplateForPrompt(req.template)}
 Rules:
-- Cover 100% of the project: every feature, module, integration, test phase, deployment. No grouping of unrelated work.
+- Produce ${limits.maxTasks} or fewer execution-ready work packages. For large projects, group closely related implementation details into one task's steps instead of emitting hundreds of tiny tasks.
+- Cover the complete project scope across those work packages, including planning, implementation, integrations, testing, security, deployment, and documentation where relevant.
 - You MUST ensure the project is 100% completed within exactly ${totalDays} days.
-- DO NOT OMIT any necessary tasks due to time constraints. If the duration is extremely short, aggressively compress the schedule by reducing individual task estimated_days to fit within the timeframe or by assigning tasks to run in parallel.
+- If the duration is short, prioritize the critical path and group related work instead of inventing unrealistic one-day estimates.
 - Sum of estimated_days across the critical path MUST be ≤ ${totalDays}.
 - Distribute assignments evenly. assigned_to="" only when team is empty.
 - You MUST force the assignment of each task to the member whose skills best match that task's required technologies.
@@ -171,9 +283,9 @@ Rules:
 - Task IDs must be UUID v4. Only reference IDs that exist in tasks[].
 - Create dependencies when one task clearly needs another task first, especially setup before feature work, backend/API before frontend integration, schema before services, implementation before testing, and deployment after validation.
 - dependencies[] must use only generated task IDs, avoid circular dependencies, and use dependency_type="Finish-to-Start".
-- description = one-sentence summary + "\\nSteps:\\n" + 3–6 numbered steps.
-- acceptance_criteria = 3–5 specific, testable checkbox-style outcomes for this task. Avoid generic wording.
-- definition_of_done = 2–4 practical completion checks for quality, review, tests, integration, or documentation where relevant.
+- description = one-sentence summary + "\\nSteps:\\n" + 2–4 concise numbered steps.
+- acceptance_criteria = 2–4 specific, testable outcomes for this task. Avoid generic wording.
+- definition_of_done = 2–3 practical completion checks for quality, review, tests, integration, or documentation where relevant.
 - priority: High=critical-path, Medium=standard, Low=nice-to-have.
 - For vague descriptions, infer professional defaults.
 - project_summary: 2-3 sentence professional description of the project written in third-person present tense, suitable to display on the project page.`;
@@ -187,35 +299,16 @@ export async function generateSchedule(req: ScheduleRequest): Promise<GeneratedS
   }
 
   const t0 = Date.now();
-  console.log(`[AI] generateSchedule start — model=${modelName} project="${req.projectName}"`);
+  const limits = calculateScheduleLimits(req);
+  console.log(`[AI] generateSchedule start — model=${modelName} project="${req.projectName}" maxTasks=${limits.maxTasks}`);
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: 'You are an expert software project planner. Produce complete, realistic execution plans.',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: SCHEDULE_SCHEMA as Schema,
-    },
-  });
-
-  // Stream so bytes flow continuously — avoids infrastructure idle-timeout cuts
-  // on large projects that take 1-3 min to generate.
-  const text = await withTimeout(
-    (async () => {
-      const { stream } = await model.generateContentStream(buildSchedulePrompt(req));
-      let out = '';
-      for await (const chunk of stream) out += chunk.text();
-      return out;
-    })(),
-    SCHEDULE_TIMEOUT_MS,
+  const model = createScheduleModel(
+    apiKey,
+    limits,
+    'You are an expert software project planner. Produce complete, realistic execution plans within the requested task budget.',
   );
+  const parsed = await generateStructuredSchedule(model, buildSchedulePrompt(req, limits), limits, req.signal);
   console.log(`[AI] generateSchedule streamed in ${Date.now() - t0}ms`);
-
-  const parsed = JSON.parse(text) as GeneratedSchedule;
-  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
-    throw new Error('AI returned an empty task list. Please try again with a more detailed description.');
-  }
 
   console.log(`[AI] generateSchedule parsed ${parsed.tasks.length} tasks in ${Date.now() - t0}ms total`);
   return parsed;
@@ -233,42 +326,25 @@ export async function generateImprovedSchedule(
 
   const t0 = Date.now();
   console.log(`[AI] generateImprovedSchedule start — project="${req.projectName}"`);
+  const limits = calculateRevisionLimits(req, currentSchedule.tasks.length);
 
   const currentTaskList = currentSchedule.tasks
     .map((t) => `  - [${(t as any).priority ?? 'Medium'}] ${t.title} (${t.estimated_days}d)`)
     .join('\n');
 
   const improvementPrompt =
-    buildSchedulePrompt(req) +
+    buildSchedulePrompt(req, limits) +
     `\n\nCURRENT PLAN (improve this — do not just copy it):\n${currentTaskList}\n` +
     `\nDETECTED QUALITY ISSUES — you MUST fix every one of these:\n${issueSummary}\n` +
     `\nGenerate a new, improved plan that addresses all issues above while keeping the same project scope.`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: 'You are an expert software project planner. Produce complete, realistic execution plans.',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: SCHEDULE_SCHEMA as Schema,
-    },
-  });
-
-  const text = await withTimeout(
-    (async () => {
-      const { stream } = await model.generateContentStream(improvementPrompt);
-      let out = '';
-      for await (const chunk of stream) out += chunk.text();
-      return out;
-    })(),
-    SCHEDULE_TIMEOUT_MS,
+  const model = createScheduleModel(
+    apiKey,
+    limits,
+    'You are an expert software project planner. Improve execution plans while staying within the requested task budget.',
   );
+  const parsed = await generateStructuredSchedule(model, improvementPrompt, limits, req.signal);
   console.log(`[AI] generateImprovedSchedule streamed in ${Date.now() - t0}ms`);
-
-  const parsed = JSON.parse(text) as GeneratedSchedule;
-  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
-    throw new Error('AI returned an empty task list. Please try again.');
-  }
 
   console.log(`[AI] generateImprovedSchedule parsed ${parsed.tasks.length} tasks in ${Date.now() - t0}ms total`);
   return parsed;
@@ -323,6 +399,7 @@ export async function generateRefinedSchedule(
 
   const t0 = Date.now();
   console.log(`[AI] generateRefinedSchedule start — "${userMessage.slice(0, 60)}"`);
+  const limits = calculateRevisionLimits(req, currentSchedule.tasks.length);
 
   // Compact plan JSON keeps IDs visible for precise diffing
   const currentPlanJson = JSON.stringify(
@@ -361,7 +438,7 @@ export async function generateRefinedSchedule(
       : '';
 
   const refinementPrompt =
-    buildSchedulePrompt(req) +
+    buildSchedulePrompt(req, limits) +
     `\n\n${memberNameBlock}` +
     `\nCURRENT PLAN (JSON — modify based on the user request, preserve IDs for unchanged tasks):\n\`\`\`json\n${currentPlanJson}\n\`\`\`` +
     historyBlock +
@@ -376,33 +453,14 @@ export async function generateRefinedSchedule(
     `\n- Return the COMPLETE plan (all tasks, including unchanged ones) — not just the diff.` +
     `\n- If the user mentions a person by name, look up their user_id in the team member list above.`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction:
-      'You are an expert software project planner. Modify project plans precisely based on user requests, preserving task IDs for unchanged tasks.',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: SCHEDULE_SCHEMA as Schema,
-    },
-  });
-
-  const text = await withTimeout(
-    (async () => {
-      const { stream } = await model.generateContentStream(refinementPrompt);
-      let out = '';
-      for await (const chunk of stream) out += chunk.text();
-      return out;
-    })(),
-    SCHEDULE_TIMEOUT_MS,
+  const model = createScheduleModel(
+    apiKey,
+    limits,
+    'You are an expert software project planner. Modify plans precisely, preserve unchanged task IDs, and stay within the requested task budget.',
   );
+  const parsed = await generateStructuredSchedule(model, refinementPrompt, limits, req.signal);
 
   console.log(`[AI] generateRefinedSchedule streamed in ${Date.now() - t0}ms`);
-
-  const parsed = JSON.parse(text) as GeneratedSchedule;
-  if (!Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
-    throw new Error('AI returned an empty task list. Please try again.');
-  }
 
   const refinementSummary = summariseRefinement(currentSchedule, parsed, userMessage);
   console.log(`[AI] generateRefinedSchedule done ${parsed.tasks.length} tasks in ${Date.now() - t0}ms — ${refinementSummary}`);
@@ -435,7 +493,10 @@ export async function generateChatResponse(message: string, projectContext?: str
         'Avoid generic advice. Keep answers concise, practical, and specific. Plain text only, no markdown.',
       ].join(' '),
     });
-    const result = await withTimeout(model.generateContent(`${ctx}${message}`), CHAT_TIMEOUT_MS);
+    const result = await withAbortTimeout(
+      (signal) => model.generateContent(`${ctx}${message}`, { signal }),
+      CHAT_TIMEOUT_MS,
+    );
     console.log(`[AI] generateChatResponse done in ${Date.now() - t0}ms`);
     return result.response.text().trim();
   } catch (err) {
@@ -474,7 +535,10 @@ export async function extractCVData(text: string): Promise<{ skills: string[]; e
   });
 
   const prompt = `Extract skills and experience summary from the following CV text:\n\n${text}`;
-  const response = await withTimeout(model.generateContent(prompt), CHAT_TIMEOUT_MS);
+  const response = await withAbortTimeout(
+    (signal) => model.generateContent(prompt, { signal }),
+    CHAT_TIMEOUT_MS,
+  );
   
   const responseText = response.response.text();
   const parsed = JSON.parse(responseText);

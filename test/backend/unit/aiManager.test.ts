@@ -1,4 +1,4 @@
-import { generateSchedule } from '../../../backend/src/services/aiManager';
+import { calculateScheduleLimits, generateSchedule } from '../../../backend/src/services/aiManager';
 
 jest.mock('../../../backend/src/lib/supabase', () => ({
   supabase: { from: jest.fn() },
@@ -21,15 +21,18 @@ const mockSchedule = {
   ],
 };
 
+const mockGenerateContentStream = jest.fn().mockImplementation(async () => ({
+  stream: (async function* () {
+    yield { text: () => JSON.stringify(mockSchedule) };
+  })(),
+}));
+const mockGetGenerativeModel = jest.fn().mockReturnValue({
+  generateContentStream: mockGenerateContentStream,
+});
+
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      generateContentStream: jest.fn().mockResolvedValue({
-        stream: (async function* () {
-          yield { text: () => JSON.stringify(mockSchedule) };
-        })(),
-      }),
-    }),
+    getGenerativeModel: mockGetGenerativeModel,
   })),
   SchemaType: {
     OBJECT: 'OBJECT',
@@ -43,6 +46,11 @@ jest.mock('@google/generative-ai', () => ({
 
 beforeAll(() => {
   process.env.GEMINI_API_KEY = 'test-key';
+});
+
+beforeEach(() => {
+  mockGenerateContentStream.mockClear();
+  mockGetGenerativeModel.mockClear();
 });
 
 afterAll(() => {
@@ -101,6 +109,73 @@ describe('generateSchedule', () => {
   it('works with Years duration unit', async () => {
     const result = await generateSchedule({ ...baseRequest, durationValue: 1, durationUnit: 'Years' });
     expect(result.tasks).toHaveLength(4);
+  });
+
+  it('caps large advanced projects at a bounded task and token budget', async () => {
+    const largeRequest = {
+      ...baseRequest,
+      description: 'Detailed requirement. '.repeat(8_000),
+      durationValue: 3,
+      durationUnit: 'Years' as const,
+      complexity: 'advanced' as const,
+    };
+
+    expect(calculateScheduleLimits(largeRequest)).toEqual({ maxTasks: 40, maxOutputTokens: 12_000 });
+    await generateSchedule(largeRequest);
+
+    const modelConfig = mockGetGenerativeModel.mock.calls.at(-1)?.[0];
+    expect(modelConfig.generationConfig.maxOutputTokens).toBe(12_000);
+    expect(modelConfig.generationConfig.responseSchema.properties.tasks.maxItems).toBe(40);
+
+    const [prompt, requestOptions] = mockGenerateContentStream.mock.calls.at(-1) ?? [];
+    expect(prompt.length).toBeLessThan(25_000);
+    expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('rejects a provider response that exceeds the enforced task budget', async () => {
+    const oversizedSchedule = {
+      ...mockSchedule,
+      tasks: Array.from({ length: 41 }, (_, index) => ({
+        ...mockSchedule.tasks[0]!,
+        id: `task-${index}`,
+      })),
+    };
+    mockGenerateContentStream.mockImplementationOnce(async () => ({
+      stream: (async function* () {
+        yield { text: () => JSON.stringify(oversizedSchedule) };
+      })(),
+    }));
+
+    await expect(generateSchedule({
+      ...baseRequest,
+      durationValue: 3,
+      durationUnit: 'Years',
+      complexity: 'advanced',
+    })).rejects.toThrow('exceeding the 40-task plan limit');
+  });
+
+  it('clears its timeout after successful generation', async () => {
+    jest.useFakeTimers();
+    try {
+      await generateSchedule(baseRequest);
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('cancels Gemini generation when the caller disconnects', async () => {
+    const controller = new AbortController();
+    mockGenerateContentStream.mockImplementationOnce(async (_prompt, options) =>
+      new Promise((_, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      }),
+    );
+
+    const generation = generateSchedule({ ...baseRequest, signal: controller.signal });
+    controller.abort();
+
+    await expect(generation).rejects.toThrow('AI generation was cancelled');
   });
 
   it('throws when GEMINI_API_KEY is not set', async () => {

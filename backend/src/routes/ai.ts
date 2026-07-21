@@ -53,15 +53,21 @@ async function fetchMemberData(databaseMembers: string[]): Promise<Record<string
   if (databaseMembers.length === 0) return memberDataMap;
   try {
     const [{ data }, { data: activeTasks }] = await Promise.all([
-      supabase
-        .from('users')
-        .select('id, skills, experience_summary, full_name')
-        .in('id', databaseMembers),
-      supabase
-        .from('tasks')
-        .select('assigned_to, estimated_days, status')
-        .in('assigned_to', databaseMembers)
-        .neq('status', 'Done'),
+      withTimeout(
+        supabase
+          .from('users')
+          .select('id, skills, experience_summary, full_name')
+          .in('id', databaseMembers),
+        4_000,
+      ),
+      withTimeout(
+        supabase
+          .from('tasks')
+          .select('assigned_to, estimated_days')
+          .in('assigned_to', databaseMembers)
+          .neq('status', 'Done'),
+        4_000,
+      ),
     ]);
     const activeDaysByUser = new Map<string, number>();
     for (const task of activeTasks ?? []) {
@@ -92,7 +98,7 @@ async function estimateHistoryHint(): Promise<string> {
     const { data } = await withTimeout(
       supabase
         .from('tasks')
-        .select('estimated_days, title, assigned_tech, time_entries(minutes)')
+        .select('estimated_days, time_entries(minutes)')
         .eq('status', 'Done')
         .limit(80),
       4_000,
@@ -225,6 +231,11 @@ async function persistPlan(
 
 router.post('/generate', async (req, res) => {
   const t0 = Date.now();
+  const generationController = new AbortController();
+  const abortGeneration = () => {
+    if (!res.writableEnded) generationController.abort();
+  };
+  res.once('close', abortGeneration);
   let streamingResponse = false;
   const heartbeat = setInterval(() => {
     if (res.writableEnded || res.destroyed) return;
@@ -261,7 +272,11 @@ router.post('/generate', async (req, res) => {
       : [];
     const databaseMembers = selectedMembers.filter((u) => UUID_PATTERN.test(u));
 
-    const memberDataMap = await fetchMemberData(databaseMembers);
+    const [memberDataMap, historyHint, template] = await Promise.all([
+      fetchMemberData(databaseMembers),
+      estimateHistoryHint(),
+      resolveTemplate(template_id),
+    ]);
 
     const scheduleMembers =
       selectedMembers.length > 0
@@ -276,7 +291,6 @@ router.post('/generate', async (req, res) => {
 
     const { durationValue, durationUnit, totalDays, durationWeeks } = parseDuration(duration, duration_unit);
 
-    const historyHint = await estimateHistoryHint();
     const scheduleReq = {
       projectId,
       projectName: name,
@@ -284,7 +298,8 @@ router.post('/generate', async (req, res) => {
       durationValue,
       durationUnit,
       teamMembers: scheduleMembers,
-      template: await resolveTemplate(template_id),
+      template,
+      signal: generationController.signal,
       ...(complexity && { complexity: complexity as 'simple' | 'standard' | 'advanced' }),
       ...(budget !== undefined && !isNaN(Number(budget)) && { budget: Number(budget) }),
       ...(deadline_strictness && { deadlineStrictness: deadline_strictness as 'flexible' | 'fixed' }),
@@ -317,6 +332,7 @@ router.post('/generate', async (req, res) => {
     else res.json(responseBody);
   } catch (error: any) {
     console.error(`[AI] /generate error after ${Date.now() - t0}ms:`, error.message);
+    if (res.destroyed) return;
     if (isConnectivityError(error)) {
       const responseBody = {
         success: true,
@@ -332,6 +348,7 @@ router.post('/generate', async (req, res) => {
     res.status(500).json(responseBody);
   } finally {
     clearInterval(heartbeat);
+    res.off('close', abortGeneration);
   }
 });
 

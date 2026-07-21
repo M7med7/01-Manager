@@ -1,51 +1,31 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { Layout } from "./components/Layout";
-import { ProtectedRoute } from "./components/ProtectedRoute";
-import { ProjectsDashboard } from "./pages/ProjectsDashboard";
-import { BoardCalendar } from "./pages/BoardCalendar";
-import { TaskDetails } from "./pages/TaskDetails";
-import { TeamCapacity } from "./pages/TeamCapacity";
-import { CreateProject } from "./pages/CreateProject";
-import { LoginPage } from "./pages/LoginPage";
-import { SignupPage } from "./pages/SignupPage";
-import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
-import { ResetPasswordPage } from "./pages/ResetPasswordPage";
-import { SetPasswordPage } from "./pages/SetPasswordPage";
-import { Profile } from "./pages/Profile";
-import { CalendarCallback } from "./pages/CalendarCallback";
-import { MigrationPage } from "./pages/MigrationPage";
-import { ProjectHealthDashboard } from "./pages/ProjectHealthDashboard";
-import { WeeklyReportPage } from "./pages/WeeklyReportPage";
-import { PortfolioRoadmap } from "./pages/PortfolioRoadmap";
-import { ClientProjectView } from "./pages/ClientProjectView";
-import { AdvancedSearch } from "./pages/AdvancedSearch";
 
 export const router = createBrowserRouter([
-  { path: "/login", Component: LoginPage },
-  { path: "/signup", Component: SignupPage },
-  { path: "/forgot-password", Component: ForgotPasswordPage },
-  { path: "/reset-password", Component: ResetPasswordPage },
-  { path: "/set-password", Component: SetPasswordPage },
-  { path: "/calendar/callback", Component: CalendarCallback },
-  { path: "/client/:token", Component: ClientProjectView },
+  { path: "/login", lazy: async () => ({ Component: (await import("./pages/LoginPage")).LoginPage }) },
+  { path: "/signup", lazy: async () => ({ Component: (await import("./pages/SignupPage")).SignupPage }) },
+  { path: "/forgot-password", lazy: async () => ({ Component: (await import("./pages/ForgotPasswordPage")).ForgotPasswordPage }) },
+  { path: "/reset-password", lazy: async () => ({ Component: (await import("./pages/ResetPasswordPage")).ResetPasswordPage }) },
+  { path: "/set-password", lazy: async () => ({ Component: (await import("./pages/SetPasswordPage")).SetPasswordPage }) },
+  { path: "/calendar/callback", lazy: async () => ({ Component: (await import("./pages/CalendarCallback")).CalendarCallback }) },
+  { path: "/client/:token", lazy: async () => ({ Component: (await import("./pages/ClientProjectView")).ClientProjectView }) },
   {
     path: "/",
-    Component: ProtectedRoute,
+    lazy: async () => ({ Component: (await import("./components/ProtectedRoute")).ProtectedRoute }),
     children: [
       {
-        Component: Layout,
+        lazy: async () => ({ Component: (await import("./components/Layout")).Layout }),
         children: [
-          { index: true, Component: ProjectsDashboard },
-          { path: "search", Component: AdvancedSearch },
-          { path: "roadmap", Component: PortfolioRoadmap },
-          { path: "board", Component: BoardCalendar },
-          { path: "task/:taskId", Component: TaskDetails },
-          { path: "team", Component: TeamCapacity },
-          { path: "create", Component: CreateProject },
-          { path: "profile", Component: Profile },
-          { path: "migrate", Component: MigrationPage },
-          { path: "project/:projectId/health", Component: ProjectHealthDashboard },
-          { path: "project/:projectId/report", Component: WeeklyReportPage },
+          { index: true, lazy: async () => ({ Component: (await import("./pages/ProjectsDashboard")).ProjectsDashboard }) },
+          { path: "search", lazy: async () => ({ Component: (await import("./pages/AdvancedSearch")).AdvancedSearch }) },
+          { path: "roadmap", lazy: async () => ({ Component: (await import("./pages/PortfolioRoadmap")).PortfolioRoadmap }) },
+          { path: "board", lazy: async () => ({ Component: (await import("./pages/BoardCalendar")).BoardCalendar }) },
+          { path: "task/:taskId", lazy: async () => ({ Component: (await import("./pages/TaskDetails")).TaskDetails }) },
+          { path: "team", lazy: async () => ({ Component: (await import("./pages/TeamCapacity")).TeamCapacity }) },
+          { path: "create", lazy: async () => ({ Component: (await import("./pages/CreateProject")).CreateProject }) },
+          { path: "profile", lazy: async () => ({ Component: (await import("./pages/Profile")).Profile }) },
+          { path: "migrate", lazy: async () => ({ Component: (await import("./pages/MigrationPage")).MigrationPage }) },
+          { path: "project/:projectId/health", lazy: async () => ({ Component: (await import("./pages/ProjectHealthDashboard")).ProjectHealthDashboard }) },
+          { path: "project/:projectId/report", lazy: async () => ({ Component: (await import("./pages/WeeklyReportPage")).WeeklyReportPage }) },
         ],
       },
     ],
