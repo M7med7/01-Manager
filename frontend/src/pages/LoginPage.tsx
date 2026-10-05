@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Logo } from '../components/Logo';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { AuthControls } from '../components/AuthControls';
 
 export function LoginPage() {
   const { t } = useTranslation('auth');
@@ -32,7 +32,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center app-bg px-6">
-      <LanguageSwitcher className="absolute top-6 end-6" />
+      <AuthControls />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

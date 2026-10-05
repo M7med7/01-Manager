@@ -517,12 +517,7 @@ export function Layout() {
                 }`
               }
             >
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-purple-600"
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <FolderOpen className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:projects")}</span>
           </NavLink>
@@ -535,12 +530,7 @@ export function Layout() {
               }`
             }
           >
-            <motion.div
-              className="absolute inset-0 rounded-lg bg-purple-600"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
+            <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
             <Search className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
             <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:search")}</span>
           </NavLink>
@@ -553,12 +543,7 @@ export function Layout() {
               }`
             }
           >
-            <motion.div
-              className="absolute inset-0 rounded-lg bg-purple-600"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
+            <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
             <Map className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
             <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:roadmap")}</span>
           </NavLink>
@@ -570,12 +555,7 @@ export function Layout() {
                 }`
               }
             >
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-purple-600"
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <Calendar className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:board")}</span>
             </NavLink>
@@ -587,12 +567,7 @@ export function Layout() {
                 }`
               }
             >
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-purple-600"
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <Users className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:team")}</span>
             </NavLink>
@@ -604,12 +579,7 @@ export function Layout() {
                 }`
               }
             >
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-purple-600"
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <Plus className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:createProject")}</span>
             </NavLink>
@@ -621,19 +591,14 @@ export function Layout() {
                 }`
               }
             >
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-purple-600"
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <ArrowLeftRight className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:migration")}</span>
             </NavLink>
           </nav>
         </aside>
 
-        <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "app-panel backdrop-blur-sm" : "app-surface-soft"}`}>
+        <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "app-main-ai backdrop-blur-sm" : "app-main"}`}>
           <main className="flex-1 min-h-0 overflow-y-auto pb-16 md:pb-0">
             <Outlet />
           </main>

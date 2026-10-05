@@ -49,6 +49,8 @@
     --app-surface-soft: rgba(255, 255, 255, 0.05);
     --app-surface-elevated: rgba(10, 10, 14, 0.96);
     --app-panel: rgba(0, 0, 0, 0.55);
+    --app-main: rgba(255, 255, 255, 0.05);
+    --app-main-ai: rgba(0, 0, 0, 0.55);
     --app-border: rgba(255, 255, 255, 0.1);
     --app-muted: #9ca3af;
     --app-input: rgba(255, 255, 255, 0.06);
@@ -88,6 +90,9 @@
     --app-surface-soft: rgba(248, 250, 252, 0.96);
     --app-surface-elevated: rgba(255, 255, 255, 0.98);
     --app-panel: rgba(255, 255, 255, 0.96);
+    /* Main content backdrop stays translucent so the animated grid shows, as in dark. */
+    --app-main: rgba(248, 250, 252, 0.55);
+    --app-main-ai: rgba(255, 255, 255, 0.7);
     --app-border: rgba(15, 23, 42, 0.16);
     --app-muted: #64748b;
     --app-input: rgba(255, 255, 255, 0.96);
@@ -142,6 +147,14 @@
     border-color: var(--app-border);
     color: var(--app-text);
     box-shadow: 0 18px 45px var(--app-shadow);
+  }
+
+  .app-main {
+    background: var(--app-main);
+  }
+
+  .app-main-ai {
+    background: var(--app-main-ai);
   }
 
   .app-panel {
@@ -352,8 +365,9 @@
     color: #c2410c !important;
   }
 
+  /* Translucent like the dark sidebar so the animated grid shows through. */
   .theme-light .app-sidebar {
-    background: rgba(255, 255, 255, 0.98);
+    background: rgba(255, 255, 255, 0.72);
     border-inline-end-color: rgba(15, 23, 42, 0.14) !important;
     box-shadow: 14px 0 45px rgba(15, 23, 42, 0.05), inset -1px 0 0 rgba(15, 23, 42, 0.08);
   }
@@ -362,20 +376,12 @@
     box-shadow: -14px 0 45px rgba(15, 23, 42, 0.05), inset 1px 0 0 rgba(15, 23, 42, 0.08);
   }
 
-  .theme-light .app-sidebar nav a:not(.sidebar-active) {
-    background: rgba(248, 250, 252, 0.72);
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    color: var(--app-sidebar-foreground) !important;
-  }
-
-  .theme-light .app-sidebar nav a:not(.sidebar-active):hover {
-    background: rgba(237, 233, 254, 0.72);
-    border-color: rgba(124, 58, 237, 0.2);
-    color: #111827 !important;
-  }
-
+  /* Nav items match dark mode: no resting box, and on hover the purple overlay
+     fades in with white label + icon. */
   .theme-light .app-sidebar nav a.sidebar-active,
-  .theme-light .app-sidebar nav a.sidebar-active * {
+  .theme-light .app-sidebar nav a.sidebar-active *,
+  .theme-light .app-sidebar nav a:hover,
+  .theme-light .app-sidebar nav a:hover * {
     color: #fff !important;
   }
 
@@ -433,6 +439,9 @@
   .theme-light .bg-emerald-600.text-white,
   .theme-light .bg-blue-600.text-white,
   .theme-light .bg-orange-600.text-white,
+  .theme-light .from-red-600.text-white,
+  .theme-light .from-green-600.text-white,
+  .theme-light .from-gray-600.text-white,
   .theme-light nav a.text-white,
   .theme-light nav a.text-white * {
     color: #fff !important;

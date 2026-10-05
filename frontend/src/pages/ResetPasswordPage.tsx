@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import type { Session } from '@supabase/supabase-js';
 import { useTranslation } from 'react-i18next';
 import { Logo } from '../components/Logo';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { AuthControls } from '../components/AuthControls';
 import { supabase } from '../lib/supabase';
 
 export function ResetPasswordPage() {
@@ -76,7 +76,7 @@ export function ResetPasswordPage() {
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center app-bg px-6">
-        <LanguageSwitcher className="absolute top-6 end-6" />
+        <AuthControls />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -106,7 +106,7 @@ export function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center app-bg px-6">
-      <LanguageSwitcher className="absolute top-6 end-6" />
+      <AuthControls />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
