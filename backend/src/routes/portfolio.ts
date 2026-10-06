@@ -17,13 +17,20 @@ function relatedUser(value: any) {
 
 router.get('/roadmap', async (_req, res) => {
   try {
-    const [{ data: projects, error: projectError }, { data: tasks }, { data: assignments }, { data: dependencies }] = await Promise.all([
-      withTimeout(supabase.from('projects').select('*').order('created_at', { ascending: false })),
-      withTimeout(supabase.from('tasks').select('id, project_id, title, status, priority, estimated_days, assigned_to, start_date, end_date, created_at')),
-      withTimeout(supabase.from('team_assignments').select('project_id, user_id, role, users(id, full_name, email, avatar_url)')),
-      withTimeout(supabase.from('task_dependencies').select('task_id, depends_on_task_id')),
-    ]);
+    const { data: projects, error: projectError } = await withTimeout(
+      supabase.from('projects').select('*').eq('space_id', res.locals.spaceId).order('created_at', { ascending: false }),
+    );
     if (projectError) throw projectError;
+    const projectIds = (projects ?? []).map((project: any) => project.id);
+    const [{ data: tasks }, { data: assignments }, { data: allDependencies }] = projectIds.length
+      ? await Promise.all([
+          withTimeout(supabase.from('tasks').select('id, project_id, title, status, priority, estimated_days, assigned_to, start_date, end_date, created_at').in('project_id', projectIds)),
+          withTimeout(supabase.from('team_assignments').select('project_id, user_id, role, users(id, full_name, email, avatar_url)').in('project_id', projectIds)),
+          withTimeout(supabase.from('task_dependencies').select('task_id, depends_on_task_id')),
+        ])
+      : [{ data: [] }, { data: [] }, { data: [] }];
+    const spaceTaskIds = new Set((tasks ?? []).map((task: any) => task.id));
+    const dependencies = (allDependencies ?? []).filter((dep: any) => spaceTaskIds.has(dep.task_id));
 
     const statusByTask = new Map((tasks ?? []).map((task: any) => [task.id, task.status]));
     const blockedByTask = new Map<string, number>();

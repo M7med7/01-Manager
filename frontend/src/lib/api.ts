@@ -415,6 +415,7 @@ export interface User {
   avatar_url: string | null;
   phone?: string | null;
   created_at: string;
+  space_role?: SpaceRole;
   task_count: number;
   project_count: number;
   completed_count: number;
@@ -762,11 +763,21 @@ export interface ImportAnalysis {
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
+// Every request runs inside the active space; SpaceGate sets this before any page loads.
+let activeSpaceId: string | null = null;
+
+export function setActiveSpaceId(spaceId: string | null): void {
+  activeSpaceId = spaceId;
+}
+
 // The backend rejects requests without a valid Supabase session token.
 export async function authHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(activeSpaceId ? { 'X-Space-Id': activeSpaceId } : {}),
+  };
 }
 
 async function attempt<T>(path: string, options: RequestInit | undefined, timeoutMs: number): Promise<T> {
@@ -787,7 +798,7 @@ async function attempt<T>(path: string, options: RequestInit | undefined, timeou
       } catch {
         if (body) message = body;
       }
-      throw new Error(message);
+      throw Object.assign(new Error(message), { status: res.status });
     }
     const data = await res.json();
     if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') {
@@ -828,7 +839,71 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = 20_00
   throw new Error('Request timed out. Please try again.');
 }
 
+export type SpaceRole = 'Admin' | 'Developer' | 'Member' | 'Guest';
+export const SPACE_ROLES: SpaceRole[] = ['Admin', 'Developer', 'Member', 'Guest'];
+
+// Mirrors the spaces.key CHECK constraint: permanent code used by API and MCP clients.
+export const SPACE_KEY_PATTERN = /^[A-Z][A-Z0-9]{1,9}$/;
+export const SPACE_KEY_MAX_LENGTH = 10;
+export const SPACE_DESCRIPTION_MAX_LENGTH = 500;
+
+export interface Space {
+  id: string;
+  name: string;
+  key: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  role: SpaceRole;
+}
+
+export interface SpaceMember {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  job_title?: string | null;
+  role: SpaceRole;
+  joined_at: string;
+}
+
+export interface SpaceInvitation {
+  id: string;
+  email: string;
+  role: SpaceRole;
+  created_at: string;
+}
+
+export interface NewSpace {
+  name: string;
+  key: string;
+  description: string;
+}
+
+export type SpaceInviteResult =
+  | { added: true; member: SpaceMember }
+  | { added: false; invitation: SpaceInvitation; email_sent: boolean; email_error: string | null };
+
 export const api = {
+  spaces: {
+    list: () => request<{ spaces: Space[] }>('/spaces'),
+    create: (input: NewSpace) =>
+      request<{ space: Space }>('/spaces', { method: 'POST', body: JSON.stringify(input) }),
+    checkKey: (key: string) =>
+      request<{ key: string; available: boolean }>(`/spaces/keys/${encodeURIComponent(key)}`),
+    update: (spaceId: string, changes: { name?: string; description?: string }) =>
+      request<{ space: Space }>(`/spaces/${spaceId}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+    members: (spaceId: string) =>
+      request<{ members: SpaceMember[]; invitations: SpaceInvitation[]; my_role: SpaceRole }>(`/spaces/${spaceId}/members`),
+    invite: (spaceId: string, email: string, role: SpaceRole) =>
+      request<SpaceInviteResult>(`/spaces/${spaceId}/invitations`, { method: 'POST', body: JSON.stringify({ email, role }) }),
+    revokeInvitation: (spaceId: string, invitationId: string) =>
+      request<{ success: boolean }>(`/spaces/${spaceId}/invitations/${invitationId}`, { method: 'DELETE' }),
+    updateMemberRole: (spaceId: string, userId: string, role: SpaceRole) =>
+      request<{ success: boolean }>(`/spaces/${spaceId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+    removeMember: (spaceId: string, userId: string) =>
+      request<{ success: boolean }>(`/spaces/${spaceId}/members/${userId}`, { method: 'DELETE' }),
+  },
   projects: {
     list: () => request<{ projects: Project[] }>('/projects'),
     get: (id: string, userId?: string | null) =>
@@ -1015,8 +1090,6 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
-    delete: (id: string) =>
-      request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' }),
     uploadCV: async (id: string, file: File) => {
       const formData = new FormData();
       formData.append('cv', file);

@@ -81,9 +81,11 @@ Express 5 API
 
 ### 1. Create the database
 
-Create a Supabase project, open its SQL editor, and run [`schema.sql`](./schema.sql). The script creates the application tables, relationships, update triggers, row-level security policies, and the trigger that copies new Supabase Auth users into `public.users`.
+Create a Supabase project, open its SQL editor, and run [`schema.sql`](./schema.sql), then [`migrations/add_spaces.sql`](./migrations/add_spaces.sql). Together they create the application tables, relationships, update triggers, and the trigger that copies new Supabase Auth users into `public.users`.
 
-The checked-in policies grant broad access to any authenticated user and are explicitly development-oriented. Tighten them to project membership and role-based rules before using real or sensitive data in production.
+`add_spaces.sql` adds spaces (each organization's isolated workspace, with Admin, Developer, Member and Guest roles) and locks down row-level security. Each space has a name, an optional description and a **space key**: a unique, permanent code such as `ZEROONE` (2–10 capital letters or digits, starting with a letter) reserved for API and MCP integrations. Existing data moves into a `ZeroOne` space with the key `ZEROONE`. With row-level security on, browsers can only manage their own `public.users` row, and all other data goes through the backend, which checks the signed-in user and their space on every request.
+
+In Supabase **Authentication → URL Configuration**, add `<frontend URL>/set-password` to the redirect URLs so space invitation emails open the app.
 
 ### 2. Configure the backend
 
@@ -94,6 +96,8 @@ PORT=5001
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ALLOWED_ORIGIN=http://localhost:5173
+# Frontend URL used in space invitation emails (defaults to the first ALLOWED_ORIGIN)
+APP_URL=http://localhost:5173
 
 # Required for AI planning, refinement, import analysis, and AI summaries
 GEMINI_API_KEY=your-gemini-api-key
@@ -181,7 +185,7 @@ npm test          # run backend unit and integration tests
 
 ### Backend on Render
 
-[`render.yaml`](./render.yaml) defines the backend web service. Configure its secret environment variables in Render. For production, set `ALLOWED_ORIGIN` to the deployed frontend URL; multiple origins can be supplied as a comma-separated list.
+[`render.yaml`](./render.yaml) defines the backend web service. Configure its secret environment variables in Render. For production, set `ALLOWED_ORIGIN` to the deployed frontend URL (multiple origins can be supplied as a comma-separated list) and `APP_URL` to the frontend URL used in invitation emails.
 
 Optional production variables include `GITHUB_TOKEN`, the Google Calendar credentials, and `APP_URL`. Render supplies `RENDER_EXTERNAL_URL`, which the server currently uses for a periodic health ping.
 

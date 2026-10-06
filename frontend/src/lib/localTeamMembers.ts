@@ -21,10 +21,6 @@ export function readLocalTeamMembers(): StoredTeamMember[] {
   }
 }
 
-export function saveLocalTeamMember(member: StoredTeamMember) {
-  window.localStorage.setItem(LOCAL_TEAM_MEMBERS_KEY, JSON.stringify([...readLocalTeamMembers(), member]));
-}
-
 export function removeLocalTeamMember(id: string) {
   window.localStorage.setItem(
     LOCAL_TEAM_MEMBERS_KEY,

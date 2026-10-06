@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Calendar, Users, FolderOpen, Plus, LogOut, Pencil, X, Check, Bell, Settings, ArrowLeftRight, Map, Search, Menu, Moon, Sun, Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "./Logo";
+import { SpaceSwitcher } from "./SpaceSwitcher";
 import { GridBackground } from "./GridBackground";
 import { motion, AnimatePresence } from "motion/react";
 import logoDarkUrl from "../assets/brand/01-logo-dark-removebg-preview.png";
@@ -508,6 +509,8 @@ export function Layout() {
             </button>
           </div>
 
+          <SpaceSwitcher />
+
           <nav className="flex-1 p-4 space-y-1">
             <NavLink
               to="/"
@@ -594,6 +597,18 @@ export function Layout() {
               <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
               <ArrowLeftRight className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
               <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:migration")}</span>
+            </NavLink>
+
+            <NavLink
+              to="/space"
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 px-4 py-2.5 rounded-lg overflow-hidden group transition-colors ${isActive ? "sidebar-active" : "sidebar-item"
+                }`
+              }
+            >
+              <div className="absolute inset-0 rounded-lg bg-(--app-sidebar-active) opacity-0 scale-95 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-100" />
+              <Settings className="w-4 h-4 relative z-10 group-hover:text-white transition-colors duration-200" />
+              <span className="text-sm relative z-10 group-hover:text-white transition-colors duration-200">{t("navigation:space")}</span>
             </NavLink>
           </nav>
         </aside>

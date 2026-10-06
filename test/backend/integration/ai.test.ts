@@ -27,9 +27,18 @@ jest.mock('../../../backend/src/services/aiManager', () => ({
   }),
 }));
 
+// Space membership is covered in spaces.test.ts; here the caller is an admin of the space.
+jest.mock('../../../backend/src/lib/spaces', () => ({
+  ...jest.requireActual('../../../backend/src/lib/spaces'),
+  getSpaceRole: jest.fn().mockResolvedValue('Admin'),
+  assertInSpace: jest.fn().mockResolvedValue(undefined),
+  assertUsersInSpace: jest.fn().mockResolvedValue(undefined),
+}));
+
 import app from '../../../backend/src/app';
 
-const authed = () => request.agent(app).set('Authorization', 'Bearer test-token');
+const authed = () =>
+  request.agent(app).set('Authorization', 'Bearer test-token').set('X-Space-Id', '11111111-1111-4111-8111-111111111111');
 
 describe('POST /api/ai/generate', () => {
   it('returns 200 with success flag', async () => {

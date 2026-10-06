@@ -18,6 +18,8 @@ import portfolioRoutes from './routes/portfolio';
 import clientRoutes from './routes/client';
 import searchRoutes from './routes/search';
 import { requireAuth } from './lib/auth';
+import { requireSpace } from './lib/spaceAccess';
+import spaceRoutes from './routes/spaces';
 
 dotenv.config();
 
@@ -43,6 +45,10 @@ app.use(express.json());
 
 // Every /api route requires a verified Supabase session unless listed as public in lib/auth.
 app.use('/api', requireAuth);
+// Scopes every request to the caller's active space (X-Space-Id header).
+app.use('/api', requireSpace);
+
+app.use('/api/spaces', spaceRoutes);
 
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);

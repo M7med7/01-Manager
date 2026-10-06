@@ -4,6 +4,7 @@ import { demoProjects, demoTasks } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { enrichTasksWithDependencies, fetchProjectDependencies } from '../lib/taskDependencies';
 import { getProjectPermissions, normalizeRole, requireProjectPermission } from '../lib/permissions';
+import { getSpaceRole } from '../lib/spaces';
 
 const router = Router();
 
@@ -65,17 +66,21 @@ async function resolveOrderedQuery(query: any, orderColumn: string, options?: Re
 
 router.get('/', async (_req, res) => {
   try {
-    const [
-      { data: projects, error: projectsError },
-      { data: assignments },
-      { data: tasks },
-    ] = await Promise.all([
-      withTimeout(resolveOrderedQuery(supabase.from('projects').select('*'), 'created_at', { ascending: false })),
-      withTimeout(supabase.from('team_assignments').select('project_id')),
-      withTimeout(supabase.from('tasks').select('id, project_id, status, priority, estimated_days, assigned_to, end_date')),
-    ]);
-
+    const spaceId = res.locals.spaceId as string;
+    const { data: projects, error: projectsError } = await withTimeout(
+      resolveOrderedQuery(supabase.from('projects').select('*').eq('space_id', spaceId), 'created_at', { ascending: false }),
+    );
     if (projectsError) throw projectsError;
+
+    const projectIds = (projects ?? []).map((project: any) => project.id);
+    const [{ data: assignments }, { data: tasks }] = projectIds.length
+      ? await Promise.all([
+          withTimeout(supabase.from('team_assignments').select('project_id').in('project_id', projectIds)),
+          withTimeout(
+            supabase.from('tasks').select('id, project_id, status, priority, estimated_days, assigned_to, end_date').in('project_id', projectIds),
+          ),
+        ])
+      : [{ data: [] }, { data: [] }];
 
     const canEnrich =
       (assignments ?? []).every((a) => Object.prototype.hasOwnProperty.call(a, 'project_id')) &&
@@ -235,12 +240,13 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { name, description, created_by, team_members } = req.body;
+    const { name, description, team_members } = req.body;
+    const created_by = (req.body.created_by as string | undefined) ?? (res.locals.userId as string);
 
     const { data: project, error: projectError } = await withTimeout(
       supabase
         .from('projects')
-        .insert({ name, description, created_by: created_by ?? null })
+        .insert({ name, description, created_by, space_id: res.locals.spaceId })
         .select()
         .single()
     );
@@ -315,6 +321,11 @@ router.post('/:id/invitations', async (req, res) => {
       supabase.from('users').select('id, email, full_name, avatar_url').eq('email', normalizedEmail).maybeSingle(),
     );
     if (userError) throw userError;
+
+    // Project access is granted to people already in the space; new people are invited to the space first.
+    if (!existingUser?.id || !(await getSpaceRole(res.locals.spaceId as string, existingUser.id))) {
+      return res.status(400).json({ error: 'Invite this person to the space first (Space settings), then add them to the project.' });
+    }
 
     if (existingUser?.id) {
       const { error } = await withTimeout(

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withTimeout } from './timeout';
+import { getSpaceRole } from './spaces';
 
 export type ProjectRole = 'Owner' | 'Admin' | 'Member' | 'Guest';
 
@@ -50,11 +51,16 @@ export function permissionsForRole(role: ProjectRole | null): ProjectPermissions
 export async function getProjectRole(projectId: string, userId?: string | null): Promise<ProjectRole | null> {
   if (!userId) return null;
   const [{ data: project }, { data: assignment }] = await Promise.all([
-    withTimeout(supabase.from('projects').select('created_by').eq('id', projectId).maybeSingle()),
+    withTimeout(supabase.from('projects').select('created_by, space_id').eq('id', projectId).maybeSingle()),
     withTimeout(supabase.from('team_assignments').select('role').eq('project_id', projectId).eq('user_id', userId).maybeSingle()),
   ]);
-  if (project?.created_by === userId) return 'Owner';
-  return assignment?.role ? normalizeRole(assignment.role) : null;
+  if (!project) return null;
+  const spaceRole = project.space_id ? await getSpaceRole(project.space_id, userId) : null;
+  // Space admins manage every project in their space; project creators own theirs.
+  if (spaceRole === 'Admin' || project.created_by === userId) return 'Owner';
+  if (assignment?.role) return normalizeRole(assignment.role);
+  // Anyone else in the space can follow the project: view and comment.
+  return spaceRole ? 'Guest' : null;
 }
 
 export async function getProjectPermissions(projectId: string, userId?: string | null): Promise<ProjectPermissions> {

@@ -9,6 +9,7 @@ import { notifyUsers } from '../lib/notifications';
 import { syncExistingTaskCalendarEvents } from '../lib/calendarSync';
 import { sendSlackTaskNotification } from '../lib/slackNotifications';
 import { requireProjectPermission, requireTaskPermission } from '../lib/permissions';
+import { spaceProjectIds } from '../lib/spaces';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -69,10 +70,13 @@ function normalizeChecklistItems(items: unknown): Array<{ id: string; text: stri
 // List all tasks (with project name)
 router.get('/', async (_req, res) => {
   try {
+    const projectIds = await spaceProjectIds(res.locals.spaceId as string);
+    if (projectIds.length === 0) return res.json({ tasks: [] });
     const { data: tasks, error } = await withTimeout(
       supabase
         .from('tasks')
         .select('*, projects(name)')
+        .in('project_id', projectIds)
         .order('created_at', { ascending: true })
     );
 
@@ -97,7 +101,9 @@ router.get('/', async (_req, res) => {
     );
     if (depError) throw depError;
 
-    res.json({ tasks: enrichTasksWithDependencies(formatted, dependencies ?? []) });
+    const taskIds = new Set(formatted.map((task) => task.id));
+    const spaceDependencies = (dependencies ?? []).filter((dep: any) => taskIds.has(dep.task_id));
+    res.json({ tasks: enrichTasksWithDependencies(formatted, spaceDependencies) });
   } catch (error: any) {
     if (isConnectivityError(error)) {
       return res.json({ tasks: demoTasks, source: 'demo' });

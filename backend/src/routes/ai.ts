@@ -146,13 +146,14 @@ async function persistPlan(
   durationWeeks: number,
   databaseMembers: string[],
   schedule: GeneratedSchedule,
+  owner: { spaceId: string; userId: string },
 ) {
   const projectTable = supabase.from('projects') as any;
   let project = { id: projectId, name, description: savedDescription };
 
   const { data, error: projectError } = await withTimeout<{ data: any; error: any }>(
     projectTable
-      .insert({ id: projectId, name, description: savedDescription, created_by: null, duration_weeks: durationWeeks })
+      .insert({ id: projectId, name, description: savedDescription, created_by: owner.userId, space_id: owner.spaceId, duration_weeks: durationWeeks })
       .select()
       .single(),
   );
@@ -372,6 +373,7 @@ router.post('/save', async (req, res) => {
       durationWeeks ?? 1,
       Array.isArray(databaseMembers) ? databaseMembers : [],
       schedule as GeneratedSchedule,
+      { spaceId: res.locals.spaceId as string, userId: res.locals.userId as string },
     );
 
     console.log(`[AI] /save complete in ${Date.now() - t0}ms`);

@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, AlertTriangle, Plus, X } from "lucide-react";
 import { api, type User } from "../lib/api";
-import { readLocalTeamMembers, saveLocalTeamMember, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
+import { readLocalTeamMembers, removeLocalTeamMember, type StoredTeamMember } from "../lib/localTeamMembers";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useSpaces } from "../contexts/SpaceContext";
 import { computeCapacity, getInitials, type TeamMember } from "../lib/teamUtils";
 import { MemberCard } from "../components/MemberCard";
 import { SkillGapPanel } from "../components/SkillGapPanel";
@@ -78,12 +80,6 @@ function mapStoredMember(member: StoredTeamMember, index: number): TeamMember {
   };
 }
 
-interface MemberFormData {
-  fullName: string;
-  email: string;
-  phone: string;
-}
-
 function ConfirmDeleteModal({
   memberName, onConfirm, onCancel, deleting, t,
 }: {
@@ -143,13 +139,14 @@ export function TeamCapacity() {
   const { t } = useTranslation(["team", "common"]);
   const { session } = useAuth();
   const currentUserId = session?.user.id;
+  const navigate = useNavigate();
+  const { activeSpace, isAdmin } = useSpaces();
+  const activeSpaceId = activeSpace?.id ?? "";
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [formData, setFormData] = useState<MemberFormData>({ fullName: "", email: "", phone: "" });
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingCVId, setUploadingCVId] = useState<string | null>(null);
@@ -224,40 +221,6 @@ export function TeamCapacity() {
     setPerMemberMaxSP((prev) => ({ ...prev, [memberId]: value }));
   };
 
-  const handleAddMember = (e: { preventDefault(): void }) => {
-    e.preventDefault();
-    const stored: StoredTeamMember = {
-      id: `local-${Date.now()}`,
-      full_name: formData.fullName.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      created_at: new Date().toISOString(),
-      task_count: 0,
-    };
-    const newMember: TeamMember = {
-      id: stored.id,
-      name: stored.full_name,
-      role: stored.email,
-      phone: stored.phone,
-      storyPoints: 0,
-      avatar: getInitials(stored.full_name, stored.email),
-      avatar_url: null,
-      taskCount: 0,
-      projectCount: 0,
-      completedCount: 0,
-      completedTasks: [],
-      gradient: GRADIENTS[members.length % GRADIENTS.length],
-      isLocal: true,
-      skills: [],
-      experienceSummary: null,
-      cvParsedAt: null,
-    };
-    saveLocalTeamMember(stored);
-    setMembers((prev) => [...prev, newMember]);
-    setFormData({ fullName: "", email: "", phone: "" });
-    setIsAddMemberOpen(false);
-  };
-
   const handleDelete = async () => {
     if (!confirmId) return;
     const member = members.find((m) => m.id === confirmId);
@@ -267,7 +230,7 @@ export function TeamCapacity() {
       if (member.isLocal) {
         removeLocalTeamMember(confirmId);
       } else {
-        await api.users.delete(confirmId);
+        await api.spaces.removeMember(activeSpaceId, confirmId);
       }
       setMembers((prev) => prev.filter((m) => m.id !== confirmId));
     } catch (err) {
@@ -309,9 +272,10 @@ export function TeamCapacity() {
               className="w-16 bg-transparent text-lg text-white font-bold outline-none"
             />
           </div>
+          {isAdmin && (
           <motion.button
             type="button"
-            onClick={() => setIsAddMemberOpen(true)}
+            onClick={() => navigate("/space")}
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.98 }}
             className="inline-flex items-center gap-3 rounded-xl border border-purple-500/40 bg-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 hover:bg-purple-500 transition-all"
@@ -319,6 +283,7 @@ export function TeamCapacity() {
             <Plus className="h-4 w-4" />
             {t("team:addMember")}
           </motion.button>
+          )}
         </div>
       </div>
 
@@ -398,7 +363,7 @@ export function TeamCapacity() {
             allTasks={allTasks}
             effectiveMaxSP={perMemberMaxSP[member.id] ?? maxStoryPoints}
             isCurrentUser={member.id === currentUserId}
-            canDelete={member.id !== currentUserId && member.role !== session?.user.email}
+            canDelete={isAdmin && member.id !== currentUserId}
             index={index}
             onDelete={() => setConfirmId(member.id)}
             onUploadCV={handleUploadCV}
@@ -431,76 +396,6 @@ export function TeamCapacity() {
         </div>
       )}
 
-      {/* Add member modal */}
-      {isAddMemberOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="w-full max-w-lg rounded-2xl border border-purple-500/40 app-surface-elevated p-6 shadow-2xl shadow-purple-500/20"
-          >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-2xl font-semibold text-white">{t("team:form.title")}</h3>
-                <p className="mt-1 text-sm text-gray-500">{t("team:form.description")}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddMemberOpen(false)}
-                className="rounded-lg border border-white/10 p-2 text-gray-400 hover:text-white hover:bg-white/5"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form onSubmit={handleAddMember} className="space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.fullName")}</label>
-                <input
-                  type="text" required value={formData.fullName}
-                  onChange={(e) => setFormData((p) => ({ ...p, fullName: e.target.value }))}
-                  placeholder={t("team:form.fullNamePlaceholder")}
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.email")}</label>
-                <input
-                  type="email" required value={formData.email}
-                  onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
-                  placeholder={t("team:form.emailPlaceholder")}
-                  dir="ltr"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">{t("team:form.phone")}</label>
-                <input
-                  type="tel" required value={formData.phone}
-                  onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder={t("team:form.phonePlaceholder")}
-                  dir="ltr"
-                  className="w-full rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors focus:border-purple-400/70"
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddMemberOpen(false)}
-                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white"
-                >
-                  {t("common:actions.cancel")}
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-linear-to-r from-purple-600 to-purple-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/20"
-                >
-                  {t("team:addMember")}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
 
       <AnimatePresence>
         {confirmMember && (

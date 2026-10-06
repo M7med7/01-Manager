@@ -13,6 +13,7 @@ import enReports from './locales/en/reports.json';
 import enIntegrations from './locales/en/integrations.json';
 import enErrors from './locales/en/errors.json';
 import enSearch from './locales/en/search.json';
+import enSpaces from './locales/en/spaces.json';
 
 import arCommon from './locales/ar/common.json';
 import arNavigation from './locales/ar/navigation.json';
@@ -25,6 +26,7 @@ import arReports from './locales/ar/reports.json';
 import arIntegrations from './locales/ar/integrations.json';
 import arErrors from './locales/ar/errors.json';
 import arSearch from './locales/ar/search.json';
+import arSpaces from './locales/ar/spaces.json';
 
 export const LANGUAGE_STORAGE_KEY = 'zeroone-language';
 export const supportedLanguages = ['en', 'ar'] as const;
@@ -42,6 +44,7 @@ export const namespaces = [
   'integrations',
   'errors',
   'search',
+  'spaces',
 ] as const;
 
 const resources = {
@@ -57,6 +60,7 @@ const resources = {
     integrations: enIntegrations,
     errors: enErrors,
     search: enSearch,
+    spaces: enSpaces,
   },
   ar: {
     common: arCommon,
@@ -70,6 +74,7 @@ const resources = {
     integrations: arIntegrations,
     errors: arErrors,
     search: arSearch,
+    spaces: arSpaces,
   },
 };
 

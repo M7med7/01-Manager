@@ -38,7 +38,7 @@ router.get('/', async (_req, res) => {
   ];
 
   try {
-    const { data, error } = await withTimeout(supabase.from('project_templates').select('*').order('created_at', { ascending: false }));
+    const { data, error } = await withTimeout(supabase.from('project_templates').select('*').eq('space_id', res.locals.spaceId).order('created_at', { ascending: false }));
     if (error) throw error;
     res.json({
       templates: [
@@ -79,6 +79,7 @@ router.post('/from-project/:projectId', async (req, res) => {
 
     const { data: template, error } = await withTimeout(
       supabase.from('project_templates').insert({
+        space_id: res.locals.spaceId,
         name: name?.trim() || `${project.name} Template`,
         description: project.description,
         category: 'Custom',
@@ -105,6 +106,7 @@ router.post('/:id/duplicate', async (req, res) => {
 
     const { data, error } = await withTimeout(
       supabase.from('project_templates').insert({
+        space_id: res.locals.spaceId,
         name: `${original.name} Copy`,
         description: original.description,
         category: original.category,

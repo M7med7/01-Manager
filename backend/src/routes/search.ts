@@ -66,23 +66,33 @@ router.get('/', async (req, res) => {
     const highPriority = req.query.high_priority === 'true';
     const dueThisWeek = req.query.due_this_week === 'true';
 
+    const { data: projects, error: projectError } = await withTimeout(
+      supabase.from('projects').select('id, name, description, status, created_by, created_at').eq('space_id', res.locals.spaceId),
+    );
+    if (projectError) throw projectError;
+    const spaceProjectIdList = (projects ?? []).map((project: any) => project.id);
     const [
-      { data: projects, error: projectError },
       { data: tasks, error: taskError },
       { data: assignments },
-      { data: comments },
-      { data: attachments },
-      { data: dependencies },
-    ] = await Promise.all([
-      withTimeout(supabase.from('projects').select('id, name, description, status, created_by, created_at')),
-      withTimeout(supabase.from('tasks').select('id, project_id, title, description, status, priority, estimated_days, assigned_tech, assigned_to, start_date, end_date, created_at, projects(name), assignee:assigned_to(id, full_name, email)')),
-      withTimeout(supabase.from('team_assignments').select('project_id, user_id, role')),
-      withTimeout(supabase.from('task_comments').select('id, task_id, content, created_at, users(full_name, email)')),
-      withTimeout(supabase.from('task_attachments').select('id, task_id, file_name, file_type, created_at')),
-      withTimeout(supabase.from('task_dependencies').select('task_id, depends_on_task_id')),
-    ]);
-    if (projectError) throw projectError;
+      { data: allComments },
+      { data: allAttachments },
+      { data: allDependencies },
+    ] = spaceProjectIdList.length
+      ? await Promise.all([
+          withTimeout(supabase.from('tasks').select('id, project_id, title, description, status, priority, estimated_days, assigned_tech, assigned_to, start_date, end_date, created_at, projects(name), assignee:assigned_to(id, full_name, email)').in('project_id', spaceProjectIdList)),
+          withTimeout(supabase.from('team_assignments').select('project_id, user_id, role').in('project_id', spaceProjectIdList)),
+          withTimeout(supabase.from('task_comments').select('id, task_id, content, created_at, users(full_name, email)')),
+          withTimeout(supabase.from('task_attachments').select('id, task_id, file_name, file_type, created_at')),
+          withTimeout(supabase.from('task_dependencies').select('task_id, depends_on_task_id')),
+        ])
+      : [{ data: [], error: null }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
     if (taskError) throw taskError;
+    // Comments, files and dependencies are keyed by task; keep only this space's.
+    const spaceTaskIds = new Set((tasks ?? []).map((task: any) => task.id));
+    const inSpace = (row: any) => spaceTaskIds.has(row.task_id);
+    const comments = (allComments ?? []).filter(inSpace);
+    const attachments = (allAttachments ?? []).filter(inSpace);
+    const dependencies = (allDependencies ?? []).filter(inSpace);
 
     const accessibleProjects = new Set<string>();
     for (const project of projects ?? []) {

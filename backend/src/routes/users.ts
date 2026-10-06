@@ -4,25 +4,32 @@ import { supabase } from '../lib/supabase';
 import { demoUsers } from '../lib/demoData';
 import { isConnectivityError, withTimeout } from '../lib/timeout';
 import { computeAchievements } from '../lib/achievements';
+import { spaceProjectIds } from '../lib/spaces';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', async (_req, res) => {
   try {
-    const [
-      { data: users, error: usersError },
-      { data: tasks },
-      { data: assignments },
-    ] = await Promise.all([
-      withTimeout(supabase.from('users').select('*').order('created_at')),
-      withTimeout(supabase.from('tasks').select('id, title, assigned_to, status, project_id, estimated_days, projects(name)')),
-      withTimeout(supabase.from('team_assignments').select('user_id')),
+    const spaceId = res.locals.spaceId as string;
+    const [{ data: memberships, error: membersError }, projectIds] = await Promise.all([
+      withTimeout(supabase.from('space_members').select('role, users(*)').eq('space_id', spaceId)),
+      spaceProjectIds(spaceId),
     ]);
+    if (membersError) throw membersError;
 
-    if (usersError) throw usersError;
+    const users = (memberships ?? [])
+      .filter((m: any) => m.users)
+      .map((m: any) => ({ ...m.users, space_role: m.role }))
+      .sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+    const [{ data: tasks }, { data: assignments }] = projectIds.length
+      ? await Promise.all([
+          withTimeout(supabase.from('tasks').select('id, title, assigned_to, status, project_id, estimated_days, projects(name)').in('project_id', projectIds)),
+          withTimeout(supabase.from('team_assignments').select('user_id').in('project_id', projectIds)),
+        ])
+      : [{ data: [] }, { data: [] }];
 
-    const enriched = (users ?? []).map((user) => {
+    const enriched = users.map((user: any) => {
       const userTasks = (tasks ?? []).filter((t) => t.assigned_to === user.id);
       const completedTasks = (tasks ?? []).filter((t: any) => t.assigned_to === user.id && t.status === 'Done');
       const totalEstimatedDays = userTasks.reduce((sum, t: any) => sum + (Number(t.estimated_days) || 0), 0);
@@ -79,29 +86,25 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { error } = await withTimeout(supabase.from('users').delete().eq('id', id));
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
+// Accounts are never deleted through the API; admins remove people from a space instead.
+router.delete('/:id', (_req, res) => {
+  res.status(403).json({ error: 'Remove members from the space in Space settings.' });
 });
 
 router.get('/:id/profile', async (req, res) => {
   try {
     const { id } = req.params;
-    
+    // Task history and project counts only cover the active space.
+    const projectIds = await spaceProjectIds(res.locals.spaceId as string);
+
     const [
       { data: user, error: userError },
       { data: tasks, error: tasksError },
       { data: assignments }
     ] = await Promise.all([
       withTimeout(supabase.from('users').select('*').eq('id', id).single()),
-      withTimeout(supabase.from('tasks').select('id, title, status, project_id, estimated_days, completed_at, projects(name)').eq('assigned_to', id)),
-      withTimeout(supabase.from('team_assignments').select('project_id').eq('user_id', id))
+      withTimeout(supabase.from('tasks').select('id, title, status, project_id, estimated_days, completed_at, projects(name)').eq('assigned_to', id).in('project_id', projectIds)),
+      withTimeout(supabase.from('team_assignments').select('project_id').eq('user_id', id).in('project_id', projectIds))
     ]);
 
     if (userError) throw userError;
