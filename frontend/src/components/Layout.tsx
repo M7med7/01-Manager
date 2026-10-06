@@ -206,7 +206,7 @@ export function Layout() {
         <img
           src={theme === "dark" ? logoDarkUrl : logoLightUrl}
           alt="01 Manager"
-          className="absolute left-1/2 top-1/2 z-0 h-[60px] w-auto -translate-x-1/2 -translate-y-1/2 object-contain pointer-events-none md:max-lg:hidden"
+          className="absolute top-1/2 z-0 w-auto -translate-y-1/2 object-contain pointer-events-none max-md:start-16 max-md:h-11 md:max-lg:hidden lg:left-1/2 lg:h-[60px] lg:-translate-x-1/2"
         />
 
         {/* Hamburger — mobile only, opens sidebar drawer */}
