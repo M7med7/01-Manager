@@ -112,7 +112,11 @@ router.patch('/:id/read', async (req, res) => {
     const { id } = req.params;
     const { read } = req.body as { read?: boolean };
     const { error } = await withTimeout(
-      supabase.from('notifications').update({ read_at: read === false ? null : new Date().toISOString() }).eq('id', id),
+      supabase
+        .from('notifications')
+        .update({ read_at: read === false ? null : new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', res.locals.userId as string),
     );
     if (error) throw error;
     res.json({ success: true });

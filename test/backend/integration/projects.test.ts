@@ -1,10 +1,15 @@
 import request from 'supertest';
 
 jest.mock('../../../backend/src/lib/supabase', () => ({
-  supabase: { from: jest.fn() },
+  supabase: {
+    from: jest.fn(),
+    auth: { getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }) },
+  },
 }));
 
 import app from '../../../backend/src/app';
+
+const authed = () => request.agent(app).set('Authorization', 'Bearer test-token');
 import { supabase } from '../../../backend/src/lib/supabase';
 
 const mockFrom = supabase.from as jest.Mock;
@@ -20,7 +25,7 @@ describe('GET /api/projects', () => {
       select: jest.fn().mockResolvedValue({ data: fakeProjects, error: null }),
     });
 
-    const res = await request(app).get('/api/projects');
+    const res = await authed().get('/api/projects');
     expect(res.status).toBe(200);
     expect(res.body.projects).toEqual(fakeProjects);
   });
@@ -30,7 +35,7 @@ describe('GET /api/projects', () => {
       select: jest.fn().mockResolvedValue({ data: null, error: { message: 'Connection lost' } }),
     });
 
-    const res = await request(app).get('/api/projects');
+    const res = await authed().get('/api/projects');
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Connection lost');
   });
@@ -52,7 +57,7 @@ describe('POST /api/projects', () => {
         insert: jest.fn().mockResolvedValue({ error: null }),
       });
 
-    const res = await request(app)
+    const res = await authed()
       .post('/api/projects')
       .send({ name: 'New App', description: 'Desc', team_members: ['u1'] });
 
@@ -69,7 +74,7 @@ describe('POST /api/projects', () => {
       }),
     });
 
-    const res = await request(app)
+    const res = await authed()
       .post('/api/projects')
       .send({ name: 'Duplicate', description: 'Desc' });
 
@@ -88,7 +93,7 @@ describe('POST /api/projects', () => {
       }),
     });
 
-    const res = await request(app)
+    const res = await authed()
       .post('/api/projects')
       .send({ name: 'Solo App', description: 'No team', team_members: [] });
 

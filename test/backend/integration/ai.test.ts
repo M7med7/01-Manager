@@ -1,7 +1,10 @@
 import request from 'supertest';
 
 jest.mock('../../../backend/src/lib/supabase', () => ({
-  supabase: { from: jest.fn() },
+  supabase: {
+    from: jest.fn(),
+    auth: { getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }) },
+  },
 }));
 
 jest.mock('../../../backend/src/services/aiManager', () => ({
@@ -26,9 +29,11 @@ jest.mock('../../../backend/src/services/aiManager', () => ({
 
 import app from '../../../backend/src/app';
 
+const authed = () => request.agent(app).set('Authorization', 'Bearer test-token');
+
 describe('POST /api/ai/generate', () => {
   it('returns 200 with success flag', async () => {
-    const res = await request(app)
+    const res = await authed()
       .post('/api/ai/generate')
       .send({ name: 'My App', description: 'A project', duration: 4, headcount: 2 });
 
@@ -37,7 +42,7 @@ describe('POST /api/ai/generate', () => {
   });
 
   it('returns a schedule object with tasks and dependencies', async () => {
-    const res = await request(app)
+    const res = await authed()
       .post('/api/ai/generate')
       .send({ name: 'My App', description: 'A project', duration: 4, headcount: 2 });
 
@@ -47,7 +52,7 @@ describe('POST /api/ai/generate', () => {
   });
 
   it('returns the expected number of tasks from the schedule', async () => {
-    const res = await request(app)
+    const res = await authed()
       .post('/api/ai/generate')
       .send({ name: 'My App', description: 'A project', duration: 4, headcount: 2 });
 
@@ -58,7 +63,7 @@ describe('POST /api/ai/generate', () => {
     const { generateSchedule } = require('../../../backend/src/services/aiManager');
     (generateSchedule as jest.Mock).mockRejectedValueOnce(new Error('AI service down'));
 
-    const res = await request(app)
+    const res = await authed()
       .post('/api/ai/generate')
       .send({ name: 'My App', description: 'Fail case', duration: 2, headcount: 1 });
 

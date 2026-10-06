@@ -17,6 +17,7 @@ import timeRoutes from './routes/time';
 import portfolioRoutes from './routes/portfolio';
 import clientRoutes from './routes/client';
 import searchRoutes from './routes/search';
+import { requireAuth } from './lib/auth';
 
 dotenv.config();
 
@@ -39,6 +40,9 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Every /api route requires a verified Supabase session unless listed as public in lib/auth.
+app.use('/api', requireAuth);
 
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);

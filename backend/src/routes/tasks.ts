@@ -518,7 +518,8 @@ router.delete('/:id/comments/:commentId', async (req, res) => {
 router.post('/:id/attachments', upload.single('file'), async (req, res) => {
   try {
     const id = String(req.params.id);
-    const { user_id } = req.body as { user_id?: string };
+    // Multipart bodies are parsed after requireAuth, so use the verified caller directly.
+    const user_id = res.locals.userId as string;
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file provided' });
     await requireTaskPermission(id, user_id, 'can_upload_files');

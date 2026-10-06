@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 // ── AI Plan Quality types ─────────────────────────────────────────────────────
 
 export interface GeneratedTask {
@@ -761,14 +762,21 @@ export interface ImportAnalysis {
 
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api`;
 
+// The backend rejects requests without a valid Supabase session token.
+export async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function attempt<T>(path: string, options: RequestInit | undefined, timeoutMs: number): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
       ...options,
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()), ...options?.headers },
+      signal: controller.signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
@@ -926,6 +934,7 @@ export const api = {
       if (userId) formData.append('user_id', userId);
       const res = await fetch(`${BASE_URL}/tasks/${taskId}/attachments`, {
         method: 'POST',
+        headers: await authHeaders(),
         body: formData,
       });
       if (!res.ok) {
@@ -1013,6 +1022,7 @@ export const api = {
       formData.append('cv', file);
       const res = await fetch(`${BASE_URL}/users/${id}/cv`, {
         method: 'POST',
+        headers: await authHeaders(),
         body: formData,
       });
       if (!res.ok) {
@@ -1033,6 +1043,7 @@ export const api = {
       formData.append('avatar', file);
       const res = await fetch(`${BASE_URL}/users/${id}/avatar`, {
         method: 'POST',
+        headers: await authHeaders(),
         body: formData,
       });
       if (!res.ok) {

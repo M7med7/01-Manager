@@ -6,7 +6,7 @@ import {
   AlertCircle, Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { api, type ImportRow, type ImportAnalysis, type ImportAnalysisFinding, type Project } from "../lib/api";
+import { api, authHeaders, type ImportRow, type ImportAnalysis, type ImportAnalysisFinding, type Project } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 
@@ -138,7 +138,7 @@ export function MigrationPage() {
     setExportError(null);
     try {
       const url = api.imports.exportCsv(exportProjectId, exportFormat);
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: await authHeaders() });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: tr("migration.errors.export") }));
         throw new Error(body.error ?? tr("migration.errors.export"));
