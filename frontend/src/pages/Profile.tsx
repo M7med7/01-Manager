@@ -261,7 +261,7 @@ Output only the profile text, no headers or labels.`,
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8 flex flex-col md:flex-row items-center md:items-end gap-6 bg-linear-to-br from-white/5 to-white/2 backdrop-blur-3xl border border-white/10 rounded-3xl p-8"
+        className="mb-8 flex flex-col lg:flex-row items-center lg:items-end gap-6 bg-linear-to-br from-white/5 to-white/2 backdrop-blur-3xl border border-white/10 rounded-3xl p-8"
       >
         <div className="relative group shrink-0">
           <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-linear-to-br from-purple-600 to-indigo-800 shadow-2xl shadow-purple-500/30 flex items-center justify-center overflow-hidden border-4 border-white/5">
@@ -280,9 +280,9 @@ Output only the profile text, no headers or labels.`,
           <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={handleAvatarUpload} />
         </div>
 
-        <div className="flex-1 text-center md:text-left">
+        <div className="min-w-0 flex-1 text-center lg:text-start">
           <h1 className="text-4xl font-bold text-white mb-2">{profile.full_name || profile.email}</h1>
-          <div className="flex items-center justify-center md:justify-start gap-2 mb-3">
+          <div className="flex items-center justify-center lg:justify-start gap-2 mb-3">
             <Briefcase className="w-5 h-5 text-purple-400" />
             {editingTitle ? (
               <div className="flex items-center gap-2">
@@ -306,7 +306,7 @@ Output only the profile text, no headers or labels.`,
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-gray-400">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm text-gray-400">
             <span>{profile.email}</span>
             {profile.phone && <><span className="text-gray-600">·</span><span>{profile.phone}</span></>}
           </div>

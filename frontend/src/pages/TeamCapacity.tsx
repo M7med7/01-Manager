@@ -252,16 +252,16 @@ export function TeamCapacity() {
   const confirmMember = confirmId ? members.find((m) => m.id === confirmId) : null;
 
   return (
-    <div className="p-4 md:p-12">
+    <div className="p-4 md:p-8 lg:p-12">
       {/* Header */}
-      <div className="mb-8 md:mb-12 flex flex-col sm:flex-row sm:items-start justify-between gap-4 md:gap-6">
+      <div className="mb-8 md:mb-12 flex flex-col lg:flex-row lg:items-start justify-between gap-4 md:gap-6">
         <div>
-          <h2 className="text-3xl md:text-5xl mb-2 md:mb-3 font-semibold text-white">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl mb-2 md:mb-3 font-semibold text-white">
             {t("team:title")}
           </h2>
           <p className="text-gray-500 text-sm md:text-lg">{t("team:description")}</p>
         </div>
-        <div className="flex items-center gap-3 md:gap-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg">
             <span className="text-sm font-semibold text-gray-400">{t("team:teamMaxSp")}</span>
             <input

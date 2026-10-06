@@ -15,7 +15,7 @@ const ROLE_STYLES: Record<SpaceRole, string> = {
 };
 
 function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-white/10 app-surface-soft p-6 ${className}`}>{children}</section>;
+  return <section className={`rounded-2xl border border-white/10 app-surface-soft p-4 sm:p-6 ${className}`}>{children}</section>;
 }
 
 function RoleBadge({ role }: { role: SpaceRole }) {
@@ -349,7 +349,7 @@ export function SpaceSettings() {
         <div role="status" className={`mb-6 rounded-xl border p-4 text-sm ${noticeStyles[notice.kind]}`}>{notice.text}</div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-6">
           <SpaceDetails space={activeSpace} canEdit={isAdmin} onSaveDescription={saveDescription} />
 
@@ -399,7 +399,8 @@ export function SpaceSettings() {
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-purple-600 to-purple-900 text-xs font-bold text-white">
                         {member.avatar_url ? <img src={member.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(member.full_name, member.email)}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      {/* min width makes the role controls wrap below the name on phones */}
+                      <div className="min-w-40 flex-1">
                         <p className="truncate text-sm font-medium">
                           {displayName(member)}
                           {isMe && <span className="ms-2 text-xs text-gray-500">({t('settings.members.you')})</span>}

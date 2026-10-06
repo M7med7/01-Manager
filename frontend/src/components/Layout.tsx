@@ -206,7 +206,7 @@ export function Layout() {
         <img
           src={theme === "dark" ? logoDarkUrl : logoLightUrl}
           alt="01 Manager"
-          className="absolute start-1/2 top-1/2 z-0 h-[60px] w-auto -translate-x-1/2 -translate-y-1/2 object-contain pointer-events-none"
+          className="absolute left-1/2 top-1/2 z-0 h-[60px] w-auto -translate-x-1/2 -translate-y-1/2 object-contain pointer-events-none md:max-lg:hidden"
         />
 
         {/* Hamburger — mobile only, opens sidebar drawer */}
@@ -275,7 +275,7 @@ export function Layout() {
                   initial={{ opacity: 0, y: -6, scale: 0.97 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                  className="absolute end-0 top-full mt-2 w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border app-border app-sidebar shadow-2xl shadow-black/50 backdrop-blur-xl"
+                  className="fixed inset-x-2 top-16 z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-2xl border app-border app-surface-elevated shadow-2xl shadow-black/50 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-96 sm:max-h-[70vh]"
                 >
                   <div className="flex items-center justify-between border-b app-border px-4 py-3">
                     <div>
@@ -613,7 +613,7 @@ export function Layout() {
           </nav>
         </aside>
 
-        <div className={`flex-1 min-h-0 flex flex-col relative z-20 ${isAIActive ? "app-main-ai backdrop-blur-sm" : "app-main"}`}>
+        <div className={`flex-1 min-w-0 min-h-0 flex flex-col relative z-20 ${isAIActive ? "app-main-ai backdrop-blur-sm" : "app-main"}`}>
           <main className="flex-1 min-h-0 overflow-y-auto pb-16 md:pb-0">
             <Outlet />
           </main>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Calendar as CalendarIcon, CheckCircle2, Circle, Pencil, Send, Sparkles, Tag, User as UserIcon, Clock, Check, X, AlertTriangle, Link2, Plus, Paperclip, Image as ImageIcon, MessageSquare, History, Upload, Trash2, ListChecks, Search, FileText, SplitSquareHorizontal, Github, GitBranch, GitPullRequest, ExternalLink, RefreshCw, CalendarPlus, Timer, Target } from "lucide-react";
 import { api, type Task, type ProjectMember, type TaskComment, type TaskAttachment, type TaskActivity, type TaskChecklistItem, type GitHubRepository, type GitHubTaskLink, type GitHubCommit, type GitHubPullRequest, type CalendarConnection, type TaskCalendarEvent, type TimeEntry } from "../lib/api";
 import { riskStyle, scoreTaskRisk } from "../lib/riskScoring";
@@ -13,6 +14,44 @@ const PRIORITY_STYLES: Record<string, { bg: string; text: string; label: string 
   Medium: { bg: "bg-yellow-900/40 border-yellow-500/40", text: "text-yellow-300", label: "🟡 Medium" },
   Low: { bg: "bg-green-900/40 border-green-500/40", text: "text-green-300", label: "🟢 Low" },
 };
+
+// Same order and translation keys as the Kanban columns.
+const TASK_STATUSES = [
+  { value: "Backlog", key: "backlog" },
+  { value: "To Do", key: "todo" },
+  { value: "In Progress", key: "inProgress" },
+  { value: "In Review", key: "inReview" },
+  { value: "Done", key: "done" },
+] as const;
+
+// Phones get a shorter chat so the task details stay readable; the handle still resizes it.
+const CHAT_HEIGHT_DEFAULT = 220;
+const CHAT_HEIGHT_COMPACT = 140;
+const COMPACT_SCREEN_MAX_WIDTH = 640;
+
+interface StatusSelectProps {
+  status: string;
+  disabled: boolean;
+  onChange: (status: string) => void;
+}
+
+// Lets touch users move a task between columns, since Kanban drag-and-drop needs a mouse.
+function StatusSelect({ status, disabled, onChange }: StatusSelectProps) {
+  const { t } = useTranslation("tasks");
+  return (
+    <select
+      value={status}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      aria-label={t("detail.statusLabel")}
+      className="rounded-lg border app-border app-input px-2 py-1.5 text-xs app-muted outline-none focus:border-purple-500/60 disabled:opacity-40"
+    >
+      {TASK_STATUSES.map((item) => (
+        <option key={item.value} value={item.value}>{t(`status.${item.key}`)}</option>
+      ))}
+    </select>
+  );
+}
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -70,6 +109,7 @@ interface Props {
   canUploadFiles?: boolean;
   allTasks?: Task[];
   onComplete: (taskId: string, completed: boolean) => void;
+  onStatusChange?: (taskId: string, status: string) => void;
   onTaskUpdated?: (updated: Task) => void;
   onCalendarEventsChange?: (events: TaskCalendarEvent[]) => void;
   onTimeChanged?: () => void;
@@ -152,6 +192,7 @@ export function TaskDetailPanel({
   canUploadFiles = true,
   allTasks = [],
   onComplete,
+  onStatusChange,
   onTaskUpdated,
   onCalendarEventsChange,
   onTimeChanged,
@@ -164,7 +205,9 @@ export function TaskDetailPanel({
     { role: "ai", content: `How can I help you with "${task.title}"?` },
   ]);
   const [sending, setSending] = useState(false);
-  const [chatHeight, setChatHeight] = useState(220);
+  const [chatHeight, setChatHeight] = useState(() =>
+    window.innerWidth < COMPACT_SCREEN_MAX_WIDTH ? CHAT_HEIGHT_COMPACT : CHAT_HEIGHT_DEFAULT
+  );
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [schedStart, setSchedStart] = useState("");
   const [schedEnd, setSchedEnd] = useState("");
@@ -908,6 +951,9 @@ export function TaskDetailPanel({
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
+          {onStatusChange && (
+            <StatusSelect status={task.status} disabled={!canEditTasks} onChange={(status) => onStatusChange(task.id, status)} />
+          )}
           <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs app-surface-soft border app-border app-muted">
             <Clock className="w-3 h-3" /> {task.estimated_days}d
           </span>

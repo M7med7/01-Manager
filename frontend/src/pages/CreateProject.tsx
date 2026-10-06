@@ -333,16 +333,16 @@ export function CreateProject() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-full px-12 py-10 flex justify-center">
+    <div className="min-h-full px-4 py-6 sm:px-8 md:px-12 md:py-10 flex justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-5xl"
       >
         {/* Title */}
-        <div className="mb-12 flex items-center justify-between gap-6">
+        <div className="mb-8 md:mb-12 flex items-center justify-between gap-6">
           <div>
-            <h2 className="text-5xl mb-3 bg-linear-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl mb-3 bg-linear-to-r from-white via-purple-100 to-purple-200 bg-clip-text text-transparent font-bold">
               {step === "reviewing" ? t("create.reviewTitle") : t("create.title")}
             </h2>
             <p className="text-gray-400 text-xl">
@@ -608,7 +608,7 @@ export function CreateProject() {
               {/* AI info card */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                className="bg-linear-to-br from-purple-900/30 to-purple-950/10 border-2 border-purple-500/50 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
+                className="bg-linear-to-br from-purple-900/30 to-purple-950/10 border-2 border-purple-500/50 rounded-3xl p-5 sm:p-8 shadow-2xl shadow-purple-500/20 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-linear-to-br from-purple-500/5 to-transparent animate-pulse" />
                 <div className="flex items-start gap-6 relative z-10">
@@ -668,7 +668,7 @@ export function CreateProject() {
         {isGenerating && (
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-10 bg-linear-to-br from-white/5 to-white/2 border-2 border-purple-500/30 rounded-3xl p-8 space-y-5"
+            className="mt-10 bg-linear-to-br from-white/5 to-white/2 border-2 border-purple-500/30 rounded-3xl p-5 sm:p-8 space-y-5"
           >
             {[
               { label: "Analyzing project requirements", delay: 0 },

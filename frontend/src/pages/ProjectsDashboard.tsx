@@ -234,12 +234,12 @@ export function ProjectsDashboard() {
     <div className="p-4 md:p-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="min-w-0">
           <h2 className="text-2xl md:text-3xl mb-1 font-light">{t("projects:title")}</h2>
           <p className="text-gray-500 text-sm">{t("projects:count", { count: projects.length })} · {t("projects:aiExecution")}</p>
         </div>
-        <Button onClick={() => navigate("/create")}>+ {t("projects:newProject")}</Button>
+        <Button onClick={() => navigate("/create")} className="shrink-0 whitespace-nowrap">+ {t("projects:newProject")}</Button>
       </div>
 
       {error && (
@@ -308,8 +308,8 @@ export function ProjectsDashboard() {
               </div>
             </div>
 
-            {/* Filter */}
-            <div className="ml-auto flex gap-1">
+            {/* Filter — scrolls sideways on phones instead of overflowing */}
+            <div className="flex max-w-full gap-1 overflow-x-auto sm:ms-auto">
               {(["all", "attention", "blocked", "delayed", "healthy"] as FilterKey[]).map((key) => {
                 const count = filterCounts[key];
                 const label = t(`projects:filters.${key}`);
@@ -317,7 +317,7 @@ export function ProjectsDashboard() {
                   <button
                     key={key}
                     onClick={() => setFilter(key)}
-                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
                       filter === key
                         ? "bg-purple-600/25 text-purple-300 border border-purple-500/35"
                         : "text-gray-500 hover:text-gray-300 border border-white/6 hover:border-white/12"
@@ -344,7 +344,7 @@ export function ProjectsDashboard() {
           )}
 
           {/* Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
             {displayed.map((project, index) => {
               const badge = project.health_badge ?? "Healthy";
               const cfg = BADGE[badge];

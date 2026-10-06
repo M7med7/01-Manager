@@ -1092,7 +1092,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           </div>
         </div>}
 
-        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
+        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-5 sm:p-8">
           <h3 className="text-2xl mb-4 font-semibold">{t("detail.description")}</h3>
           <p className="text-gray-300 text-lg leading-relaxed">{project.description}</p>
         </div>
@@ -1417,7 +1417,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         </div>
 
         {/* Team Members */}
-        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
+        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-5 sm:p-8">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3"><Users className="w-5 h-5 text-purple-400" /><h3 className="text-2xl font-semibold">{t("detail.team.title", { count: members.length })}</h3></div>
             {canManageMembers && (
@@ -1542,7 +1542,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
         )}
 
         {/* Tasks Section — list + Kanban */}
-        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-8">
+        <div className="min-w-0 bg-linear-to-br from-white/7 to-white/2 backdrop-blur-2xl border border-white/20 rounded-2xl p-5 sm:p-8">
           <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-purple-400" />
@@ -1624,8 +1624,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
           ) : filteredTasks.length === 0 ? (
             <p className="rounded-xl border border-white/10 bg-white/3 px-4 py-6 text-center text-sm text-gray-500">{t("detail.noMatches")}</p>
           ) : view === "kanban" ? (
-            <div className="overflow-x-auto pb-2">
-              <div className="grid min-w-[1120px] grid-cols-5 gap-4">
+            <div className="overflow-x-auto pb-2 snap-x snap-mandatory xl:snap-none">
+              <div className="grid grid-flow-col auto-cols-[85%] gap-4 sm:auto-cols-[45%] xl:min-w-[1120px] xl:grid-flow-row xl:auto-cols-auto xl:grid-cols-5">
                 {KANBAN_COLUMNS.map((column) => {
                   const columnTasks = filteredTasks.filter((task) => task.status === column.status);
                   const isTarget = dragOverStatus === column.status;
@@ -1644,7 +1644,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         const tid = e.dataTransfer.getData("text/task-id") || draggingTaskId;
                         if (tid) handleStatusChange(tid, column.status);
                       }}
-                      className={`min-h-[420px] rounded-2xl border p-3 transition-all ${isTarget ? "border-purple-400/70 bg-purple-900/20 shadow-lg shadow-purple-500/15" : "border-white/10 app-surface-soft"}`}
+                      className={`min-h-[420px] snap-start rounded-2xl border p-3 transition-all ${isTarget ? "border-purple-400/70 bg-purple-900/20 shadow-lg shadow-purple-500/15" : "border-white/10 app-surface-soft"}`}
                     >
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -1778,7 +1778,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                         </div>
 
                         {/* Assign button */}
-                        <button onClick={(e) => { e.stopPropagation(); if (canEditTasks) setAssignDropdownId(isDropdownOpen ? null : task.id); }} disabled={assigningTaskId === task.id || !canEditTasks} className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-300 transition-all disabled:opacity-40">
+                        <button onClick={(e) => { e.stopPropagation(); if (canEditTasks) setAssignDropdownId(isDropdownOpen ? null : task.id); }} disabled={assigningTaskId === task.id || !canEditTasks} aria-label={assignee ? (assignee.full_name ?? assignee.email) : t("detail.assign")} className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-400 hover:border-purple-500/40 hover:bg-purple-900/20 hover:text-purple-300 transition-all disabled:opacity-40">
                           {assigningTaskId === task.id ? (
                             <div className="h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" />
                           ) : assignee ? (
@@ -1786,7 +1786,8 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
                           ) : (
                             <UserPlus className="h-3 w-3" />
                           )}
-                          <span>{assignee ? (assignee.full_name ?? assignee.email).split(" ")[0] : t("detail.assign")}</span>
+                          {/* Name hidden on phones so the task title keeps the width */}
+                          <span className="hidden sm:inline">{assignee ? (assignee.full_name ?? assignee.email).split(" ")[0] : t("detail.assign")}</span>
                           <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
                         </button>
                       </div>
@@ -1856,6 +1857,7 @@ Blocked tasks: ${blockedTasks.map((task) => task.title).join(", ") || "None"}`,
             canEditTasks={canEditTasks}
             canUploadFiles={Boolean(permissions?.can_upload_files)}
             onComplete={handleCompleteTask}
+            onStatusChange={handleStatusChange}
             onTaskUpdated={handleTaskUpdated}
             onCalendarEventsChange={(events) => setCalendarEvents((current) => [
               ...current.filter((event) => event.task_id !== selectedTask.id),

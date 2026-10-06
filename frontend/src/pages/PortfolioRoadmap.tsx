@@ -229,7 +229,7 @@ export function PortfolioRoadmap() {
   }
 
   return (
-    <div className="min-h-full p-6 lg:p-8">
+    <div className="min-h-full p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -328,7 +328,7 @@ export function PortfolioRoadmap() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-2xl border border-white/10 app-panel">
             <div className="border-b border-white/10 px-5 py-4">
               <h2 className="text-lg font-semibold text-white">{t("roadmap.activeTimelines")}</h2>

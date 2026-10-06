@@ -314,12 +314,12 @@ export function BoardCalendar() {
   function renderMonthView() {
     return (
       <>
-        <div className="grid grid-cols-7 gap-3 mb-4">
+        <div className="grid grid-cols-7 gap-1 sm:gap-3 mb-2 sm:mb-4">
           {dayNames.map((day) => (
-            <div key={day} className="text-center text-gray-500 text-xs uppercase tracking-wider py-2">{day}</div>
+            <div key={day} className="text-center text-gray-500 text-[10px] sm:text-xs uppercase tracking-wider py-2">{day}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid grid-cols-7 gap-1 sm:gap-3">
           {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} className="aspect-square" />)}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const day = i + 1;
@@ -332,7 +332,7 @@ export function BoardCalendar() {
               <DayCell
                 key={day}
                 date={date}
-                className={`aspect-square border rounded-lg p-2 relative overflow-hidden group transition-all duration-200 ${
+                className={`aspect-square border rounded-lg p-1 sm:p-2 relative overflow-hidden group transition-all duration-200 ${
                   overloaded ? "border-amber-500/40 bg-amber-900/8" :
                   isToday ? "border-purple-500/50 bg-purple-900/10" :
                   "border-white/10 hover:border-white/20 app-surface-soft hover:app-surface-soft"
@@ -343,10 +343,21 @@ export function BoardCalendar() {
                   {day}
                   {overloaded && <span className="ml-1 text-[9px] text-amber-500">●</span>}
                 </div>
-                <div className="space-y-1 relative z-10">
+                <div className="hidden sm:block space-y-1 relative z-10">
                   {dayTasks.slice(0, 3).map((item) => <TaskPill key={item.task.id} item={item} compact />)}
                   {dayTasks.length > 3 && <div className="text-[9px] text-gray-500 px-1">{t("more", { count: dayTasks.length - 3 })}</div>}
                 </div>
+                {/* Phones: cells are too small for task pills, so show a count and open the day on tap */}
+                {dayTasks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setCurrentDate(date); setViewMode("day"); }}
+                    aria-label={`${date.toLocaleDateString(i18n.language)} · ${t("tasks", { count: dayTasks.length })}`}
+                    className="absolute inset-0 z-20 flex items-end justify-center pb-1 sm:hidden"
+                  >
+                    <span className="rounded-full bg-purple-600/80 px-1.5 text-[9px] font-semibold leading-4 text-white">{dayTasks.length}</span>
+                  </button>
+                )}
                 {isToday && <div className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full shadow-lg shadow-purple-500/50" />}
               </DayCell>
             );
@@ -381,7 +392,7 @@ export function BoardCalendar() {
   }
 
   return (
-    <div className="h-full min-h-0 p-6 sm:p-8 flex flex-col overflow-hidden">
+    <div className="min-h-full p-4 sm:p-6 md:h-full md:min-h-0 md:p-8 flex flex-col md:overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
@@ -494,7 +505,7 @@ export function BoardCalendar() {
       </div>
 
       {/* Calendar area */}
-      <div className="flex-1 min-h-0 app-surface-soft backdrop-blur-sm border border-white/10 rounded-xl p-6 overflow-auto">
+      <div className="md:flex-1 md:min-h-0 app-surface-soft backdrop-blur-sm border border-white/10 rounded-xl p-3 sm:p-6 overflow-auto">
         {loading
           ? <div className="flex items-center justify-center h-32 text-gray-500"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin me-3" />{t("loading")}</div>
           : <>
